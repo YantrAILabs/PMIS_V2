@@ -74,7 +74,32 @@
         "tasks": 34,
         "scored_tasks": 23
       }
+    },
+    {
+      "name": "P11-final",
+      "created": "2026-03-22T12:52:05Z",
+      "description": "P11 Final: 100% benchmark \u2014 synonym expansion, stemming, splitting, size norm, description enrichment, max_results=10",
+      "benchmark_score": 100.0,
+      "categories": {
+        "single-exact": 100.0,
+        "single-semantic": 100.0,
+        "cross-domain": 100.0,
+        "multi-turn": 100.0,
+        "feedback": 100.0,
+        "edge": 100.0
+      },
+      "key_changes": [],
+      "known_limitations": [],
+      "db_stats": {
+        "super_contexts": 21,
+        "contexts": 93,
+        "anchors": 290,
+        "nodes": 404,
+        "edges": 387,
+        "tasks": 34,
+        "scored_tasks": 23
+      }
     }
   ],
-  "current": "P11"
+  "current": "P11-final"
 }
