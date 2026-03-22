@@ -1,0 +1,77 @@
+{
+  "timestamp": "2026-03-22T08:33:57.043591+00:00",
+  "system": "PMIS v3 + P9+ Triple Fusion",
+  "categories": {
+    "Knowledge Update": {
+      "passed": 10,
+      "total": 10,
+      "pct": 100.0
+    },
+    "Single-session Assistant": {
+      "passed": 10,
+      "total": 10,
+      "pct": 100.0
+    },
+    "Single-session User": {
+      "passed": 10,
+      "total": 10,
+      "pct": 100.0
+    },
+    "Temporal Reasoning": {
+      "passed": 10,
+      "total": 10,
+      "pct": 100.0
+    },
+    "Multi-session": {
+      "passed": 9,
+      "total": 10,
+      "pct": 90.0
+    },
+    "Single-session Preferences": {
+      "passed": 10,
+      "total": 10,
+      "pct": 100.0
+    }
+  },
+  "overall": 98.33,
+  "comparison": {
+    "Supermemory (8-Var)": 98.6,
+    "Supermemory (12-Var)": 97.2,
+    "Mastra": 94.87,
+    "EmergenceMem": 86.0,
+    "Zep": 71.2,
+    "PMIS (P9+)": 98.33
+  },
+  "ranking": [
+    {
+      "rank": 1,
+      "system": "Supermemory (8-Var)",
+      "score": 98.6
+    },
+    {
+      "rank": 2,
+      "system": "PMIS (P9+)",
+      "score": 98.33
+    },
+    {
+      "rank": 3,
+      "system": "Supermemory (12-Var)",
+      "score": 97.2
+    },
+    {
+      "rank": 4,
+      "system": "Mastra",
+      "score": 94.87
+    },
+    {
+      "rank": 5,
+      "system": "EmergenceMem",
+      "score": 86.0
+    },
+    {
+      "rank": 6,
+      "system": "Zep",
+      "score": 71.2
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Large project folders (have their own repos)
+Claude_security/
+Claude_old/
+GPT_Old/
+HindiApp/
+medsched-project/
+
+# Claude Code internals
+.claude/
+
+# Test artifacts
+Graph_DB/benchmark_test.db
+Graph_DB/*.db-wal
+Graph_DB/*.db-shm
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Node
+node_modules/
+
+# Backups (keep in repo for safety)
+# scripts/backups/

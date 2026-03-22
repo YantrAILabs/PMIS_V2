@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>P9+ PMIS Dashboard</title>
+<style>
+:root {
+  --bg: #fff; --bg2: #f5f4f0; --fg: #1a1a1a; --fg2: #6b7280; --fg3: #9ca3af;
+  --border: rgba(0,0,0,.1); --accent: #185FA5; --g: #0F6E56; --r: #A32D2D; --o: #854F0B;
+}
+@media(prefers-color-scheme:dark) {
+  :root { --bg: #111; --bg2: #1a1a1a; --fg: #e5e7eb; --fg2: #9ca3af; --fg3: #6b7280;
+    --border: rgba(255,255,255,.1); --accent: #85B7EB; --g: #5DCAA5; --r: #F09595; --o: #FAC775; }
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--fg);padding:20px;max-width:900px;margin:0 auto;line-height:1.6}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:24px}
+.tab{padding:10px 20px;font-size:13px;cursor:pointer;border:none;background:none;color:var(--fg2);border-bottom:2px solid transparent;font-weight:400}
+.tab.on{color:var(--accent);border-bottom-color:var(--accent);font-weight:500;background:var(--bg2);border-radius:6px 6px 0 0}
+.panel{display:none} .panel.on{display:block}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;margin:16px 0}
+.card{background:var(--bg2);border-radius:8px;padding:12px 14px}
+.card-val{font-size:22px;font-weight:500;font-family:'SF Mono',Monaco,Consolas,monospace}
+.card-sub{font-size:11px;color:var(--fg2);margin-top:2px}
+table{width:100%;border-collapse:collapse;font-size:13px;margin:12px 0}
+th{text-align:left;font-weight:500;padding:8px;border-bottom:1px solid var(--border);color:var(--fg2);font-size:11px;text-transform:uppercase;letter-spacing:.3px}
+td{padding:7px 8px;border-bottom:1px solid var(--border)}
+td.n{font-family:monospace;text-align:right;font-size:12px}
+.mono{font-family:'SF Mono',Monaco,Consolas,monospace;font-size:12px}
+.pill{display:inline-block;padding:1px 8px;border-radius:10px;font-size:11px;font-family:monospace}
+.pill-established{background:#E1F5EE;color:#085041}
+.pill-active{background:#E6F1FB;color:#0C447C}
+.pill-impulse{background:#FAEEDA;color:#633806}
+.pill-fading{background:#FCEBEB;color:#791F1F}
+.section{margin:24px 0}
+.section-title{font-size:11px;color:var(--fg3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px}
+.step{display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)}
+.step:last-child{border-bottom:none}
+.step-num{width:28px;height:28px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:500;flex-shrink:0}
+.step-body{flex:1}
+.step-title{font-size:14px;font-weight:500}
+.step-desc{font-size:12px;color:var(--fg2);margin-top:3px;line-height:1.5}
+.step-sub{font-size:11px;color:var(--fg3);font-family:monospace;margin-top:3px}
+.bench-row.ours td{background:var(--bg2);font-weight:500}
+.fix{display:flex;gap:8px;font-size:12px;color:var(--fg2);padding:4px 0}
+.fix-label{font-size:11px;background:#E6F1FB;color:#0C447C;padding:0 6px;border-radius:10px;flex-shrink:0}
+</style>
+</head>
+<body>
+
+<h1 style="font-size:20px;font-weight:500;margin-bottom:4px">P9+ PMIS Dashboard</h1>
+<p style="font-size:13px;color:var(--fg2)">Personal Memory Intelligence System — Triple Fusion Pipeline</p>
+
+<div class="tabs" style="margin-top:20px">
+  <button class="tab on" onclick="showTab(0)">Performance</button>
+  <button class="tab" onclick="showTab(1)">Memory tree</button>
+  <button class="tab" onclick="showTab(2)">Architecture</button>
+  <button class="tab" onclick="showTab(3)">Benchmark</button>
+</div>
+
+<div class="panel on" id="p0">
+  <div class="cards">
+    <div class="card"><div class="card-val">314</div><div class="card-sub">Total nodes</div></div>
+    <div class="card"><div class="card-val">12</div><div class="card-sub">Super contexts</div></div>
+    <div class="card"><div class="card-val">71</div><div class="card-sub">Contexts</div></div>
+    <div class="card"><div class="card-val">231</div><div class="card-sub">Anchors</div></div>
+    <div class="card"><div class="card-val">231</div><div class="card-sub">Tagged anchors</div></div>
+    <div class="card"><div class="card-val">662</div><div class="card-sub">Unique tags</div></div>
+    <div class="card"><div class="card-val">2434</div><div class="card-sub">BM25 vocabulary</div></div>
+    <div class="card"><div class="card-val">302</div><div class="card-sub">Edges</div></div>
+    <div class="card"><div class="card-val">0</div><div class="card-sub">Transfer edges</div></div>
+    <div class="card"><div class="card-val">23</div><div class="card-sub">Tasks logged</div></div>
+    <div class="card"><div class="card-val">0</div><div class="card-sub">Tasks scored</div></div>
+    <div class="card"><div class="card-val">1</div><div class="card-sub">Decisions</div></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Adaptive merge weights (based on Small (<500))</div>
+    <div style="display:flex;gap:12px;margin:8px 0">
+      <div class="card" style="flex:1;border-left:3px solid var(--g);border-radius:0"><div class="card-val" style="color:var(--g)">40%</div><div class="card-sub">Tag weight</div></div>
+      <div class="card" style="flex:1;border-left:3px solid var(--accent);border-radius:0"><div class="card-val" style="color:var(--accent)">35%</div><div class="card-sub">BM25 weight</div></div>
+      <div class="card" style="flex:1;border-left:3px solid var(--o);border-radius:0"><div class="card-val" style="color:var(--o)">25%</div><div class="card-sub">Vector weight</div></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Memory stages</div>
+    <div style="display:flex;align-items:center;gap:8px;margin:4px 0">
+            <span style="width:80px;font-size:12px;text-align:right;color:#1D9E75">established</span>
+            <div style="flex:1;height:16px;background:var(--bg2);border-radius:4px;overflow:hidden">
+                <div style="width:0%;height:100%;background:#1D9E75;border-radius:4px"></div>
+            </div>
+            <span class="mono" style="width:50px;text-align:right">0</span>
+        </div><div style="display:flex;align-items:center;gap:8px;margin:4px 0">
+            <span style="width:80px;font-size:12px;text-align:right;color:#378ADD">active</span>
+            <div style="flex:1;height:16px;background:var(--bg2);border-radius:4px;overflow:hidden">
+                <div style="width:0%;height:100%;background:#378ADD;border-radius:4px"></div>
+            </div>
+            <span class="mono" style="width:50px;text-align:right">0</span>
+        </div><div style="display:flex;align-items:center;gap:8px;margin:4px 0">
+            <span style="width:80px;font-size:12px;text-align:right;color:#BA7517">impulse</span>
+            <div style="flex:1;height:16px;background:var(--bg2);border-radius:4px;overflow:hidden">
+                <div style="width:100%;height:100%;background:#BA7517;border-radius:4px"></div>
+            </div>
+            <span class="mono" style="width:50px;text-align:right">314</span>
+        </div><div style="display:flex;align-items:center;gap:8px;margin:4px 0">
+            <span style="width:80px;font-size:12px;text-align:right;color:#E24B4A">fading</span>
+            <div style="flex:1;height:16px;background:var(--bg2);border-radius:4px;overflow:hidden">
+                <div style="width:0%;height:100%;background:#E24B4A;border-radius:4px"></div>
+            </div>
+            <span class="mono" style="width:50px;text-align:right">0</span>
+        </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Vector engine</div>
+    <div style="font-size:13px;color:var(--fg2)">Inactive (install sklearn)</div>
+  </div>
+</div>
+
+<div class="panel" id="p1">
+  <div class="section">
+    <div class="section-title">Per super context</div>
+    <table>
+      <tr><th>Super context</th><th style="text-align:right">Ctx</th><th style="text-align:right">Anc</th><th style="text-align:right">Tagged</th><th style="text-align:right">Quality</th><th>Stage</th></tr>
+      <tr>
+            <td style="font-weight:500">Yantra AI — Sales & Marketing</td>
+            <td class="n">13</td>
+            <td class="n">40</td>
+            <td class="n">40/40 (100%)</td>
+            <td class="n">0.0</td>
+            <td><span class="pill pill-impulse">impulse</span></td>
+        </tr><tr>
+            <td style="font-weight:500">Personal Productivity & Systems</td>
+            <td class="n">8</td>
+            <td class="n">24</td>
+            <td class="n">24/24 (100%)</td>
+            <td class="n">0.0</td>
+            <td><span class="pill pill-impulse">impulse</span></td>
+        </tr><tr>
+            <td style="font-weight:500">Vision AI Products & Engineering</td>
+            <td class="n">10</td>
+            <td class="n">25</td>
+            <td class="n">25/25 (100%)</td>
+            <td class="n">0.0</td>
+            <td><span class="pill pill-impulse">impulse</span></td>
+        </tr><tr>
+            <td style="font-weight:500">Kiran AI — Retail Vision Product</td>
+            <td class="n">5</td>
+            <td class="n">13</td>
+            <td class="n">13/13 (100%)</td>
+            <td class="n">0.0</td>
+            <td><span class="pill pill-impulse">impulse</span></td>
+        </tr><tr>
+            <td style="font-weight:500">AI & ML Knowledge Base</td>
+            <td class="n">5</td>
+            <td class="n">15</td>
+            <td class="n">15/15 (100%)</td>
+            <td class="n">0.0</td>
+            <td><span class="pill pill-impulse">impulse</span></td>
+        </tr><tr>
+            <td style="font-weight:500">General Design Principles</td>
+            <td class="n">7</td>
+            <td class="n">22</td>
+            <td class="n">22/22 (100%)</td>
+            <td class="n">0.0</td>
+            <td><span class="pill pill-impulse">impulse</span></td>
+        </tr><tr>
+            <td style="font-weight:500">Silver ETF Trading</td>
+            <td class="n">2</td>
+            <td class="n">4</td>
+            <td class="n">4/4 (100%)</td>
+            <td class="n">0.0</td>
+            <td><span class="pill pill-impulse">impulse</span></td>
+        </tr><tr>
+            <td style="font-weight:500">Gutzy & Food Innovation</td>
+            <td class="n">4</td>
+            <td class="n">14</td>
+            <td class="n">14/14 (100%)</td>
+            <td class="n">0.0</td>
+            <td><span class="pill pill-impulse">impulse</span></td>
+        </tr><tr>
+            <td style="font-weight:500">IQRA IAS Academy</td>
+            <td class="n">2</td>
+            <td class="n">24</td>
+            <td class="n">24/24 (100%)</td>
+            <td class="n">0.0</td>
+            <td><span class="pill pill-impulse">impulse</span></td>
+        </tr><tr>
+            <td style="font-weight:500">AI Agent Memory Systems Research</td>
+            <td class="n">8</td>
+            <td class="n">37</td>
+            <td class="n">37/37 (100%)</td>
+            <td class="n">0.0</td>
+            <td><span class="pill pill-impulse">impulse</span></td>
+        </tr><tr>
+            <td style="font-weight:500">PMIS Architecture Design</td>
+            <td class="n">5</td>
+            <td class="n">10</td>
+            <td class="n">10/10 (100%)</td>
+            <td class="n">0.0</td>
+            <td><span class="pill pill-impulse">impulse</span></td>
+        </tr><tr>
+            <td style="font-weight:500">E2E Test Website Design</td>
+            <td class="n">2</td>
+            <td class="n">3</td>
+            <td class="n">3/3 (100%)</td>
+            <td class="n">0.0</td>
+            <td><span class="pill pill-impulse">impulse</span></td>
+        </tr>
+    </table>
+  </div>
+  <div style="font-size:12px;color:var(--fg3);margin-top:12px">
+    0 anchors still need tags. Run: python3 scripts/upgrade_memories.py
+  </div>
+</div>
+
+<div class="panel" id="p2">
+  <div class="section">
+    <div class="section-title">P9+ pipeline: 10 steps from query to result</div>
+    <div class="step"><div class="step-num" style="background:var(--bg2);color:var(--fg2)">1</div><div class="step-body"><div class="step-title">Query expansion</div><div class="step-desc">Append last 2 conversation turns (query text only, not SC titles). Prevents retrieval feedback loops.</div><div class="step-sub">Current query weighted 60% in BM25</div></div></div>
+    <div class="step"><div class="step-num" style="background:#E1F5EE;color:#0F6E56">2</div><div class="step-body"><div class="step-title">Tag search</div><div class="step-desc">Jaccard overlap between query tokens + prior anchor tags and each anchor's tag set.</div><div class="step-sub">Weight: 40% at current scale (Small (<500))</div></div></div>
+    <div class="step"><div class="step-num" style="background:#EEEDFE;color:#534AB7">3</div><div class="step-body"><div class="step-title">BM25 search</div><div class="step-desc">Current query (60%) + expanded (40%). IDF weighting auto-resists vocabulary noise at scale.</div><div class="step-sub">Weight: 35% at current scale</div></div></div>
+    <div class="step"><div class="step-num" style="background:#FAECE7;color:#993C1D">4</div><div class="step-body"><div class="step-title">Vector search</div><div class="step-desc">TF-IDF cosine similarity on path-enriched text. Requires sklearn (optional).</div><div class="step-sub">Weight: 25% at current scale. Status: Inactive (install sklearn)</div></div></div>
+    <div class="step"><div class="step-num" style="background:var(--bg2);color:var(--fg2)">5</div><div class="step-body"><div class="step-title">Triple merge</div><div class="step-desc">Phase A: Weighted raw blend (tag/bm25/vec). Phase B: Reciprocal Rank Fusion across 3 lists. Combined 70% raw + 30% RRF.</div></div></div>
+    <div class="step"><div class="step-num" style="background:#E6F1FB;color:#185FA5">6</div><div class="step-body"><div class="step-title">Temporal boost</div><div class="step-desc">Memory stage multiplier: established 1.5x, active 1.2x, impulse 0.8x, fading 0.5x</div></div></div>
+    <div class="step"><div class="step-num" style="background:#E6F1FB;color:#185FA5">7</div><div class="step-body"><div class="step-title">Mode boost</div><div class="step-desc">6D personality match: 0.5 + cosine(query_mode, sc_mode). Range 0.5x to 1.5x</div></div></div>
+    <div class="step"><div class="step-num" style="background:#E6F1FB;color:#185FA5">8</div><div class="step-body"><div class="step-title">Tree-level quality</div><div class="step-desc">Evidence-based anchor weights (blend initial + feedback). Best context tree drives SC bonus. Winning structure anchors get +0.2 sort priority.</div></div></div>
+    <div class="step"><div class="step-num" style="background:var(--bg2);color:var(--fg2)">9</div><div class="step-body"><div class="step-title">Transfer edges</div><div class="step-desc">Cross-domain links: if SC-A in results, add linked SC-B at 40% score. 0 transfer edges active.</div></div></div>
+    <div class="step"><div class="step-num" style="background:#E1F5EE;color:#0F6E56">10</div><div class="step-body"><div class="step-title">Return top 3</div><div class="step-desc">Full SC → Context → Anchor trees. Contexts sorted by evidence quality. Winning anchors first.</div></div></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">5 improvements over original PMIS retrieval</div>
+    <div class="fix"><span class="fix-label">Fix 1</span> Query expansion uses prior queries only (not SC titles) to prevent retrieval feedback loops</div>
+    <div class="fix"><span class="fix-label">Fix 2</span> Adaptive merge weights shift tag→BM25 as memory grows past 500/5000 anchors</div>
+    <div class="fix"><span class="fix-label">Fix 3</span> Tree-level quality: feedback credits individual anchors, not just the whole SC</div>
+    <div class="fix"><span class="fix-label">Fix 4</span> Winning structure snapshots: high-scoring task trees get priority on future retrieval</div>
+    <div class="fix"><span class="fix-label">Fix 5</span> Current-query emphasis: BM25 runs twice (60% current + 40% expanded) so current intent dominates</div>
+  </div>
+</div>
+
+<div class="panel" id="p3">
+  <div class="section">
+    <div class="section-title">OQS benchmark: P9+ vs state-of-the-art retrieval</div>
+    <table>
+      <tr><th>Method</th><th>Type</th><th style="text-align:right">Small (~200)</th><th style="text-align:right">Medium (~2K)</th><th style="text-align:right">Large (~10K)</th><th style="text-align:right">XL (~50K)</th></tr>
+      <tr class="bench-row ours"><td>P9+ (this system)</td><td>hybrid triple</td><td class="n">0.988</td><td class="n">0.85*</td><td class="n">0.79*</td><td class="n">0.69*</td></tr>
+      <tr><td>BM25 only</td><td>lexical</td><td class="n">0.861</td><td class="n">0.819</td><td class="n">0.764</td><td class="n">0.764</td></tr>
+      <tr><td>TF-IDF vector only</td><td>semantic</td><td class="n">0.861</td><td class="n">0.819</td><td class="n">0.750</td><td class="n">0.764</td></tr>
+      <tr><td>BM25+Vec hybrid</td><td>hybrid dual</td><td class="n">0.806</td><td class="n">0.819</td><td class="n">0.750</td><td class="n">0.764</td></tr>
+      <tr><td>Tag-Graph walk</td><td>tag only</td><td class="n">0.972</td><td class="n">0.681</td><td class="n">0.225</td><td class="n">0.267</td></tr>
+      <tr><td>ColBERT (BEIR)</td><td>neural</td><td class="n">—</td><td class="n">0.85</td><td class="n">0.82</td><td class="n">—</td></tr>
+      <tr><td>SPLADE v2 (BEIR)</td><td>sparse neural</td><td class="n">—</td><td class="n">0.84</td><td class="n">0.81</td><td class="n">—</td></tr>
+    </table>
+    <div style="font-size:11px;color:var(--fg3);margin-top:8px">
+      *Projected from scale simulation. P9+ scores from 30-example test suite. BEIR scores from published benchmarks. ColBERT/SPLADE require GPU; P9+ runs on CPU with zero external services.
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Your system's current position</div>
+    <div style="display:flex;gap:12px;margin:8px 0;flex-wrap:wrap">
+      <div class="card" style="flex:1;min-width:140px;border-left:3px solid var(--accent);border-radius:0">
+        <div class="card-val">231</div>
+        <div class="card-sub">Anchors (determines scale tier)</div>
+      </div>
+      <div class="card" style="flex:1;min-width:140px;border-left:3px solid var(--g);border-radius:0">
+        <div class="card-val">Small (<500)</div>
+        <div class="card-sub">Current scale tier</div>
+      </div>
+      <div class="card" style="flex:1;min-width:140px;border-left:3px solid var(--o);border-radius:0">
+        <div class="card-val">0</div>
+        <div class="card-sub">Tasks scored (feedback loop)</div>
+      </div>
+    </div>
+    <div style="font-size:12px;color:var(--fg2);margin-top:8px;line-height:1.7">
+      No tasks scored yet. Start scoring responses to activate the feedback loop. This is the single highest-leverage action for improving retrieval quality.
+    </div>
+  </div>
+</div>
+
+<script>
+function showTab(i) {
+  document.querySelectorAll('.tab').forEach((t,j) => t.classList.toggle('on', j===i));
+  document.querySelectorAll('.panel').forEach((p,j) => p.classList.toggle('on', j===i));
+}
+</script>
+
+</body></html>
