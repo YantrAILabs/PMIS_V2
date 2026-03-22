@@ -1,1096 +1,2182 @@
 [
   {
     "experiment": 1,
-    "timestamp": "2026-03-22T09:41:59Z",
-    "strategy": "dual",
-    "score": 75.26,
-    "best_score": 75.26,
+    "timestamp": "2026-03-22T09:47:35Z",
+    "strategy": "single",
+    "score": 71.41,
+    "best_score": 71.41,
     "delta": 0.0,
     "improved": false,
     "params_changed": [
-      "tag_weight=0.3651",
-      "bm25_weight=0.3195",
-      "vec_weight=0.3154"
+      "bm25_k1=1.5159"
     ],
     "categories": {
-      "knowledge_update": 62.5,
-      "single_session_assistant": 74.72,
-      "single_session_user": 83.33,
-      "temporal_reasoning": 91.67,
+      "knowledge_update": 44.44,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
       "multi_session": 65.0,
-      "single_session_preferences": 66.67
+      "single_session_preferences": 72.92
     },
-    "elapsed": 0.083
+    "elapsed": 0.178
   },
   {
     "experiment": 2,
-    "timestamp": "2026-03-22T09:41:59Z",
+    "timestamp": "2026-03-22T09:47:35Z",
     "strategy": "single",
-    "score": 75.26,
-    "best_score": 75.26,
+    "score": 71.41,
+    "best_score": 71.41,
     "delta": 0.0,
     "improved": false,
-    "params_changed": [
-      "anchor_content_weight=0.3747"
-    ],
+    "params_changed": [],
     "categories": {
-      "knowledge_update": 62.5,
-      "single_session_assistant": 74.72,
-      "single_session_user": 83.33,
-      "temporal_reasoning": 91.67,
+      "knowledge_update": 44.44,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
       "multi_session": 65.0,
-      "single_session_preferences": 66.67
+      "single_session_preferences": 72.92
     },
-    "elapsed": 0.083
+    "elapsed": 0.173
   },
   {
     "experiment": 3,
-    "timestamp": "2026-03-22T09:41:59Z",
-    "strategy": "single",
-    "score": 75.26,
-    "best_score": 75.26,
+    "timestamp": "2026-03-22T09:47:35Z",
+    "strategy": "random",
+    "score": 71.41,
+    "best_score": 71.41,
     "delta": 0.0,
     "improved": false,
     "params_changed": [
-      "goal_weight_in_ranking=0.1818"
+      "tag_weight=0.4212",
+      "bm25_weight=0.2323",
+      "vec_weight=0.3465"
     ],
     "categories": {
-      "knowledge_update": 62.5,
-      "single_session_assistant": 74.72,
-      "single_session_user": 83.33,
-      "temporal_reasoning": 91.67,
+      "knowledge_update": 44.44,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
       "multi_session": 65.0,
-      "single_session_preferences": 66.67
+      "single_session_preferences": 72.92
     },
-    "elapsed": 0.082
+    "elapsed": 0.176
   },
   {
     "experiment": 4,
-    "timestamp": "2026-03-22T09:41:59Z",
-    "strategy": "dual",
-    "score": 75.26,
-    "best_score": 75.26,
-    "delta": 0.0,
+    "timestamp": "2026-03-22T09:47:35Z",
+    "strategy": "single",
+    "score": 69.81,
+    "best_score": 71.41,
+    "delta": -1.6,
     "improved": false,
     "params_changed": [
-      "tag_partial_weight=0.4831",
-      "max_results=4"
+      "max_results=2"
     ],
     "categories": {
-      "knowledge_update": 62.5,
+      "knowledge_update": 45.83,
       "single_session_assistant": 74.72,
-      "single_session_user": 83.33,
-      "temporal_reasoning": 91.67,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
       "multi_session": 65.0,
       "single_session_preferences": 66.67
     },
-    "elapsed": 0.082
+    "elapsed": 0.17
   },
   {
     "experiment": 5,
-    "timestamp": "2026-03-22T09:41:59Z",
+    "timestamp": "2026-03-22T09:47:36Z",
     "strategy": "single",
-    "score": 75.26,
-    "best_score": 75.26,
+    "score": 71.41,
+    "best_score": 71.41,
     "delta": 0.0,
     "improved": false,
     "params_changed": [
-      "tag_weight=0.3911",
-      "bm25_weight=0.3422",
-      "vec_weight=0.2667"
+      "session_decay=0.8602"
     ],
     "categories": {
-      "knowledge_update": 62.5,
-      "single_session_assistant": 74.72,
-      "single_session_user": 83.33,
-      "temporal_reasoning": 91.67,
+      "knowledge_update": 44.44,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
       "multi_session": 65.0,
-      "single_session_preferences": 66.67
+      "single_session_preferences": 72.92
     },
-    "elapsed": 0.083
+    "elapsed": 0.176
   },
   {
     "experiment": 6,
-    "timestamp": "2026-03-22T09:41:59Z",
-    "strategy": "random",
-    "score": 75.26,
-    "best_score": 75.26,
+    "timestamp": "2026-03-22T09:47:36Z",
+    "strategy": "single",
+    "score": 71.41,
+    "best_score": 71.41,
     "delta": 0.0,
     "improved": false,
     "params_changed": [
-      "tag_weight=0.3423",
-      "bm25_weight=0.3836",
-      "vec_weight=0.2741"
+      "goal_weight_in_ranking=0.1613"
     ],
     "categories": {
-      "knowledge_update": 62.5,
-      "single_session_assistant": 74.72,
-      "single_session_user": 83.33,
-      "temporal_reasoning": 91.67,
+      "knowledge_update": 44.44,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
       "multi_session": 65.0,
-      "single_session_preferences": 66.67
+      "single_session_preferences": 72.92
     },
-    "elapsed": 0.084
+    "elapsed": 0.177
   },
   {
     "experiment": 7,
-    "timestamp": "2026-03-22T09:41:59Z",
-    "strategy": "random",
-    "score": 75.26,
-    "best_score": 75.26,
+    "timestamp": "2026-03-22T09:47:36Z",
+    "strategy": "single",
+    "score": 71.41,
+    "best_score": 71.41,
     "delta": 0.0,
     "improved": false,
     "params_changed": [
-      "tag_weight=0.4426",
-      "bm25_weight=0.3252",
-      "vec_weight=0.2322"
+      "bm25_b=0.6743"
     ],
     "categories": {
-      "knowledge_update": 62.5,
-      "single_session_assistant": 74.72,
-      "single_session_user": 83.33,
-      "temporal_reasoning": 91.67,
+      "knowledge_update": 44.44,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
       "multi_session": 65.0,
-      "single_session_preferences": 66.67
+      "single_session_preferences": 72.92
     },
-    "elapsed": 0.084
+    "elapsed": 0.176
   },
   {
     "experiment": 8,
-    "timestamp": "2026-03-22T09:41:59Z",
-    "strategy": "dual",
-    "score": 75.26,
-    "best_score": 75.26,
+    "timestamp": "2026-03-22T09:47:36Z",
+    "strategy": "single",
+    "score": 71.41,
+    "best_score": 71.41,
     "delta": 0.0,
     "improved": false,
     "params_changed": [
-      "boost_fading=0.243",
-      "divergence_threshold=0.2154"
+      "boost_active=1.1404"
     ],
     "categories": {
-      "knowledge_update": 62.5,
-      "single_session_assistant": 74.72,
-      "single_session_user": 83.33,
-      "temporal_reasoning": 91.67,
+      "knowledge_update": 44.44,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
       "multi_session": 65.0,
-      "single_session_preferences": 66.67
+      "single_session_preferences": 72.92
     },
-    "elapsed": 0.084
+    "elapsed": 0.175
   },
   {
     "experiment": 9,
-    "timestamp": "2026-03-22T09:41:59Z",
+    "timestamp": "2026-03-22T09:47:36Z",
     "strategy": "single",
-    "score": 75.26,
-    "best_score": 75.26,
+    "score": 71.41,
+    "best_score": 71.41,
     "delta": 0.0,
     "improved": false,
     "params_changed": [
-      "bm25_k1=1.7332"
+      "bm25_k1=1.6979"
     ],
     "categories": {
-      "knowledge_update": 62.5,
-      "single_session_assistant": 74.72,
-      "single_session_user": 83.33,
-      "temporal_reasoning": 91.67,
+      "knowledge_update": 44.44,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
       "multi_session": 65.0,
-      "single_session_preferences": 66.67
+      "single_session_preferences": 72.92
     },
-    "elapsed": 0.084
+    "elapsed": 0.174
   },
   {
     "experiment": 10,
-    "timestamp": "2026-03-22T09:41:59Z",
-    "strategy": "dual",
-    "score": 75.26,
-    "best_score": 75.26,
+    "timestamp": "2026-03-22T09:47:36Z",
+    "strategy": "single",
+    "score": 71.41,
+    "best_score": 71.41,
     "delta": 0.0,
     "improved": false,
     "params_changed": [
-      "tag_jaccard_boost=1.7301",
-      "boost_established=1.7108"
+      "boost_impulse=0.7739"
     ],
     "categories": {
-      "knowledge_update": 62.5,
-      "single_session_assistant": 74.72,
-      "single_session_user": 83.33,
-      "temporal_reasoning": 91.67,
+      "knowledge_update": 44.44,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
       "multi_session": 65.0,
-      "single_session_preferences": 66.67
+      "single_session_preferences": 72.92
     },
-    "elapsed": 0.084
+    "elapsed": 0.175
   },
   {
     "experiment": 11,
-    "timestamp": "2026-03-22T09:42:00Z",
-    "strategy": "dual",
-    "score": 75.26,
-    "best_score": 75.26,
+    "timestamp": "2026-03-22T09:47:37Z",
+    "strategy": "single",
+    "score": 71.41,
+    "best_score": 71.41,
     "delta": 0.0,
     "improved": false,
     "params_changed": [
-      "bm25_b=0.6455",
-      "divergence_threshold=0.2521"
+      "goal_weight_in_ranking=0.0723"
     ],
     "categories": {
-      "knowledge_update": 62.5,
-      "single_session_assistant": 74.72,
-      "single_session_user": 83.33,
-      "temporal_reasoning": 91.67,
+      "knowledge_update": 44.44,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
       "multi_session": 65.0,
-      "single_session_preferences": 66.67
+      "single_session_preferences": 72.92
     },
-    "elapsed": 0.084
+    "elapsed": 0.176
   },
   {
     "experiment": 12,
-    "timestamp": "2026-03-22T09:42:00Z",
+    "timestamp": "2026-03-22T09:47:37Z",
     "strategy": "single",
-    "score": 75.26,
-    "best_score": 75.26,
+    "score": 71.41,
+    "best_score": 71.41,
     "delta": 0.0,
     "improved": false,
     "params_changed": [
-      "bm25_b=0.6565"
+      "bm25_b=0.8105"
     ],
     "categories": {
-      "knowledge_update": 62.5,
-      "single_session_assistant": 74.72,
-      "single_session_user": 83.33,
-      "temporal_reasoning": 91.67,
+      "knowledge_update": 44.44,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
       "multi_session": 65.0,
-      "single_session_preferences": 66.67
+      "single_session_preferences": 72.92
     },
-    "elapsed": 0.084
+    "elapsed": 0.174
   },
   {
     "experiment": 13,
-    "timestamp": "2026-03-22T09:42:00Z",
-    "strategy": "dual",
-    "score": 75.26,
-    "best_score": 75.26,
+    "timestamp": "2026-03-22T09:47:37Z",
+    "strategy": "single",
+    "score": 71.41,
+    "best_score": 71.41,
     "delta": 0.0,
     "improved": false,
     "params_changed": [
-      "boost_fading=0.7108",
-      "session_decay=0.95"
+      "boost_established=1.3553"
     ],
     "categories": {
-      "knowledge_update": 62.5,
-      "single_session_assistant": 74.72,
-      "single_session_user": 83.33,
-      "temporal_reasoning": 91.67,
+      "knowledge_update": 44.44,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
       "multi_session": 65.0,
-      "single_session_preferences": 66.67
+      "single_session_preferences": 72.92
     },
-    "elapsed": 0.084
+    "elapsed": 0.174
   },
   {
     "experiment": 14,
-    "timestamp": "2026-03-22T09:42:00Z",
-    "strategy": "random",
-    "score": 75.26,
-    "best_score": 75.26,
+    "timestamp": "2026-03-22T09:47:37Z",
+    "strategy": "dual",
+    "score": 71.41,
+    "best_score": 71.41,
     "delta": 0.0,
     "improved": false,
     "params_changed": [
-      "bm25_k1=0.5989",
-      "boost_active=0.9365",
-      "session_decay=0.7375"
+      "tag_weight=0.418",
+      "bm25_weight=0.3395",
+      "vec_weight=0.2425"
     ],
     "categories": {
-      "knowledge_update": 62.5,
-      "single_session_assistant": 74.72,
-      "single_session_user": 83.33,
-      "temporal_reasoning": 91.67,
+      "knowledge_update": 44.44,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
       "multi_session": 65.0,
-      "single_session_preferences": 66.67
+      "single_session_preferences": 72.92
     },
-    "elapsed": 0.084
+    "elapsed": 0.176
   },
   {
     "experiment": 15,
-    "timestamp": "2026-03-22T09:42:00Z",
-    "strategy": "random",
-    "score": 75.26,
-    "best_score": 75.26,
+    "timestamp": "2026-03-22T09:47:37Z",
+    "strategy": "single",
+    "score": 71.41,
+    "best_score": 71.41,
     "delta": 0.0,
     "improved": false,
     "params_changed": [
-      "tag_weight=0.3821",
-      "bm25_weight=0.3605",
-      "vec_weight=0.2574"
+      "boost_established=1.2"
     ],
     "categories": {
-      "knowledge_update": 62.5,
-      "single_session_assistant": 74.72,
-      "single_session_user": 83.33,
-      "temporal_reasoning": 91.67,
+      "knowledge_update": 44.44,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
       "multi_session": 65.0,
-      "single_session_preferences": 66.67
+      "single_session_preferences": 72.92
     },
-    "elapsed": 0.084
+    "elapsed": 0.171
   },
   {
     "experiment": 16,
-    "timestamp": "2026-03-22T09:42:00Z",
-    "strategy": "single",
-    "score": 75.26,
-    "best_score": 75.26,
-    "delta": 0.0,
+    "timestamp": "2026-03-22T09:47:37Z",
+    "strategy": "dual",
+    "score": 69.81,
+    "best_score": 71.41,
+    "delta": -1.6,
     "improved": false,
     "params_changed": [
-      "boost_active=1.0682"
+      "boost_active=1.2651",
+      "max_results=2"
     ],
     "categories": {
-      "knowledge_update": 62.5,
+      "knowledge_update": 45.83,
       "single_session_assistant": 74.72,
-      "single_session_user": 83.33,
-      "temporal_reasoning": 91.67,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
       "multi_session": 65.0,
       "single_session_preferences": 66.67
     },
-    "elapsed": 0.084
+    "elapsed": 0.168
   },
   {
     "experiment": 17,
-    "timestamp": "2026-03-22T09:42:00Z",
-    "strategy": "single",
-    "score": 75.26,
-    "best_score": 75.26,
-    "delta": 0.0,
-    "improved": false,
+    "timestamp": "2026-03-22T09:47:38Z",
+    "strategy": "dual",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 2.24,
+    "improved": true,
     "params_changed": [
-      "tag_jaccard_boost=1.3968"
+      "max_results=4",
+      "goal_weight_in_ranking=0.1299"
     ],
     "categories": {
-      "knowledge_update": 62.5,
-      "single_session_assistant": 74.72,
-      "single_session_user": 83.33,
-      "temporal_reasoning": 91.67,
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
       "multi_session": 65.0,
-      "single_session_preferences": 66.67
+      "single_session_preferences": 72.92
     },
-    "elapsed": 0.085
+    "elapsed": 0.177
   },
   {
     "experiment": 18,
-    "timestamp": "2026-03-22T09:42:00Z",
+    "timestamp": "2026-03-22T09:47:38Z",
     "strategy": "single",
-    "score": 75.26,
-    "best_score": 75.26,
+    "score": 73.65,
+    "best_score": 73.65,
     "delta": 0.0,
     "improved": false,
     "params_changed": [
-      "tag_weight=0.4451",
-      "bm25_weight=0.3237",
-      "vec_weight=0.2312"
+      "boost_impulse=0.6913"
     ],
     "categories": {
-      "knowledge_update": 62.5,
-      "single_session_assistant": 74.72,
-      "single_session_user": 83.33,
-      "temporal_reasoning": 91.67,
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
       "multi_session": 65.0,
-      "single_session_preferences": 66.67
+      "single_session_preferences": 72.92
     },
-    "elapsed": 0.086
+    "elapsed": 0.177
   },
   {
     "experiment": 19,
-    "timestamp": "2026-03-22T09:42:00Z",
+    "timestamp": "2026-03-22T09:47:38Z",
     "strategy": "dual",
-    "score": 75.26,
-    "best_score": 75.26,
+    "score": 73.65,
+    "best_score": 73.65,
     "delta": 0.0,
     "improved": false,
     "params_changed": [
-      "session_decay=0.8658",
-      "goal_weight_in_ranking=0.2538"
+      "boost_active=1.0858",
+      "boost_fading=0.3428"
     ],
     "categories": {
-      "knowledge_update": 62.5,
-      "single_session_assistant": 74.72,
-      "single_session_user": 83.33,
-      "temporal_reasoning": 91.67,
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
       "multi_session": 65.0,
-      "single_session_preferences": 66.67
+      "single_session_preferences": 72.92
     },
-    "elapsed": 0.086
+    "elapsed": 0.179
   },
   {
     "experiment": 20,
-    "timestamp": "2026-03-22T09:42:00Z",
+    "timestamp": "2026-03-22T09:47:38Z",
     "strategy": "single",
-    "score": 75.26,
-    "best_score": 75.26,
+    "score": 73.65,
+    "best_score": 73.65,
     "delta": 0.0,
     "improved": false,
     "params_changed": [
-      "tag_jaccard_boost=0.7153"
+      "tag_weight=0.4084",
+      "bm25_weight=0.3574",
+      "vec_weight=0.2342"
     ],
     "categories": {
-      "knowledge_update": 62.5,
-      "single_session_assistant": 74.72,
-      "single_session_user": 83.33,
-      "temporal_reasoning": 91.67,
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
       "multi_session": 65.0,
-      "single_session_preferences": 66.67
+      "single_session_preferences": 72.92
     },
-    "elapsed": 0.084
+    "elapsed": 0.18
   },
   {
     "experiment": 21,
-    "timestamp": "2026-03-22T09:42:00Z",
+    "timestamp": "2026-03-22T09:47:38Z",
     "strategy": "single",
-    "score": 75.26,
-    "best_score": 75.26,
+    "score": 73.65,
+    "best_score": 73.65,
     "delta": 0.0,
     "improved": false,
     "params_changed": [
-      "boost_impulse=0.7169"
+      "tag_jaccard_boost=1.0205"
     ],
     "categories": {
-      "knowledge_update": 62.5,
-      "single_session_assistant": 74.72,
-      "single_session_user": 83.33,
-      "temporal_reasoning": 91.67,
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
       "multi_session": 65.0,
-      "single_session_preferences": 66.67
+      "single_session_preferences": 72.92
     },
-    "elapsed": 0.084
+    "elapsed": 0.178
   },
   {
     "experiment": 22,
-    "timestamp": "2026-03-22T09:42:00Z",
-    "strategy": "random",
-    "score": 75.26,
-    "best_score": 75.26,
+    "timestamp": "2026-03-22T09:47:38Z",
+    "strategy": "single",
+    "score": 73.65,
+    "best_score": 73.65,
     "delta": 0.0,
     "improved": false,
     "params_changed": [
-      "tag_weight=0.2485",
-      "bm25_weight=0.5025",
-      "vec_weight=0.249"
+      "boost_fading=0.4873"
     ],
     "categories": {
-      "knowledge_update": 62.5,
-      "single_session_assistant": 74.72,
-      "single_session_user": 83.33,
-      "temporal_reasoning": 91.67,
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
       "multi_session": 65.0,
-      "single_session_preferences": 66.67
+      "single_session_preferences": 72.92
     },
-    "elapsed": 0.085
+    "elapsed": 0.18
   },
   {
     "experiment": 23,
-    "timestamp": "2026-03-22T09:42:01Z",
-    "strategy": "single",
-    "score": 75.26,
-    "best_score": 75.26,
-    "delta": 0.0,
+    "timestamp": "2026-03-22T09:47:39Z",
+    "strategy": "dual",
+    "score": 71.41,
+    "best_score": 73.65,
+    "delta": -2.24,
     "improved": false,
     "params_changed": [
-      "max_results=4"
+      "boost_established=1.6563",
+      "max_results=3"
     ],
     "categories": {
-      "knowledge_update": 62.5,
-      "single_session_assistant": 74.72,
-      "single_session_user": 83.33,
-      "temporal_reasoning": 91.67,
+      "knowledge_update": 44.44,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
       "multi_session": 65.0,
-      "single_session_preferences": 66.67
+      "single_session_preferences": 72.92
     },
-    "elapsed": 0.084
+    "elapsed": 0.176
   },
   {
     "experiment": 24,
-    "timestamp": "2026-03-22T09:42:01Z",
-    "strategy": "dual",
-    "score": 75.26,
-    "best_score": 75.26,
+    "timestamp": "2026-03-22T09:47:39Z",
+    "strategy": "single",
+    "score": 73.65,
+    "best_score": 73.65,
     "delta": 0.0,
     "improved": false,
-    "params_changed": [
-      "tag_weight=0.3655",
-      "bm25_weight=0.4061",
-      "vec_weight=0.2284"
-    ],
+    "params_changed": [],
     "categories": {
-      "knowledge_update": 62.5,
-      "single_session_assistant": 74.72,
-      "single_session_user": 83.33,
-      "temporal_reasoning": 91.67,
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
       "multi_session": 65.0,
-      "single_session_preferences": 66.67
+      "single_session_preferences": 72.92
     },
-    "elapsed": 0.084
+    "elapsed": 0.179
   },
   {
     "experiment": 25,
-    "timestamp": "2026-03-22T09:42:01Z",
-    "strategy": "dual",
-    "score": 75.26,
-    "best_score": 75.26,
+    "timestamp": "2026-03-22T09:47:39Z",
+    "strategy": "single",
+    "score": 73.65,
+    "best_score": 73.65,
     "delta": 0.0,
     "improved": false,
     "params_changed": [
-      "boost_fading=0.3601",
-      "divergence_threshold=0.3074"
+      "tag_weight=0.3194",
+      "bm25_weight=0.397",
+      "vec_weight=0.2836"
     ],
     "categories": {
-      "knowledge_update": 62.5,
-      "single_session_assistant": 74.72,
-      "single_session_user": 83.33,
-      "temporal_reasoning": 91.67,
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
       "multi_session": 65.0,
-      "single_session_preferences": 66.67
+      "single_session_preferences": 72.92
     },
-    "elapsed": 0.084
+    "elapsed": 0.179
   },
   {
     "experiment": 26,
-    "timestamp": "2026-03-22T09:42:01Z",
-    "strategy": "dual",
-    "score": 75.26,
-    "best_score": 75.26,
-    "delta": 0.0,
+    "timestamp": "2026-03-22T09:47:39Z",
+    "strategy": "single",
+    "score": 71.41,
+    "best_score": 73.65,
+    "delta": -2.24,
     "improved": false,
     "params_changed": [
-      "tag_weight=0.3262",
-      "bm25_weight=0.393",
-      "vec_weight=0.2808"
+      "max_results=3"
     ],
     "categories": {
-      "knowledge_update": 62.5,
-      "single_session_assistant": 74.72,
-      "single_session_user": 83.33,
-      "temporal_reasoning": 91.67,
+      "knowledge_update": 44.44,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
       "multi_session": 65.0,
-      "single_session_preferences": 66.67
+      "single_session_preferences": 72.92
     },
-    "elapsed": 0.083
+    "elapsed": 0.176
   },
   {
     "experiment": 27,
-    "timestamp": "2026-03-22T09:42:01Z",
-    "strategy": "single",
-    "score": 75.26,
-    "best_score": 75.26,
+    "timestamp": "2026-03-22T09:47:39Z",
+    "strategy": "dual",
+    "score": 73.65,
+    "best_score": 73.65,
     "delta": 0.0,
     "improved": false,
     "params_changed": [
-      "bm25_k1=0.9556"
+      "tag_weight=0.3673",
+      "bm25_weight=0.3691",
+      "vec_weight=0.2636"
     ],
     "categories": {
-      "knowledge_update": 62.5,
-      "single_session_assistant": 74.72,
-      "single_session_user": 83.33,
-      "temporal_reasoning": 91.67,
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
       "multi_session": 65.0,
-      "single_session_preferences": 66.67
+      "single_session_preferences": 72.92
     },
-    "elapsed": 0.083
+    "elapsed": 0.179
   },
   {
     "experiment": 28,
-    "timestamp": "2026-03-22T09:42:01Z",
+    "timestamp": "2026-03-22T09:47:40Z",
     "strategy": "dual",
-    "score": 75.26,
-    "best_score": 75.26,
+    "score": 73.65,
+    "best_score": 73.65,
     "delta": 0.0,
     "improved": false,
     "params_changed": [
-      "tag_jaccard_boost=1.0087",
-      "boost_established=1.7042"
+      "boost_active=0.9908",
+      "boost_fading=0.5937"
     ],
     "categories": {
-      "knowledge_update": 62.5,
-      "single_session_assistant": 74.72,
-      "single_session_user": 83.33,
-      "temporal_reasoning": 91.67,
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
       "multi_session": 65.0,
-      "single_session_preferences": 66.67
+      "single_session_preferences": 72.92
     },
-    "elapsed": 0.082
+    "elapsed": 0.177
   },
   {
     "experiment": 29,
-    "timestamp": "2026-03-22T09:42:01Z",
-    "strategy": "single",
-    "score": 75.26,
-    "best_score": 75.26,
+    "timestamp": "2026-03-22T09:47:40Z",
+    "strategy": "dual",
+    "score": 73.65,
+    "best_score": 73.65,
     "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "boost_active=1.2524"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.178
+  },
+  {
+    "experiment": 30,
+    "timestamp": "2026-03-22T09:47:40Z",
+    "strategy": "single",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "anchor_content_weight=0.453"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.175
+  },
+  {
+    "experiment": 31,
+    "timestamp": "2026-03-22T09:47:40Z",
+    "strategy": "random",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "tag_jaccard_boost=1.6726",
+      "tag_partial_weight=0.4665",
+      "boost_active=1.6181"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.179
+  },
+  {
+    "experiment": 32,
+    "timestamp": "2026-03-22T09:47:40Z",
+    "strategy": "single",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "boost_active=0.9848"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.18
+  },
+  {
+    "experiment": 33,
+    "timestamp": "2026-03-22T09:47:40Z",
+    "strategy": "single",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "tag_jaccard_boost=0.9203"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.18
+  },
+  {
+    "experiment": 34,
+    "timestamp": "2026-03-22T09:47:41Z",
+    "strategy": "random",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "tag_weight=0.4836",
+      "bm25_weight=0.3012",
+      "vec_weight=0.2152"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.18
+  },
+  {
+    "experiment": 35,
+    "timestamp": "2026-03-22T09:47:41Z",
+    "strategy": "random",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "tag_weight=0.4371",
+      "bm25_weight=0.3825",
+      "vec_weight=0.1804"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.179
+  },
+  {
+    "experiment": 36,
+    "timestamp": "2026-03-22T09:47:41Z",
+    "strategy": "single",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "anchor_content_weight=0.4507"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.178
+  },
+  {
+    "experiment": 37,
+    "timestamp": "2026-03-22T09:47:41Z",
+    "strategy": "single",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "anchor_content_weight=0.553"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.185
+  },
+  {
+    "experiment": 38,
+    "timestamp": "2026-03-22T09:47:41Z",
+    "strategy": "single",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "bm25_k1=1.005"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.182
+  },
+  {
+    "experiment": 39,
+    "timestamp": "2026-03-22T09:47:42Z",
+    "strategy": "single",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "bm25_b=0.7061"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.183
+  },
+  {
+    "experiment": 40,
+    "timestamp": "2026-03-22T09:47:42Z",
+    "strategy": "single",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "tag_weight=0.3981",
+      "bm25_weight=0.3484",
+      "vec_weight=0.2535"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.18
+  },
+  {
+    "experiment": 41,
+    "timestamp": "2026-03-22T09:47:42Z",
+    "strategy": "random",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "tag_partial_weight=0.4993",
+      "boost_established=1.8729",
+      "anchor_content_weight=0.2052"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.165
+  },
+  {
+    "experiment": 42,
+    "timestamp": "2026-03-22T09:47:42Z",
+    "strategy": "single",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "boost_active=1.1749"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.179
+  },
+  {
+    "experiment": 43,
+    "timestamp": "2026-03-22T09:47:42Z",
+    "strategy": "dual",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "tag_jaccard_boost=0.9718",
+      "boost_fading=0.5373"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.178
+  },
+  {
+    "experiment": 44,
+    "timestamp": "2026-03-22T09:47:42Z",
+    "strategy": "random",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "bm25_b=0.4912",
+      "tag_partial_weight=0.4324",
+      "boost_active=1.0365"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.18
+  },
+  {
+    "experiment": 45,
+    "timestamp": "2026-03-22T09:47:43Z",
+    "strategy": "dual",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "tag_weight=0.3977",
+      "bm25_weight=0.348",
+      "vec_weight=0.2543"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.182
+  },
+  {
+    "experiment": 46,
+    "timestamp": "2026-03-22T09:47:43Z",
+    "strategy": "dual",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "tag_partial_weight=0.2846",
+      "boost_active=1.2784"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.18
+  },
+  {
+    "experiment": 47,
+    "timestamp": "2026-03-22T09:47:43Z",
+    "strategy": "single",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "session_decay=0.7639"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.18
+  },
+  {
+    "experiment": 48,
+    "timestamp": "2026-03-22T09:47:43Z",
+    "strategy": "single",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "tag_weight=0.4095",
+      "bm25_weight=0.3583",
+      "vec_weight=0.2322"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.18
+  },
+  {
+    "experiment": 49,
+    "timestamp": "2026-03-22T09:47:43Z",
+    "strategy": "single",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "bm25_b=0.7785"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.18
+  },
+  {
+    "experiment": 50,
+    "timestamp": "2026-03-22T09:47:44Z",
+    "strategy": "random",
+    "score": 71.73,
+    "best_score": 73.65,
+    "delta": -1.92,
+    "improved": false,
+    "params_changed": [
+      "tag_weight=0.3648",
+      "bm25_weight=0.3192",
+      "vec_weight=0.316"
+    ],
+    "categories": {
+      "knowledge_update": 50.0,
+      "single_session_assistant": 78.89,
+      "single_session_user": 75.0,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.184
+  },
+  {
+    "experiment": 51,
+    "timestamp": "2026-03-22T09:47:44Z",
+    "strategy": "single",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "tag_jaccard_boost=1.1598"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.181
+  },
+  {
+    "experiment": 52,
+    "timestamp": "2026-03-22T09:47:44Z",
+    "strategy": "random",
+    "score": 71.73,
+    "best_score": 73.65,
+    "delta": -1.92,
+    "improved": false,
+    "params_changed": [
+      "tag_partial_weight=0.4915",
+      "boost_fading=0.2536",
+      "max_results=5"
+    ],
+    "categories": {
+      "knowledge_update": 50.0,
+      "single_session_assistant": 78.89,
+      "single_session_user": 75.0,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.182
+  },
+  {
+    "experiment": 53,
+    "timestamp": "2026-03-22T09:47:44Z",
+    "strategy": "dual",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "tag_jaccard_boost=0.9432",
+      "goal_weight_in_ranking=0.05"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.179
+  },
+  {
+    "experiment": 54,
+    "timestamp": "2026-03-22T09:47:44Z",
+    "strategy": "dual",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "boost_impulse=1.0",
+      "anchor_content_weight=0.3577"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.172
+  },
+  {
+    "experiment": 55,
+    "timestamp": "2026-03-22T09:47:44Z",
+    "strategy": "random",
+    "score": 71.73,
+    "best_score": 73.65,
+    "delta": -1.92,
+    "improved": false,
+    "params_changed": [
+      "tag_weight=0.4283",
+      "bm25_weight=0.304",
+      "vec_weight=0.2677"
+    ],
+    "categories": {
+      "knowledge_update": 50.0,
+      "single_session_assistant": 78.89,
+      "single_session_user": 75.0,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.182
+  },
+  {
+    "experiment": 56,
+    "timestamp": "2026-03-22T09:47:45Z",
+    "strategy": "dual",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "boost_impulse=0.7833",
+      "goal_weight_in_ranking=0.05"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.18
+  },
+  {
+    "experiment": 57,
+    "timestamp": "2026-03-22T09:47:45Z",
+    "strategy": "dual",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "tag_weight=0.4443",
+      "bm25_weight=0.3888",
+      "vec_weight=0.1669"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.181
+  },
+  {
+    "experiment": 58,
+    "timestamp": "2026-03-22T09:47:45Z",
+    "strategy": "dual",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "tag_jaccard_boost=1.0414",
+      "boost_impulse=0.878"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.181
+  },
+  {
+    "experiment": 59,
+    "timestamp": "2026-03-22T09:47:45Z",
+    "strategy": "single",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "tag_partial_weight=0.1"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.181
+  },
+  {
+    "experiment": 60,
+    "timestamp": "2026-03-22T09:47:45Z",
+    "strategy": "single",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "session_decay=0.8836"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.181
+  },
+  {
+    "experiment": 61,
+    "timestamp": "2026-03-22T09:47:45Z",
+    "strategy": "single",
+    "score": 71.73,
+    "best_score": 73.65,
+    "delta": -1.92,
     "improved": false,
     "params_changed": [
       "max_results=5"
     ],
     "categories": {
-      "knowledge_update": 62.5,
-      "single_session_assistant": 74.72,
-      "single_session_user": 83.33,
-      "temporal_reasoning": 91.67,
+      "knowledge_update": 50.0,
+      "single_session_assistant": 78.89,
+      "single_session_user": 75.0,
+      "temporal_reasoning": 87.5,
       "multi_session": 65.0,
-      "single_session_preferences": 66.67
+      "single_session_preferences": 72.92
     },
-    "elapsed": 0.082
+    "elapsed": 0.184
   },
   {
-    "experiment": 30,
-    "timestamp": "2026-03-22T09:42:01Z",
+    "experiment": 62,
+    "timestamp": "2026-03-22T09:47:46Z",
     "strategy": "single",
-    "score": 75.26,
-    "best_score": 75.26,
-    "delta": 0.0,
+    "score": 71.73,
+    "best_score": 73.65,
+    "delta": -1.92,
     "improved": false,
     "params_changed": [
-      "session_decay=0.8945"
+      "max_results=5"
     ],
     "categories": {
-      "knowledge_update": 62.5,
-      "single_session_assistant": 74.72,
-      "single_session_user": 83.33,
-      "temporal_reasoning": 91.67,
+      "knowledge_update": 50.0,
+      "single_session_assistant": 78.89,
+      "single_session_user": 75.0,
+      "temporal_reasoning": 87.5,
       "multi_session": 65.0,
-      "single_session_preferences": 66.67
+      "single_session_preferences": 72.92
     },
-    "elapsed": 0.083
+    "elapsed": 0.183
   },
   {
-    "experiment": 31,
-    "timestamp": "2026-03-22T09:42:01Z",
-    "strategy": "single",
-    "score": 75.26,
-    "best_score": 75.26,
-    "delta": 0.0,
-    "improved": false,
-    "params_changed": [
-      "bm25_k1=1.686"
-    ],
-    "categories": {
-      "knowledge_update": 62.5,
-      "single_session_assistant": 74.72,
-      "single_session_user": 83.33,
-      "temporal_reasoning": 91.67,
-      "multi_session": 65.0,
-      "single_session_preferences": 66.67
-    },
-    "elapsed": 0.084
-  },
-  {
-    "experiment": 32,
-    "timestamp": "2026-03-22T09:42:01Z",
-    "strategy": "single",
-    "score": 75.26,
-    "best_score": 75.26,
-    "delta": 0.0,
-    "improved": false,
-    "params_changed": [
-      "tag_weight=0.4101",
-      "bm25_weight=0.3441",
-      "vec_weight=0.2458"
-    ],
-    "categories": {
-      "knowledge_update": 62.5,
-      "single_session_assistant": 74.72,
-      "single_session_user": 83.33,
-      "temporal_reasoning": 91.67,
-      "multi_session": 65.0,
-      "single_session_preferences": 66.67
-    },
-    "elapsed": 0.083
-  },
-  {
-    "experiment": 33,
-    "timestamp": "2026-03-22T09:42:01Z",
-    "strategy": "single",
-    "score": 75.26,
-    "best_score": 75.26,
-    "delta": 0.0,
-    "improved": false,
-    "params_changed": [
-      "tag_jaccard_boost=1.0234"
-    ],
-    "categories": {
-      "knowledge_update": 62.5,
-      "single_session_assistant": 74.72,
-      "single_session_user": 83.33,
-      "temporal_reasoning": 91.67,
-      "multi_session": 65.0,
-      "single_session_preferences": 66.67
-    },
-    "elapsed": 0.082
-  },
-  {
-    "experiment": 34,
-    "timestamp": "2026-03-22T09:42:01Z",
-    "strategy": "single",
-    "score": 75.26,
-    "best_score": 75.26,
-    "delta": 0.0,
-    "improved": false,
-    "params_changed": [
-      "tag_jaccard_boost=1.3798"
-    ],
-    "categories": {
-      "knowledge_update": 62.5,
-      "single_session_assistant": 74.72,
-      "single_session_user": 83.33,
-      "temporal_reasoning": 91.67,
-      "multi_session": 65.0,
-      "single_session_preferences": 66.67
-    },
-    "elapsed": 0.085
-  },
-  {
-    "experiment": 35,
-    "timestamp": "2026-03-22T09:42:02Z",
+    "experiment": 63,
+    "timestamp": "2026-03-22T09:47:46Z",
     "strategy": "dual",
-    "score": 75.26,
-    "best_score": 75.26,
+    "score": 73.65,
+    "best_score": 73.65,
     "delta": 0.0,
     "improved": false,
     "params_changed": [
-      "boost_active=1.3929",
-      "divergence_threshold=0.365"
+      "boost_active=1.4136",
+      "boost_fading=0.6582"
     ],
     "categories": {
-      "knowledge_update": 62.5,
-      "single_session_assistant": 74.72,
-      "single_session_user": 83.33,
-      "temporal_reasoning": 91.67,
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
       "multi_session": 65.0,
-      "single_session_preferences": 66.67
+      "single_session_preferences": 72.92
     },
-    "elapsed": 0.085
+    "elapsed": 0.181
   },
   {
-    "experiment": 36,
-    "timestamp": "2026-03-22T09:42:02Z",
+    "experiment": 64,
+    "timestamp": "2026-03-22T09:47:46Z",
+    "strategy": "single",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "boost_active=1.33"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.18
+  },
+  {
+    "experiment": 65,
+    "timestamp": "2026-03-22T09:47:46Z",
     "strategy": "dual",
-    "score": 75.26,
-    "best_score": 75.26,
+    "score": 73.65,
+    "best_score": 73.65,
     "delta": 0.0,
     "improved": false,
     "params_changed": [
-      "tag_weight=0.3962",
-      "bm25_weight=0.3467",
-      "vec_weight=0.2571"
+      "tag_weight=0.451",
+      "bm25_weight=0.2672",
+      "vec_weight=0.2818"
     ],
     "categories": {
-      "knowledge_update": 62.5,
-      "single_session_assistant": 74.72,
-      "single_session_user": 83.33,
-      "temporal_reasoning": 91.67,
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
       "multi_session": 65.0,
-      "single_session_preferences": 66.67
+      "single_session_preferences": 72.92
     },
-    "elapsed": 0.084
+    "elapsed": 0.179
   },
   {
-    "experiment": 37,
-    "timestamp": "2026-03-22T09:42:02Z",
+    "experiment": 66,
+    "timestamp": "2026-03-22T09:47:46Z",
+    "strategy": "single",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "tag_jaccard_boost=1.0127"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.18
+  },
+  {
+    "experiment": 67,
+    "timestamp": "2026-03-22T09:47:47Z",
+    "strategy": "single",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "boost_active=1.3334"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.179
+  },
+  {
+    "experiment": 68,
+    "timestamp": "2026-03-22T09:47:47Z",
     "strategy": "dual",
-    "score": 75.26,
-    "best_score": 75.26,
+    "score": 73.65,
+    "best_score": 73.65,
     "delta": 0.0,
     "improved": false,
     "params_changed": [
-      "boost_established=1.8734",
-      "divergence_threshold=0.2734"
+      "tag_weight=0.448",
+      "bm25_weight=0.392",
+      "vec_weight=0.16"
     ],
     "categories": {
-      "knowledge_update": 62.5,
-      "single_session_assistant": 74.72,
-      "single_session_user": 83.33,
-      "temporal_reasoning": 91.67,
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
       "multi_session": 65.0,
-      "single_session_preferences": 66.67
+      "single_session_preferences": 72.92
     },
-    "elapsed": 0.085
+    "elapsed": 0.179
   },
   {
-    "experiment": 38,
-    "timestamp": "2026-03-22T09:42:02Z",
-    "strategy": "dual",
-    "score": 75.26,
-    "best_score": 75.26,
-    "delta": 0.0,
-    "improved": false,
-    "params_changed": [
-      "tag_weight=0.397",
-      "bm25_weight=0.3549",
-      "vec_weight=0.2481"
-    ],
-    "categories": {
-      "knowledge_update": 62.5,
-      "single_session_assistant": 74.72,
-      "single_session_user": 83.33,
-      "temporal_reasoning": 91.67,
-      "multi_session": 65.0,
-      "single_session_preferences": 66.67
-    },
-    "elapsed": 0.085
-  },
-  {
-    "experiment": 39,
-    "timestamp": "2026-03-22T09:42:02Z",
+    "experiment": 69,
+    "timestamp": "2026-03-22T09:47:47Z",
     "strategy": "single",
-    "score": 75.26,
-    "best_score": 75.26,
+    "score": 73.65,
+    "best_score": 73.65,
     "delta": 0.0,
     "improved": false,
     "params_changed": [
-      "tag_weight=0.2868",
-      "bm25_weight=0.416",
-      "vec_weight=0.2972"
+      "divergence_threshold=0.4016"
     ],
     "categories": {
-      "knowledge_update": 62.5,
-      "single_session_assistant": 74.72,
-      "single_session_user": 83.33,
-      "temporal_reasoning": 91.67,
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
       "multi_session": 65.0,
-      "single_session_preferences": 66.67
+      "single_session_preferences": 72.92
     },
-    "elapsed": 0.084
+    "elapsed": 0.181
   },
   {
-    "experiment": 40,
-    "timestamp": "2026-03-22T09:42:02Z",
-    "strategy": "single",
-    "score": 75.26,
-    "best_score": 75.26,
-    "delta": 0.0,
-    "improved": false,
-    "params_changed": [
-      "anchor_content_weight=0.5232"
-    ],
-    "categories": {
-      "knowledge_update": 62.5,
-      "single_session_assistant": 74.72,
-      "single_session_user": 83.33,
-      "temporal_reasoning": 91.67,
-      "multi_session": 65.0,
-      "single_session_preferences": 66.67
-    },
-    "elapsed": 0.084
-  },
-  {
-    "experiment": 41,
-    "timestamp": "2026-03-22T09:42:02Z",
-    "strategy": "single",
-    "score": 75.26,
-    "best_score": 75.26,
-    "delta": 0.0,
-    "improved": false,
-    "params_changed": [
-      "divergence_threshold=0.3417"
-    ],
-    "categories": {
-      "knowledge_update": 62.5,
-      "single_session_assistant": 74.72,
-      "single_session_user": 83.33,
-      "temporal_reasoning": 91.67,
-      "multi_session": 65.0,
-      "single_session_preferences": 66.67
-    },
-    "elapsed": 0.084
-  },
-  {
-    "experiment": 42,
-    "timestamp": "2026-03-22T09:42:02Z",
-    "strategy": "single",
-    "score": 75.26,
-    "best_score": 75.26,
-    "delta": 0.0,
-    "improved": false,
-    "params_changed": [
-      "boost_active=1.3781"
-    ],
-    "categories": {
-      "knowledge_update": 62.5,
-      "single_session_assistant": 74.72,
-      "single_session_user": 83.33,
-      "temporal_reasoning": 91.67,
-      "multi_session": 65.0,
-      "single_session_preferences": 66.67
-    },
-    "elapsed": 0.085
-  },
-  {
-    "experiment": 43,
-    "timestamp": "2026-03-22T09:42:02Z",
-    "strategy": "single",
-    "score": 75.26,
-    "best_score": 75.26,
-    "delta": 0.0,
-    "improved": false,
-    "params_changed": [
-      "boost_active=1.2853"
-    ],
-    "categories": {
-      "knowledge_update": 62.5,
-      "single_session_assistant": 74.72,
-      "single_session_user": 83.33,
-      "temporal_reasoning": 91.67,
-      "multi_session": 65.0,
-      "single_session_preferences": 66.67
-    },
-    "elapsed": 0.084
-  },
-  {
-    "experiment": 44,
-    "timestamp": "2026-03-22T09:42:02Z",
-    "strategy": "dual",
-    "score": 75.26,
-    "best_score": 75.26,
-    "delta": 0.0,
-    "improved": false,
-    "params_changed": [
-      "tag_weight=0.3438",
-      "bm25_weight=0.4413",
-      "vec_weight=0.2149"
-    ],
-    "categories": {
-      "knowledge_update": 62.5,
-      "single_session_assistant": 74.72,
-      "single_session_user": 83.33,
-      "temporal_reasoning": 91.67,
-      "multi_session": 65.0,
-      "single_session_preferences": 66.67
-    },
-    "elapsed": 0.084
-  },
-  {
-    "experiment": 45,
-    "timestamp": "2026-03-22T09:42:02Z",
-    "strategy": "single",
-    "score": 75.26,
-    "best_score": 75.26,
-    "delta": 0.0,
-    "improved": false,
-    "params_changed": [
-      "tag_weight=0.379",
-      "bm25_weight=0.3842",
-      "vec_weight=0.2368"
-    ],
-    "categories": {
-      "knowledge_update": 62.5,
-      "single_session_assistant": 74.72,
-      "single_session_user": 83.33,
-      "temporal_reasoning": 91.67,
-      "multi_session": 65.0,
-      "single_session_preferences": 66.67
-    },
-    "elapsed": 0.085
-  },
-  {
-    "experiment": 46,
-    "timestamp": "2026-03-22T09:42:02Z",
-    "strategy": "single",
-    "score": 75.26,
-    "best_score": 75.26,
-    "delta": 0.0,
-    "improved": false,
-    "params_changed": [
-      "bm25_b=0.6873"
-    ],
-    "categories": {
-      "knowledge_update": 62.5,
-      "single_session_assistant": 74.72,
-      "single_session_user": 83.33,
-      "temporal_reasoning": 91.67,
-      "multi_session": 65.0,
-      "single_session_preferences": 66.67
-    },
-    "elapsed": 0.085
-  },
-  {
-    "experiment": 47,
-    "timestamp": "2026-03-22T09:42:03Z",
-    "strategy": "single",
-    "score": 75.26,
-    "best_score": 75.26,
-    "delta": 0.0,
-    "improved": false,
-    "params_changed": [
-      "tag_jaccard_boost=1.1464"
-    ],
-    "categories": {
-      "knowledge_update": 62.5,
-      "single_session_assistant": 74.72,
-      "single_session_user": 83.33,
-      "temporal_reasoning": 91.67,
-      "multi_session": 65.0,
-      "single_session_preferences": 66.67
-    },
-    "elapsed": 0.085
-  },
-  {
-    "experiment": 48,
-    "timestamp": "2026-03-22T09:42:03Z",
+    "experiment": 70,
+    "timestamp": "2026-03-22T09:47:47Z",
     "strategy": "random",
-    "score": 75.26,
-    "best_score": 75.26,
+    "score": 73.65,
+    "best_score": 73.65,
     "delta": 0.0,
     "improved": false,
     "params_changed": [
-      "bm25_k1=2.2874",
-      "tag_partial_weight=0.5891",
-      "goal_weight_in_ranking=0.1909"
+      "tag_jaccard_boost=1.3632",
+      "boost_active=0.8307",
+      "boost_established=1.7451"
     ],
     "categories": {
-      "knowledge_update": 62.5,
-      "single_session_assistant": 74.72,
-      "single_session_user": 83.33,
-      "temporal_reasoning": 91.67,
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
       "multi_session": 65.0,
-      "single_session_preferences": 66.67
+      "single_session_preferences": 72.92
     },
-    "elapsed": 0.085
+    "elapsed": 0.182
   },
   {
-    "experiment": 49,
-    "timestamp": "2026-03-22T09:42:03Z",
+    "experiment": 71,
+    "timestamp": "2026-03-22T09:47:47Z",
     "strategy": "single",
-    "score": 75.26,
-    "best_score": 75.26,
+    "score": 73.65,
+    "best_score": 73.65,
     "delta": 0.0,
     "improved": false,
     "params_changed": [
-      "goal_weight_in_ranking=0.0824"
+      "tag_weight=0.3935",
+      "bm25_weight=0.3605",
+      "vec_weight=0.246"
     ],
     "categories": {
-      "knowledge_update": 62.5,
-      "single_session_assistant": 74.72,
-      "single_session_user": 83.33,
-      "temporal_reasoning": 91.67,
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
       "multi_session": 65.0,
-      "single_session_preferences": 66.67
+      "single_session_preferences": 72.92
     },
-    "elapsed": 0.084
+    "elapsed": 0.182
   },
   {
-    "experiment": 50,
-    "timestamp": "2026-03-22T09:42:03Z",
-    "strategy": "single",
-    "score": 75.26,
-    "best_score": 75.26,
+    "experiment": 72,
+    "timestamp": "2026-03-22T09:47:47Z",
+    "strategy": "random",
+    "score": 73.65,
+    "best_score": 73.65,
     "delta": 0.0,
     "improved": false,
     "params_changed": [
-      "boost_fading=0.4716"
+      "tag_jaccard_boost=1.8805",
+      "boost_impulse=0.8111",
+      "goal_weight_in_ranking=0.1034"
     ],
     "categories": {
-      "knowledge_update": 62.5,
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.184
+  },
+  {
+    "experiment": 73,
+    "timestamp": "2026-03-22T09:47:48Z",
+    "strategy": "single",
+    "score": 69.81,
+    "best_score": 73.65,
+    "delta": -3.84,
+    "improved": false,
+    "params_changed": [
+      "max_results=2"
+    ],
+    "categories": {
+      "knowledge_update": 45.83,
       "single_session_assistant": 74.72,
-      "single_session_user": 83.33,
-      "temporal_reasoning": 91.67,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
       "multi_session": 65.0,
       "single_session_preferences": 66.67
     },
-    "elapsed": 0.084
+    "elapsed": 0.174
+  },
+  {
+    "experiment": 74,
+    "timestamp": "2026-03-22T09:47:48Z",
+    "strategy": "single",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "boost_established=1.2694"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.182
+  },
+  {
+    "experiment": 75,
+    "timestamp": "2026-03-22T09:47:48Z",
+    "strategy": "dual",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "tag_partial_weight=0.2621",
+      "divergence_threshold=0.151"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.181
+  },
+  {
+    "experiment": 76,
+    "timestamp": "2026-03-22T09:47:48Z",
+    "strategy": "single",
+    "score": 69.81,
+    "best_score": 73.65,
+    "delta": -3.84,
+    "improved": false,
+    "params_changed": [
+      "max_results=2"
+    ],
+    "categories": {
+      "knowledge_update": 45.83,
+      "single_session_assistant": 74.72,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 66.67
+    },
+    "elapsed": 0.172
+  },
+  {
+    "experiment": 77,
+    "timestamp": "2026-03-22T09:47:48Z",
+    "strategy": "single",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "tag_weight=0.3904",
+      "bm25_weight=0.3416",
+      "vec_weight=0.268"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.188
+  },
+  {
+    "experiment": 78,
+    "timestamp": "2026-03-22T09:47:49Z",
+    "strategy": "single",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "tag_weight=0.4012",
+      "bm25_weight=0.348",
+      "vec_weight=0.2508"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.188
+  },
+  {
+    "experiment": 79,
+    "timestamp": "2026-03-22T09:47:49Z",
+    "strategy": "single",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "bm25_k1=1.2337"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.179
+  },
+  {
+    "experiment": 80,
+    "timestamp": "2026-03-22T09:47:49Z",
+    "strategy": "random",
+    "score": 72.69,
+    "best_score": 73.65,
+    "delta": -0.96,
+    "improved": false,
+    "params_changed": [
+      "bm25_b=0.4682",
+      "boost_active=0.8572",
+      "boost_established=1.1192"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 74.72,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 30.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.205
+  },
+  {
+    "experiment": 81,
+    "timestamp": "2026-03-22T09:47:49Z",
+    "strategy": "single",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "boost_established=1.6953"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.196
+  },
+  {
+    "experiment": 82,
+    "timestamp": "2026-03-22T09:47:49Z",
+    "strategy": "single",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "tag_weight=0.3816",
+      "bm25_weight=0.3339",
+      "vec_weight=0.2845"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.182
+  },
+  {
+    "experiment": 83,
+    "timestamp": "2026-03-22T09:47:50Z",
+    "strategy": "single",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "tag_weight=0.3916",
+      "bm25_weight=0.3426",
+      "vec_weight=0.2658"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.182
+  },
+  {
+    "experiment": 84,
+    "timestamp": "2026-03-22T09:47:50Z",
+    "strategy": "dual",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "bm25_k1=1.678",
+      "anchor_content_weight=0.4765"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.181
+  },
+  {
+    "experiment": 85,
+    "timestamp": "2026-03-22T09:47:50Z",
+    "strategy": "random",
+    "score": 71.41,
+    "best_score": 73.65,
+    "delta": -2.24,
+    "improved": false,
+    "params_changed": [
+      "boost_established=1.2235",
+      "boost_fading=0.7062",
+      "max_results=3"
+    ],
+    "categories": {
+      "knowledge_update": 44.44,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.173
+  },
+  {
+    "experiment": 86,
+    "timestamp": "2026-03-22T09:47:50Z",
+    "strategy": "dual",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "tag_partial_weight=0.4335",
+      "boost_impulse=0.986"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.19
+  },
+  {
+    "experiment": 87,
+    "timestamp": "2026-03-22T09:47:50Z",
+    "strategy": "random",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "tag_weight=0.3693",
+      "bm25_weight=0.3998",
+      "vec_weight=0.2309"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.181
+  },
+  {
+    "experiment": 88,
+    "timestamp": "2026-03-22T09:47:50Z",
+    "strategy": "single",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "anchor_content_weight=0.5596"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 30.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.187
+  },
+  {
+    "experiment": 89,
+    "timestamp": "2026-03-22T09:47:51Z",
+    "strategy": "single",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "tag_partial_weight=0.2337"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.18
+  },
+  {
+    "experiment": 90,
+    "timestamp": "2026-03-22T09:47:51Z",
+    "strategy": "single",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "goal_weight_in_ranking=0.1511"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.18
+  },
+  {
+    "experiment": 91,
+    "timestamp": "2026-03-22T09:47:51Z",
+    "strategy": "dual",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "bm25_k1=2.0371",
+      "tag_partial_weight=0.2538"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.18
+  },
+  {
+    "experiment": 92,
+    "timestamp": "2026-03-22T09:47:51Z",
+    "strategy": "single",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "tag_partial_weight=0.245"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.179
+  },
+  {
+    "experiment": 93,
+    "timestamp": "2026-03-22T09:47:51Z",
+    "strategy": "single",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "session_decay=0.8835"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.179
+  },
+  {
+    "experiment": 94,
+    "timestamp": "2026-03-22T09:47:51Z",
+    "strategy": "single",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "tag_weight=0.3583",
+      "bm25_weight=0.3743",
+      "vec_weight=0.2674"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.18
+  },
+  {
+    "experiment": 95,
+    "timestamp": "2026-03-22T09:47:52Z",
+    "strategy": "random",
+    "score": 71.73,
+    "best_score": 73.65,
+    "delta": -1.92,
+    "improved": false,
+    "params_changed": [
+      "tag_weight=0.3929",
+      "bm25_weight=0.3438",
+      "vec_weight=0.2633"
+    ],
+    "categories": {
+      "knowledge_update": 50.0,
+      "single_session_assistant": 78.89,
+      "single_session_user": 75.0,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.182
+  },
+  {
+    "experiment": 96,
+    "timestamp": "2026-03-22T09:47:52Z",
+    "strategy": "single",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "tag_weight=0.3931",
+      "bm25_weight=0.354",
+      "vec_weight=0.2529"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.18
+  },
+  {
+    "experiment": 97,
+    "timestamp": "2026-03-22T09:47:52Z",
+    "strategy": "single",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "boost_fading=0.4674"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.181
+  },
+  {
+    "experiment": 98,
+    "timestamp": "2026-03-22T09:47:52Z",
+    "strategy": "dual",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "tag_weight=0.3848",
+      "bm25_weight=0.3748",
+      "vec_weight=0.2404"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.181
+  },
+  {
+    "experiment": 99,
+    "timestamp": "2026-03-22T09:47:52Z",
+    "strategy": "dual",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "tag_weight=0.3568",
+      "bm25_weight=0.3122",
+      "vec_weight=0.331"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.181
+  },
+  {
+    "experiment": 100,
+    "timestamp": "2026-03-22T09:47:53Z",
+    "strategy": "single",
+    "score": 73.65,
+    "best_score": 73.65,
+    "delta": 0.0,
+    "improved": false,
+    "params_changed": [
+      "boost_established=1.0985"
+    ],
+    "categories": {
+      "knowledge_update": 54.17,
+      "single_session_assistant": 78.89,
+      "single_session_user": 79.17,
+      "temporal_reasoning": 87.5,
+      "multi_session": 65.0,
+      "single_session_preferences": 72.92
+    },
+    "elapsed": 0.186
   }
 ]

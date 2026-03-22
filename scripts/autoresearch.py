@@ -152,35 +152,23 @@ def mutate_params(params, strategy="single"):
 # ══════════════════════════════════════════════
 
 def retrieve_with_params(conn, query, params):
-    """Run retrieval with specific parameter overrides."""
-    import memory as mem
+    """Run retrieval using parameterized P9+ engine."""
+    from p9_retrieve import p9_retrieve_parameterized, SessionEngine
 
-    # Override temporal boosts
-    original_boost = mem.temporal_boost
-    def patched_boost(stage):
-        return {
-            "impulse": params["boost_impulse"],
-            "active": params["boost_active"],
-            "established": params["boost_established"],
-            "fading": params["boost_fading"],
-        }.get(stage, 1.0)
-    mem.temporal_boost = patched_boost
+    # Fresh session per experiment (no cross-contamination)
+    session = SessionEngine(
+        decay=params.get("session_decay", 0.85),
+        divergence_threshold=params.get("divergence_threshold", 0.35),
+    )
 
-    # Run retrieval
     f = io.StringIO()
     with redirect_stdout(f):
-        mem.cmd_retrieve(conn, query)
+        p9_retrieve_parameterized(conn, query, params=params, session=session,
+                                   top_k=int(params.get("max_results", 3)))
     output = f.getvalue()
 
-    # Restore
-    mem.temporal_boost = original_boost
-
     try:
-        result = json.loads(output)
-        # Trim to max_results
-        if "memories" in result:
-            result["memories"] = result["memories"][:int(params.get("max_results", 3))]
-        return result
+        return json.loads(output)
     except json.JSONDecodeError:
         return {"memories": []}
 
