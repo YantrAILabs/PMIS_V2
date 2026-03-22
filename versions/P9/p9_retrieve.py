@@ -155,39 +155,6 @@ class VectorEngine:
 
 
 # =============================================================================
-# EXACT-MATCH BYPASS (P10: short query fast path)
-# =============================================================================
-
-def _exact_match_bypass(query, nodes_by_id, node_sc_map):
-    """Short-circuit for very short or exact-match queries (1-3 tokens).
-    Returns {sc_id: hit_score} or None if query is too long."""
-    tokens = _tok(query)
-    raw_lower = query.lower().strip()
-
-    if len(tokens) > 3 or len(raw_lower) < 2:
-        return None
-
-    type_weights = {"anchor": 2.0, "context": 1.5, "super_context": 1.0}
-    direct_hits = defaultdict(float)
-
-    for nid, node in nodes_by_id.items():
-        title_lower = node["title"].lower()
-        content_lower = (node.get("content") or "").lower()
-
-        # Check if raw query appears as substring in title or content
-        if raw_lower in title_lower or raw_lower in content_lower:
-            sc_id = node_sc_map.get(nid)
-            if sc_id:
-                tw = type_weights.get(node["type"], 1.0)
-                # Exact title match gets extra bonus
-                if raw_lower == title_lower or raw_lower in title_lower.split():
-                    tw *= 1.5
-                direct_hits[sc_id] += tw
-
-    return dict(direct_hits) if direct_hits else None
-
-
-# =============================================================================
 # ADAPTIVE WEIGHTS (based on memory size)
 # =============================================================================
 
@@ -599,22 +566,8 @@ class SessionEngine:
                 "from": self.query_history[-2] if len(self.query_history) > 1 else "",
                 "to": query,
             })
-            # P10: Auto-break — reset context to new query only
-            self.session_vector = Counter(query_vec)
 
         return round(similarity, 4), diverged
-
-    def accumulate_results(self, memories):
-        """P10: Feed retrieved results back to build richer context vector."""
-        for m in memories:
-            for w in _tok(m.get("super_context", "")):
-                self.session_vector[w] += 0.5
-            for ctx in m.get("contexts", []):
-                for w in _tok(ctx.get("context", "")):
-                    self.session_vector[w] += 0.3
-                for anc in ctx.get("anchors", [])[:3]:  # top 3 anchors only
-                    for w in _tok(anc.get("title", "")):
-                        self.session_vector[w] += 0.2
 
     def get_context_boost(self, sc_title, anchor_titles):
         """Boost SCs/anchors that align with session context."""
@@ -803,9 +756,6 @@ def p9_retrieve_parameterized(conn, query, params=None, session=None, top_k=3):
             t += " " + n["content"][:content_limit]
         texts.append(t)
 
-    # ── P10: Exact-match bypass for short queries ──
-    exact_hits = _exact_match_bypass(query, nodes_by_id, node_sc_map)
-
     # ── Build indices with PARAMS ──
     bm25 = BM25(k1=p_k1, b=p_b)
     bm25.build(texts)
@@ -886,13 +836,6 @@ def p9_retrieve_parameterized(conn, query, params=None, session=None, top_k=3):
     for sid in all_scs:
         merged[sid] = 0.70 * raw_scores.get(sid, 0) + 0.30 * rrf.get(sid, 0) * 100
 
-    # ── P10: Blend exact-match hits into merged scores ──
-    if exact_hits:
-        for sid, ex_score in exact_hits.items():
-            merged[sid] = merged.get(sid, 0) + ex_score * 2.0  # strong boost for direct hits
-            if sid not in all_scs:
-                all_scs.add(sid)
-
     # ── Boosts: temporal (PARAMETERIZED) + mode + quality + goal + session ──
     for sid in merged:
         sc = nodes_by_id.get(sid)
@@ -935,42 +878,13 @@ def p9_retrieve_parameterized(conn, query, params=None, session=None, top_k=3):
                     anchor_titles.append(nodes_by_id[anc_id]["title"])
         session_boost = session.get_context_boost(sc["title"], anchor_titles)
 
-        # Feedback reinforcement (P10: multiplicative, scales with evidence depth)
-        fb_multiplier = 1.0
+        # Feedback bonus
+        fb_bonus = 0
         sc_quality = sc.get("quality", 0)
         if sc_quality > 0:
-            n_scored = conn.execute(
-                "SELECT COUNT(*) c FROM tasks WHERE sc_id=? AND score > 0 AND completed IS NOT NULL",
-                (sid,)
-            ).fetchone()["c"]
-            if n_scored > 0:
-                confidence = min(1.0, n_scored / 5.0)  # ramp over 5 scored tasks
-                p_fb_amp = params.get("feedback_amplifier", 1.0)
-                p_quality_floor = params.get("quality_floor", 0.3)
-                fb_multiplier = p_quality_floor + (sc_quality / 5.0) * p_fb_amp * confidence
+            fb_bonus = (sc_quality / 5.0) * 0.15
 
-        merged[sid] = (merged[sid] + best_ctx_q * 0.25 + goal_bonus) * t_boost * m_boost * session_boost * fb_multiplier
-
-    # ── Context tightening for multi-turn (P10) ──
-    if len(session.query_history) > 1 and not diverged:
-        p_tighten = params.get("tighten_rate", 0.15)
-        p_min_overlap = params.get("tighten_min_overlap", 0.2)
-        ctx_words = set(session.session_vector.keys())
-        if ctx_words:
-            for sid in list(merged.keys()):
-                sc = nodes_by_id.get(sid)
-                if not sc:
-                    continue
-                sc_words = set(_tok(sc["title"]))
-                for ctx_id in children_map.get(sid, []):
-                    if ctx_id in nodes_by_id:
-                        sc_words.update(_tok(nodes_by_id[ctx_id]["title"]))
-                    for anc_id in children_map.get(ctx_id, []):
-                        if anc_id in nodes_by_id:
-                            sc_words.update(_tok(nodes_by_id[anc_id]["title"])[:3])
-                overlap = len(sc_words & ctx_words) / max(len(sc_words), 1)
-                if overlap < p_min_overlap:
-                    merged[sid] *= (1 - p_tighten)
+        merged[sid] = (merged[sid] + best_ctx_q * 0.25 + fb_bonus + goal_bonus) * t_boost * m_boost * session_boost
 
     # ── Transfer edges ──
     transfers_map = defaultdict(list)
@@ -1058,10 +972,6 @@ def p9_retrieve_parameterized(conn, query, params=None, session=None, top_k=3):
         context_pack["memories"].append(memory_entry)
 
     mem._record_retrieval(conn, context_pack)
-
-    # P10: Accumulate results back into session context for next turn
-    session.accumulate_results(context_pack.get("memories", []))
-
     print(json.dumps(context_pack, indent=2))
     return context_pack
 

@@ -1,0 +1,2099 @@
+{
+  "total": 100,
+  "passed": 74,
+  "rate": 0.74,
+  "by_category": {
+    "single-exact": {
+      "passed": 17,
+      "total": 20,
+      "rate": 0.85
+    },
+    "single-semantic": {
+      "passed": 11,
+      "total": 15,
+      "rate": 0.733
+    },
+    "cross-domain": {
+      "passed": 11,
+      "total": 20,
+      "rate": 0.55
+    },
+    "multi-turn": {
+      "passed": 13,
+      "total": 20,
+      "rate": 0.65
+    },
+    "feedback": {
+      "passed": 8,
+      "total": 10,
+      "rate": 0.8
+    },
+    "edge": {
+      "passed": 14,
+      "total": 15,
+      "rate": 0.933
+    }
+  },
+  "failures": [
+    {
+      "id": "A12",
+      "cat": "single-exact",
+      "query": "Fall detection for hospital corridors?",
+      "sc_recall": 0.0,
+      "anc_recall": 0.0,
+      "passed": false,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "PMIS Architecture Design",
+        "Vision AI Products & Engineering"
+      ],
+      "expected": [
+        "Hospital CCTV Analytics"
+      ]
+    },
+    {
+      "id": "A16",
+      "cat": "single-exact",
+      "query": "LinkedIn carousel best practices?",
+      "sc_recall": 1.0,
+      "anc_recall": 0.0,
+      "passed": false,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "LinkedIn Content Strategy",
+        "Yantra AI \u2014 Sales & Marketing"
+      ],
+      "expected": [
+        "LinkedIn Content Strategy"
+      ]
+    },
+    {
+      "id": "A19",
+      "cat": "single-exact",
+      "query": "How many Gurgaon organizations did we identify?",
+      "sc_recall": 1.0,
+      "anc_recall": 0.0,
+      "passed": false,
+      "retrieved": [
+        "Yantra AI \u2014 Sales & Marketing",
+        "GTM Lead Pipeline",
+        "Construction Site Monitoring"
+      ],
+      "expected": [
+        "GTM Lead Pipeline"
+      ]
+    },
+    {
+      "id": "B06",
+      "cat": "single-semantic",
+      "query": "How to save GPU costs when processing video?",
+      "sc_recall": 0.0,
+      "anc_recall": 0.0,
+      "passed": false,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "AI & ML Knowledge Base",
+        "Vision AI Products & Engineering"
+      ],
+      "expected": [
+        "Vision Pipeline Architecture"
+      ]
+    },
+    {
+      "id": "B09",
+      "cat": "single-semantic",
+      "query": "What's the narrative structure for our sales documents?",
+      "sc_recall": 0.0,
+      "anc_recall": 0.0,
+      "passed": false,
+      "retrieved": [
+        "Yantra AI \u2014 Sales & Marketing",
+        "Kiran AI \u2014 Retail Vision Product",
+        "B2B Cold Outreach"
+      ],
+      "expected": [
+        "Case Study Generation"
+      ]
+    },
+    {
+      "id": "B10",
+      "cat": "single-semantic",
+      "query": "How to make the AI work across different industry verticals?",
+      "sc_recall": 0.0,
+      "anc_recall": 0.0,
+      "passed": false,
+      "retrieved": [
+        "PMIS Architecture Design",
+        "Vision AI Products & Engineering",
+        "Personal Productivity & Systems"
+      ],
+      "expected": [
+        "Vision Pipeline Architecture"
+      ]
+    },
+    {
+      "id": "B15",
+      "cat": "single-semantic",
+      "query": "What ISP problem affects our Indian camera deployments?",
+      "sc_recall": 0.0,
+      "anc_recall": 0.0,
+      "passed": false,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "Vision AI Products & Engineering",
+        "Personal Productivity & Systems"
+      ],
+      "expected": [
+        "Vision Pipeline Architecture"
+      ]
+    },
+    {
+      "id": "C03",
+      "cat": "cross-domain",
+      "query": "Create a demo page for hospital analytics",
+      "sc_recall": 0.5,
+      "anc_recall": 0.0,
+      "passed": false,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "Hospital CCTV Analytics",
+        "Vision AI Products & Engineering"
+      ],
+      "expected": [
+        "Security Demo Page",
+        "Hospital CCTV Analytics"
+      ]
+    },
+    {
+      "id": "C04",
+      "cat": "cross-domain",
+      "query": "Case study for residential society security system",
+      "sc_recall": 0.0,
+      "anc_recall": 0.0,
+      "passed": false,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "Vision AI Products & Engineering",
+        "Yantra AI \u2014 Sales & Marketing"
+      ],
+      "expected": [
+        "Case Study Generation",
+        "Residential Society Security"
+      ]
+    },
+    {
+      "id": "C06",
+      "cat": "cross-domain",
+      "query": "Email the Gurgaon hospital leads about our product",
+      "sc_recall": 0.33,
+      "anc_recall": 0.0,
+      "passed": false,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "PMIS Architecture Design",
+        "Hospital CCTV Analytics"
+      ],
+      "expected": [
+        "B2B Cold Outreach",
+        "Hospital CCTV Analytics",
+        "GTM Lead Pipeline"
+      ]
+    },
+    {
+      "id": "C07",
+      "cat": "cross-domain",
+      "query": "How to pitch our vision AI to construction CTO?",
+      "sc_recall": 0.0,
+      "anc_recall": 0.0,
+      "passed": false,
+      "retrieved": [
+        "Vision AI Products & Engineering",
+        "Kiran AI \u2014 Retail Vision Product",
+        "Yantra AI \u2014 Sales & Marketing"
+      ],
+      "expected": [
+        "B2B Cold Outreach",
+        "Construction Site Monitoring"
+      ]
+    },
+    {
+      "id": "C08",
+      "cat": "cross-domain",
+      "query": "GTM strategy for retail AI product launch",
+      "sc_recall": 0.5,
+      "anc_recall": 0.0,
+      "passed": false,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "PMIS Architecture Design",
+        "Vision AI Products & Engineering"
+      ],
+      "expected": [
+        "GTM Lead Pipeline",
+        "Kiran AI Retail Product"
+      ]
+    },
+    {
+      "id": "C09",
+      "cat": "cross-domain",
+      "query": "Build LinkedIn carousel about our vision pipeline",
+      "sc_recall": 0.5,
+      "anc_recall": 0.0,
+      "passed": false,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "Vision AI Products & Engineering",
+        "LinkedIn Content Strategy"
+      ],
+      "expected": [
+        "LinkedIn Content Strategy",
+        "Vision Pipeline Architecture"
+      ]
+    },
+    {
+      "id": "C10",
+      "cat": "cross-domain",
+      "query": "Demo showing factory safety detection capabilities",
+      "sc_recall": 0.0,
+      "anc_recall": 0.0,
+      "passed": false,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "Vision AI Products & Engineering",
+        "PMIS Architecture Design"
+      ],
+      "expected": [
+        "Security Demo Page",
+        "Vision Pipeline Architecture"
+      ]
+    },
+    {
+      "id": "C12",
+      "cat": "cross-domain",
+      "query": "Case study template for manufacturing quality control",
+      "sc_recall": 0.0,
+      "anc_recall": 0.0,
+      "passed": false,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "Vision AI Products & Engineering",
+        "PMIS Architecture Design"
+      ],
+      "expected": [
+        "Case Study Generation",
+        "Vision Pipeline Architecture"
+      ]
+    },
+    {
+      "id": "C15",
+      "cat": "cross-domain",
+      "query": "Lead qualification for hospital security camera deals",
+      "sc_recall": 0.0,
+      "anc_recall": 0.0,
+      "passed": false,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "Yantra AI \u2014 Sales & Marketing",
+        "Vision AI Products & Engineering"
+      ],
+      "expected": [
+        "GTM Lead Pipeline",
+        "Hospital CCTV Analytics"
+      ]
+    },
+    {
+      "id": "D01",
+      "cat": "multi-turn",
+      "query": "I need to write cold emails for security product",
+      "sc_recall": 0.0,
+      "anc_recall": 0.0,
+      "passed": false,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "PMIS Architecture Design",
+        "Yantra AI \u2014 Sales & Marketing"
+      ],
+      "expected": [
+        "B2B Cold Outreach"
+      ]
+    },
+    {
+      "id": "D03",
+      "cat": "multi-turn",
+      "query": "Now create a demo page for these prospects",
+      "sc_recall": 0.0,
+      "anc_recall": 0.0,
+      "passed": false,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "Vision AI Products & Engineering",
+        "Yantra AI \u2014 Sales & Marketing"
+      ],
+      "expected": [
+        "Security Demo Page"
+      ]
+    },
+    {
+      "id": "D10",
+      "cat": "multi-turn",
+      "query": "Should I make it a carousel?",
+      "sc_recall": 1.0,
+      "anc_recall": 0.0,
+      "passed": false,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "LinkedIn Content Strategy",
+        "Yantra AI \u2014 Sales & Marketing"
+      ],
+      "expected": [
+        "LinkedIn Content Strategy"
+      ]
+    },
+    {
+      "id": "D14",
+      "cat": "multi-turn",
+      "query": "What about residential societies \u2014 similar needs?",
+      "sc_recall": 0.0,
+      "anc_recall": 0.0,
+      "passed": false,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "AI & ML Knowledge Base",
+        "Construction Site Monitoring"
+      ],
+      "expected": [
+        "Residential Society Security"
+      ]
+    },
+    {
+      "id": "D17",
+      "cat": "multi-turn",
+      "query": "How should we build our sales lead pipeline?",
+      "sc_recall": 0.0,
+      "anc_recall": 0.0,
+      "passed": false,
+      "retrieved": [
+        "Yantra AI \u2014 Sales & Marketing",
+        "Kiran AI \u2014 Retail Vision Product",
+        "B2B Cold Outreach"
+      ],
+      "expected": [
+        "GTM Lead Pipeline"
+      ]
+    },
+    {
+      "id": "D18",
+      "cat": "multi-turn",
+      "query": "Which construction companies to target first?",
+      "sc_recall": 0.5,
+      "anc_recall": 0.0,
+      "passed": false,
+      "retrieved": [
+        "GTM Lead Pipeline",
+        "Yantra AI \u2014 Sales & Marketing",
+        "Construction Site Monitoring"
+      ],
+      "expected": [
+        "GTM Lead Pipeline",
+        "B2B Cold Outreach"
+      ]
+    },
+    {
+      "id": "D20",
+      "cat": "multi-turn",
+      "query": "What demo should we show them after reply?",
+      "sc_recall": 0.0,
+      "anc_recall": 0.0,
+      "passed": false,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "Vision AI Products & Engineering",
+        "Personal Productivity & Systems"
+      ],
+      "expected": [
+        "Security Demo Page"
+      ]
+    },
+    {
+      "id": "E09",
+      "cat": "feedback",
+      "query": "Lead qualification for our sales pipeline?",
+      "sc_recall": 0.0,
+      "anc_recall": 0.0,
+      "passed": false,
+      "retrieved": [
+        "Yantra AI \u2014 Sales & Marketing",
+        "Kiran AI \u2014 Retail Vision Product",
+        "B2B Cold Outreach"
+      ],
+      "expected": [
+        "GTM Lead Pipeline"
+      ]
+    },
+    {
+      "id": "E10",
+      "cat": "feedback",
+      "query": "How does our memory system retrieve things?",
+      "sc_recall": 0.0,
+      "anc_recall": 0.0,
+      "passed": false,
+      "retrieved": [
+        "AI Agent Memory Systems Research",
+        "Personal Productivity & Systems",
+        "Vision Pipeline Architecture"
+      ],
+      "expected": [
+        "PMIS System Design"
+      ]
+    },
+    {
+      "id": "F15",
+      "cat": "edge",
+      "query": "What's the complete flow from lead to demo to close?",
+      "sc_recall": 0.0,
+      "anc_recall": 1.0,
+      "passed": false,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "PMIS Architecture Design",
+        "Yantra AI \u2014 Sales & Marketing"
+      ],
+      "expected": [
+        "GTM Lead Pipeline",
+        "B2B Cold Outreach",
+        "Security Demo Page"
+      ]
+    }
+  ],
+  "all_results": [
+    {
+      "id": "A01",
+      "cat": "single-exact",
+      "query": "How to write cold email subject lines?",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "PMIS Architecture Design",
+        "B2B Cold Outreach",
+        "IQRA IAS Academy"
+      ],
+      "expected": [
+        "B2B Cold Outreach"
+      ]
+    },
+    {
+      "id": "A02",
+      "cat": "single-exact",
+      "query": "What language works for CISO outreach?",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "B2B Cold Outreach",
+        "Yantra AI \u2014 Sales & Marketing",
+        "PMIS Architecture Design"
+      ],
+      "expected": [
+        "B2B Cold Outreach"
+      ]
+    },
+    {
+      "id": "A03",
+      "cat": "single-exact",
+      "query": "Best follow-up email schedule?",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "B2B Cold Outreach",
+        "Personal Productivity & Systems",
+        "Kiran AI \u2014 Retail Vision Product"
+      ],
+      "expected": [
+        "B2B Cold Outreach"
+      ]
+    },
+    {
+      "id": "A04",
+      "cat": "single-exact",
+      "query": "What GPU do we use for CCTV analytics?",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "Vision Pipeline Architecture",
+        "Vision AI Products & Engineering"
+      ],
+      "expected": [
+        "Vision Pipeline Architecture"
+      ]
+    },
+    {
+      "id": "A05",
+      "cat": "single-exact",
+      "query": "How does our YOLO pipeline work?",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "PMIS Architecture Design",
+        "Vision Pipeline Architecture"
+      ],
+      "expected": [
+        "Vision Pipeline Architecture"
+      ]
+    },
+    {
+      "id": "A06",
+      "cat": "single-exact",
+      "query": "How to bypass RTSP firewall restrictions?",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Vision Pipeline Architecture",
+        "Kiran AI \u2014 Retail Vision Product",
+        "PMIS Architecture Design"
+      ],
+      "expected": [
+        "Vision Pipeline Architecture"
+      ]
+    },
+    {
+      "id": "A07",
+      "cat": "single-exact",
+      "query": "What accuracy does our SKU detection achieve?",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "PMIS Architecture Design",
+        "Vision AI Products & Engineering"
+      ],
+      "expected": [
+        "Kiran AI Retail Product"
+      ]
+    },
+    {
+      "id": "A08",
+      "cat": "single-exact",
+      "query": "What voice works best for LinkedIn?",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "PMIS Architecture Design",
+        "LinkedIn Content Strategy"
+      ],
+      "expected": [
+        "LinkedIn Content Strategy"
+      ]
+    },
+    {
+      "id": "A09",
+      "cat": "single-exact",
+      "query": "PPE detection range on construction sites?",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "Construction Site Monitoring",
+        "Vision AI Products & Engineering"
+      ],
+      "expected": [
+        "Construction Site Monitoring"
+      ]
+    },
+    {
+      "id": "A10",
+      "cat": "single-exact",
+      "query": "How do we qualify leads using Claude?",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Personal Productivity & Systems",
+        "GTM Lead Pipeline",
+        "AI & ML Knowledge Base"
+      ],
+      "expected": [
+        "GTM Lead Pipeline"
+      ]
+    },
+    {
+      "id": "A11",
+      "cat": "single-exact",
+      "query": "What is the memory hierarchy structure?",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "AI Agent Memory Systems Research",
+        "PMIS Architecture Design",
+        "Personal Productivity & Systems"
+      ],
+      "expected": [
+        "PMIS System Design"
+      ]
+    },
+    {
+      "id": "A12",
+      "cat": "single-exact",
+      "query": "Fall detection for hospital corridors?",
+      "sc_recall": 0.0,
+      "anc_recall": 0.0,
+      "passed": false,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "PMIS Architecture Design",
+        "Vision AI Products & Engineering"
+      ],
+      "expected": [
+        "Hospital CCTV Analytics"
+      ]
+    },
+    {
+      "id": "A13",
+      "cat": "single-exact",
+      "query": "ANPR system for society gates?",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Personal Productivity & Systems",
+        "Residential Society Security",
+        "Vision AI Products & Engineering"
+      ],
+      "expected": [
+        "Residential Society Security"
+      ]
+    },
+    {
+      "id": "A14",
+      "cat": "single-exact",
+      "query": "Case study template structure?",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "Vision AI Products & Engineering",
+        "Case Study Generation"
+      ],
+      "expected": [
+        "Case Study Generation"
+      ]
+    },
+    {
+      "id": "A15",
+      "cat": "single-exact",
+      "query": "What Qwen model size for factory safety?",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Vision Pipeline Architecture",
+        "PMIS Architecture Design",
+        "Construction Site Monitoring"
+      ],
+      "expected": [
+        "Vision Pipeline Architecture"
+      ]
+    },
+    {
+      "id": "A16",
+      "cat": "single-exact",
+      "query": "LinkedIn carousel best practices?",
+      "sc_recall": 1.0,
+      "anc_recall": 0.0,
+      "passed": false,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "LinkedIn Content Strategy",
+        "Yantra AI \u2014 Sales & Marketing"
+      ],
+      "expected": [
+        "LinkedIn Content Strategy"
+      ]
+    },
+    {
+      "id": "A17",
+      "cat": "single-exact",
+      "query": "Hindi UI for kirana store app?",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "PMIS Architecture Design",
+        "Personal Productivity & Systems"
+      ],
+      "expected": [
+        "Kiran AI Retail Product"
+      ]
+    },
+    {
+      "id": "A18",
+      "cat": "single-exact",
+      "query": "Security demo page blind spot widget?",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "Security Demo Page",
+        "Yantra AI \u2014 Sales & Marketing"
+      ],
+      "expected": [
+        "Security Demo Page"
+      ]
+    },
+    {
+      "id": "A19",
+      "cat": "single-exact",
+      "query": "How many Gurgaon organizations did we identify?",
+      "sc_recall": 1.0,
+      "anc_recall": 0.0,
+      "passed": false,
+      "retrieved": [
+        "Yantra AI \u2014 Sales & Marketing",
+        "GTM Lead Pipeline",
+        "Construction Site Monitoring"
+      ],
+      "expected": [
+        "GTM Lead Pipeline"
+      ]
+    },
+    {
+      "id": "A20",
+      "cat": "single-exact",
+      "query": "Privacy masking compliance for hospitals?",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Vision AI Products & Engineering",
+        "Hospital CCTV Analytics",
+        "Yantra AI \u2014 Sales & Marketing"
+      ],
+      "expected": [
+        "Hospital CCTV Analytics"
+      ]
+    },
+    {
+      "id": "B01",
+      "cat": "single-semantic",
+      "query": "What's the ideal number of words in an email heading?",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "B2B Cold Outreach",
+        "General Design Principles",
+        "Vision AI Products & Engineering"
+      ],
+      "expected": [
+        "B2B Cold Outreach"
+      ]
+    },
+    {
+      "id": "B02",
+      "cat": "single-semantic",
+      "query": "How to handle old analog camera systems at client sites?",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "Vision Pipeline Architecture",
+        "Vision AI Products & Engineering"
+      ],
+      "expected": [
+        "Vision Pipeline Architecture"
+      ]
+    },
+    {
+      "id": "B03",
+      "cat": "single-semantic",
+      "query": "Which AI model is cheapest for basic safety alerts?",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "PMIS Architecture Design",
+        "Vision Pipeline Architecture"
+      ],
+      "expected": [
+        "Vision Pipeline Architecture"
+      ]
+    },
+    {
+      "id": "B04",
+      "cat": "single-semantic",
+      "query": "How should store owners get their daily updates?",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "PMIS Architecture Design",
+        "IQRA IAS Academy"
+      ],
+      "expected": [
+        "Kiran AI Retail Product"
+      ]
+    },
+    {
+      "id": "B05",
+      "cat": "single-semantic",
+      "query": "What kind of content gets the most shares on professional so",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "LinkedIn Content Strategy",
+        "General Design Principles"
+      ],
+      "expected": [
+        "LinkedIn Content Strategy"
+      ]
+    },
+    {
+      "id": "B06",
+      "cat": "single-semantic",
+      "query": "How to save GPU costs when processing video?",
+      "sc_recall": 0.0,
+      "anc_recall": 0.0,
+      "passed": false,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "AI & ML Knowledge Base",
+        "Vision AI Products & Engineering"
+      ],
+      "expected": [
+        "Vision Pipeline Architecture"
+      ]
+    },
+    {
+      "id": "B07",
+      "cat": "single-semantic",
+      "query": "Which job title should we prioritize for security sales?",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Yantra AI \u2014 Sales & Marketing",
+        "Kiran AI \u2014 Retail Vision Product",
+        "B2B Cold Outreach"
+      ],
+      "expected": [
+        "B2B Cold Outreach"
+      ]
+    },
+    {
+      "id": "B08",
+      "cat": "single-semantic",
+      "query": "How to track unauthorized people in apartment parking?",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Residential Society Security",
+        "Kiran AI \u2014 Retail Vision Product",
+        "PMIS Architecture Design"
+      ],
+      "expected": [
+        "Residential Society Security"
+      ]
+    },
+    {
+      "id": "B09",
+      "cat": "single-semantic",
+      "query": "What's the narrative structure for our sales documents?",
+      "sc_recall": 0.0,
+      "anc_recall": 0.0,
+      "passed": false,
+      "retrieved": [
+        "Yantra AI \u2014 Sales & Marketing",
+        "Kiran AI \u2014 Retail Vision Product",
+        "B2B Cold Outreach"
+      ],
+      "expected": [
+        "Case Study Generation"
+      ]
+    },
+    {
+      "id": "B10",
+      "cat": "single-semantic",
+      "query": "How to make the AI work across different industry verticals?",
+      "sc_recall": 0.0,
+      "anc_recall": 0.0,
+      "passed": false,
+      "retrieved": [
+        "PMIS Architecture Design",
+        "Vision AI Products & Engineering",
+        "Personal Productivity & Systems"
+      ],
+      "expected": [
+        "Vision Pipeline Architecture"
+      ]
+    },
+    {
+      "id": "B11",
+      "cat": "single-semantic",
+      "query": "What makes the first page of a slide deck effective?",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "LinkedIn Content Strategy",
+        "General Design Principles"
+      ],
+      "expected": [
+        "LinkedIn Content Strategy"
+      ]
+    },
+    {
+      "id": "B12",
+      "cat": "single-semantic",
+      "query": "How fast does our product recognition need to be?",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "PMIS Architecture Design",
+        "Vision AI Products & Engineering"
+      ],
+      "expected": [
+        "Kiran AI Retail Product"
+      ]
+    },
+    {
+      "id": "B13",
+      "cat": "single-semantic",
+      "query": "What interactive tool on our website converts best?",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "Security Demo Page",
+        "General Design Principles"
+      ],
+      "expected": [
+        "Security Demo Page"
+      ]
+    },
+    {
+      "id": "B14",
+      "cat": "single-semantic",
+      "query": "How should anchors in our knowledge system be written?",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "PMIS Architecture Design",
+        "Personal Productivity & Systems",
+        "AI Agent Memory Systems Research"
+      ],
+      "expected": [
+        "PMIS System Design"
+      ]
+    },
+    {
+      "id": "B15",
+      "cat": "single-semantic",
+      "query": "What ISP problem affects our Indian camera deployments?",
+      "sc_recall": 0.0,
+      "anc_recall": 0.0,
+      "passed": false,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "Vision AI Products & Engineering",
+        "Personal Productivity & Systems"
+      ],
+      "expected": [
+        "Vision Pipeline Architecture"
+      ]
+    },
+    {
+      "id": "C01",
+      "cat": "cross-domain",
+      "query": "Write a cold email for construction safety product",
+      "sc_recall": 0.5,
+      "anc_recall": 0.5,
+      "passed": true,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "PMIS Architecture Design",
+        "Construction Site Monitoring"
+      ],
+      "expected": [
+        "B2B Cold Outreach",
+        "Construction Site Monitoring"
+      ]
+    },
+    {
+      "id": "C02",
+      "cat": "cross-domain",
+      "query": "LinkedIn post about our kirana store AI deployment",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "PMIS Architecture Design",
+        "LinkedIn Content Strategy"
+      ],
+      "expected": [
+        "LinkedIn Content Strategy",
+        "Kiran AI Retail Product"
+      ]
+    },
+    {
+      "id": "C03",
+      "cat": "cross-domain",
+      "query": "Create a demo page for hospital analytics",
+      "sc_recall": 0.5,
+      "anc_recall": 0.0,
+      "passed": false,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "Hospital CCTV Analytics",
+        "Vision AI Products & Engineering"
+      ],
+      "expected": [
+        "Security Demo Page",
+        "Hospital CCTV Analytics"
+      ]
+    },
+    {
+      "id": "C04",
+      "cat": "cross-domain",
+      "query": "Case study for residential society security system",
+      "sc_recall": 0.0,
+      "anc_recall": 0.0,
+      "passed": false,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "Vision AI Products & Engineering",
+        "Yantra AI \u2014 Sales & Marketing"
+      ],
+      "expected": [
+        "Case Study Generation",
+        "Residential Society Security"
+      ]
+    },
+    {
+      "id": "C05",
+      "cat": "cross-domain",
+      "query": "What compute do we need for construction site cameras?",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Construction Site Monitoring",
+        "Vision Pipeline Architecture",
+        "Vision AI Products & Engineering"
+      ],
+      "expected": [
+        "Vision Pipeline Architecture",
+        "Construction Site Monitoring"
+      ]
+    },
+    {
+      "id": "C06",
+      "cat": "cross-domain",
+      "query": "Email the Gurgaon hospital leads about our product",
+      "sc_recall": 0.33,
+      "anc_recall": 0.0,
+      "passed": false,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "PMIS Architecture Design",
+        "Hospital CCTV Analytics"
+      ],
+      "expected": [
+        "B2B Cold Outreach",
+        "Hospital CCTV Analytics",
+        "GTM Lead Pipeline"
+      ]
+    },
+    {
+      "id": "C07",
+      "cat": "cross-domain",
+      "query": "How to pitch our vision AI to construction CTO?",
+      "sc_recall": 0.0,
+      "anc_recall": 0.0,
+      "passed": false,
+      "retrieved": [
+        "Vision AI Products & Engineering",
+        "Kiran AI \u2014 Retail Vision Product",
+        "Yantra AI \u2014 Sales & Marketing"
+      ],
+      "expected": [
+        "B2B Cold Outreach",
+        "Construction Site Monitoring"
+      ]
+    },
+    {
+      "id": "C08",
+      "cat": "cross-domain",
+      "query": "GTM strategy for retail AI product launch",
+      "sc_recall": 0.5,
+      "anc_recall": 0.0,
+      "passed": false,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "PMIS Architecture Design",
+        "Vision AI Products & Engineering"
+      ],
+      "expected": [
+        "GTM Lead Pipeline",
+        "Kiran AI Retail Product"
+      ]
+    },
+    {
+      "id": "C09",
+      "cat": "cross-domain",
+      "query": "Build LinkedIn carousel about our vision pipeline",
+      "sc_recall": 0.5,
+      "anc_recall": 0.0,
+      "passed": false,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "Vision AI Products & Engineering",
+        "LinkedIn Content Strategy"
+      ],
+      "expected": [
+        "LinkedIn Content Strategy",
+        "Vision Pipeline Architecture"
+      ]
+    },
+    {
+      "id": "C10",
+      "cat": "cross-domain",
+      "query": "Demo showing factory safety detection capabilities",
+      "sc_recall": 0.0,
+      "anc_recall": 0.0,
+      "passed": false,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "Vision AI Products & Engineering",
+        "PMIS Architecture Design"
+      ],
+      "expected": [
+        "Security Demo Page",
+        "Vision Pipeline Architecture"
+      ]
+    },
+    {
+      "id": "C11",
+      "cat": "cross-domain",
+      "query": "Outreach email to residential society management about ANPR",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Yantra AI \u2014 Sales & Marketing",
+        "B2B Cold Outreach",
+        "Residential Society Security"
+      ],
+      "expected": [
+        "B2B Cold Outreach",
+        "Residential Society Security"
+      ]
+    },
+    {
+      "id": "C12",
+      "cat": "cross-domain",
+      "query": "Case study template for manufacturing quality control",
+      "sc_recall": 0.0,
+      "anc_recall": 0.0,
+      "passed": false,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "Vision AI Products & Engineering",
+        "PMIS Architecture Design"
+      ],
+      "expected": [
+        "Case Study Generation",
+        "Vision Pipeline Architecture"
+      ]
+    },
+    {
+      "id": "C13",
+      "cat": "cross-domain",
+      "query": "How to position edge compute for hospital deployment?",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "PMIS Architecture Design",
+        "Vision Pipeline Architecture",
+        "Hospital CCTV Analytics"
+      ],
+      "expected": [
+        "Vision Pipeline Architecture",
+        "Hospital CCTV Analytics"
+      ]
+    },
+    {
+      "id": "C14",
+      "cat": "cross-domain",
+      "query": "Technical LinkedIn post explaining our dual-layer architectu",
+      "sc_recall": 0.5,
+      "anc_recall": 0.5,
+      "passed": true,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "PMIS Architecture Design",
+        "LinkedIn Content Strategy"
+      ],
+      "expected": [
+        "LinkedIn Content Strategy",
+        "Vision Pipeline Architecture"
+      ]
+    },
+    {
+      "id": "C15",
+      "cat": "cross-domain",
+      "query": "Lead qualification for hospital security camera deals",
+      "sc_recall": 0.0,
+      "anc_recall": 0.0,
+      "passed": false,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "Yantra AI \u2014 Sales & Marketing",
+        "Vision AI Products & Engineering"
+      ],
+      "expected": [
+        "GTM Lead Pipeline",
+        "Hospital CCTV Analytics"
+      ]
+    },
+    {
+      "id": "C16",
+      "cat": "cross-domain",
+      "query": "Night camera setup for construction and residential",
+      "sc_recall": 0.5,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "Vision AI Products & Engineering",
+        "Construction Site Monitoring"
+      ],
+      "expected": [
+        "Construction Site Monitoring",
+        "Residential Society Security"
+      ]
+    },
+    {
+      "id": "C17",
+      "cat": "cross-domain",
+      "query": "How our memory system retrieves relevant knowledge for retri",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "AI Agent Memory Systems Research",
+        "PMIS Architecture Design",
+        "Personal Productivity & Systems"
+      ],
+      "expected": [
+        "PMIS System Design"
+      ]
+    },
+    {
+      "id": "C18",
+      "cat": "cross-domain",
+      "query": "Data visualization for LinkedIn carousel about retail AI acc",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "LinkedIn Content Strategy",
+        "Vision AI Products & Engineering"
+      ],
+      "expected": [
+        "LinkedIn Content Strategy",
+        "Kiran AI Retail Product"
+      ]
+    },
+    {
+      "id": "C19",
+      "cat": "cross-domain",
+      "query": "Playground and pool safety monitoring for residential societ",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Construction Site Monitoring",
+        "Vision AI Products & Engineering",
+        "Residential Society Security"
+      ],
+      "expected": [
+        "Residential Society Security"
+      ]
+    },
+    {
+      "id": "C20",
+      "cat": "cross-domain",
+      "query": "International construction company leads for outreach",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Yantra AI \u2014 Sales & Marketing",
+        "B2B Cold Outreach",
+        "GTM Lead Pipeline"
+      ],
+      "expected": [
+        "GTM Lead Pipeline",
+        "B2B Cold Outreach"
+      ]
+    },
+    {
+      "id": "D01",
+      "cat": "multi-turn",
+      "query": "I need to write cold emails for security product",
+      "sc_recall": 0.0,
+      "anc_recall": 0.0,
+      "passed": false,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "PMIS Architecture Design",
+        "Yantra AI \u2014 Sales & Marketing"
+      ],
+      "expected": [
+        "B2B Cold Outreach"
+      ]
+    },
+    {
+      "id": "D02",
+      "cat": "multi-turn",
+      "query": "What about the follow-up timing?",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "PMIS Architecture Design",
+        "B2B Cold Outreach"
+      ],
+      "expected": [
+        "B2B Cold Outreach"
+      ]
+    },
+    {
+      "id": "D03",
+      "cat": "multi-turn",
+      "query": "Now create a demo page for these prospects",
+      "sc_recall": 0.0,
+      "anc_recall": 0.0,
+      "passed": false,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "Vision AI Products & Engineering",
+        "Yantra AI \u2014 Sales & Marketing"
+      ],
+      "expected": [
+        "Security Demo Page"
+      ]
+    },
+    {
+      "id": "D04",
+      "cat": "multi-turn",
+      "query": "Build a case study to attach with the email",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "Vision AI Products & Engineering",
+        "Case Study Generation"
+      ],
+      "expected": [
+        "Case Study Generation"
+      ]
+    },
+    {
+      "id": "D05",
+      "cat": "multi-turn",
+      "query": "What compute do we need for factory CCTV analytics?",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Vision Pipeline Architecture",
+        "Vision AI Products & Engineering",
+        "LinkedIn Content Strategy"
+      ],
+      "expected": [
+        "Vision Pipeline Architecture"
+      ]
+    },
+    {
+      "id": "D06",
+      "cat": "multi-turn",
+      "query": "Can we apply the same setup to construction sites?",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "Vision Pipeline Architecture",
+        "Construction Site Monitoring"
+      ],
+      "expected": [
+        "Vision Pipeline Architecture",
+        "Construction Site Monitoring"
+      ]
+    },
+    {
+      "id": "D07",
+      "cat": "multi-turn",
+      "query": "What about camera integration at old sites?",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "Vision AI Products & Engineering",
+        "Vision Pipeline Architecture"
+      ],
+      "expected": [
+        "Vision Pipeline Architecture"
+      ]
+    },
+    {
+      "id": "D08",
+      "cat": "multi-turn",
+      "query": "How to optimize the compute costs?",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Vision Pipeline Architecture",
+        "AI & ML Knowledge Base",
+        "Kiran AI \u2014 Retail Vision Product"
+      ],
+      "expected": [
+        "Vision Pipeline Architecture"
+      ]
+    },
+    {
+      "id": "D09",
+      "cat": "multi-turn",
+      "query": "Help me write a LinkedIn post about Kiran AI",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "Vision AI Products & Engineering",
+        "LinkedIn Content Strategy"
+      ],
+      "expected": [
+        "LinkedIn Content Strategy",
+        "Kiran AI Retail Product"
+      ]
+    },
+    {
+      "id": "D10",
+      "cat": "multi-turn",
+      "query": "Should I make it a carousel?",
+      "sc_recall": 1.0,
+      "anc_recall": 0.0,
+      "passed": false,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "LinkedIn Content Strategy",
+        "Yantra AI \u2014 Sales & Marketing"
+      ],
+      "expected": [
+        "LinkedIn Content Strategy"
+      ]
+    },
+    {
+      "id": "D11",
+      "cat": "multi-turn",
+      "query": "What technical details to include about store deployment?",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "PMIS Architecture Design",
+        "LinkedIn Content Strategy"
+      ],
+      "expected": [
+        "Kiran AI Retail Product"
+      ]
+    },
+    {
+      "id": "D12",
+      "cat": "multi-turn",
+      "query": "Include the accuracy numbers?",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "PMIS Architecture Design",
+        "Construction Site Monitoring"
+      ],
+      "expected": [
+        "Kiran AI Retail Product"
+      ]
+    },
+    {
+      "id": "D13",
+      "cat": "multi-turn",
+      "query": "What features do hospitals need from CCTV AI?",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "PMIS Architecture Design",
+        "Vision AI Products & Engineering",
+        "Hospital CCTV Analytics"
+      ],
+      "expected": [
+        "Hospital CCTV Analytics"
+      ]
+    },
+    {
+      "id": "D14",
+      "cat": "multi-turn",
+      "query": "What about residential societies \u2014 similar needs?",
+      "sc_recall": 0.0,
+      "anc_recall": 0.0,
+      "passed": false,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "AI & ML Knowledge Base",
+        "Construction Site Monitoring"
+      ],
+      "expected": [
+        "Residential Society Security"
+      ]
+    },
+    {
+      "id": "D15",
+      "cat": "multi-turn",
+      "query": "Alert speed requirements for both?",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Vision AI Products & Engineering",
+        "Residential Society Security",
+        "General Design Principles"
+      ],
+      "expected": [
+        "Residential Society Security"
+      ]
+    },
+    {
+      "id": "D16",
+      "cat": "multi-turn",
+      "query": "Now help me draft an email to Medanta hospital",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Hospital CCTV Analytics",
+        "B2B Cold Outreach",
+        "Kiran AI \u2014 Retail Vision Product"
+      ],
+      "expected": [
+        "B2B Cold Outreach",
+        "Hospital CCTV Analytics"
+      ]
+    },
+    {
+      "id": "D17",
+      "cat": "multi-turn",
+      "query": "How should we build our sales lead pipeline?",
+      "sc_recall": 0.0,
+      "anc_recall": 0.0,
+      "passed": false,
+      "retrieved": [
+        "Yantra AI \u2014 Sales & Marketing",
+        "Kiran AI \u2014 Retail Vision Product",
+        "B2B Cold Outreach"
+      ],
+      "expected": [
+        "GTM Lead Pipeline"
+      ]
+    },
+    {
+      "id": "D18",
+      "cat": "multi-turn",
+      "query": "Which construction companies to target first?",
+      "sc_recall": 0.5,
+      "anc_recall": 0.0,
+      "passed": false,
+      "retrieved": [
+        "GTM Lead Pipeline",
+        "Yantra AI \u2014 Sales & Marketing",
+        "Construction Site Monitoring"
+      ],
+      "expected": [
+        "GTM Lead Pipeline",
+        "B2B Cold Outreach"
+      ]
+    },
+    {
+      "id": "D19",
+      "cat": "multi-turn",
+      "query": "Write the first email for these leads",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "GTM Lead Pipeline",
+        "B2B Cold Outreach",
+        "IQRA IAS Academy"
+      ],
+      "expected": [
+        "B2B Cold Outreach"
+      ]
+    },
+    {
+      "id": "D20",
+      "cat": "multi-turn",
+      "query": "What demo should we show them after reply?",
+      "sc_recall": 0.0,
+      "anc_recall": 0.0,
+      "passed": false,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "Vision AI Products & Engineering",
+        "Personal Productivity & Systems"
+      ],
+      "expected": [
+        "Security Demo Page"
+      ]
+    },
+    {
+      "id": "E01",
+      "cat": "feedback",
+      "query": "Best email copy approach?",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "B2B Cold Outreach",
+        "LinkedIn Content Strategy",
+        "Personal Productivity & Systems"
+      ],
+      "expected": [
+        "B2B Cold Outreach"
+      ]
+    },
+    {
+      "id": "E02",
+      "cat": "feedback",
+      "query": "Best email copy approach?",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "B2B Cold Outreach",
+        "LinkedIn Content Strategy",
+        "Personal Productivity & Systems"
+      ],
+      "expected": [
+        "B2B Cold Outreach"
+      ]
+    },
+    {
+      "id": "E03",
+      "cat": "feedback",
+      "query": "How to deploy at client sites?",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Vision Pipeline Architecture",
+        "Yantra AI \u2014 Sales & Marketing",
+        "Kiran AI \u2014 Retail Vision Product"
+      ],
+      "expected": [
+        "Vision Pipeline Architecture"
+      ]
+    },
+    {
+      "id": "E04",
+      "cat": "feedback",
+      "query": "What works for kirana store owners?",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "PMIS Architecture Design",
+        "AI & ML Knowledge Base"
+      ],
+      "expected": [
+        "Kiran AI Retail Product"
+      ]
+    },
+    {
+      "id": "E05",
+      "cat": "feedback",
+      "query": "What works for kirana store owners?",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "PMIS Architecture Design",
+        "AI & ML Knowledge Base"
+      ],
+      "expected": [
+        "Kiran AI Retail Product"
+      ]
+    },
+    {
+      "id": "E06",
+      "cat": "feedback",
+      "query": "Construction safety monitoring setup?",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "Construction Site Monitoring",
+        "Vision AI Products & Engineering"
+      ],
+      "expected": [
+        "Construction Site Monitoring"
+      ]
+    },
+    {
+      "id": "E07",
+      "cat": "feedback",
+      "query": "LinkedIn content that gets engagement?",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "LinkedIn Content Strategy",
+        "Yantra AI \u2014 Sales & Marketing"
+      ],
+      "expected": [
+        "LinkedIn Content Strategy"
+      ]
+    },
+    {
+      "id": "E08",
+      "cat": "feedback",
+      "query": "How to make society gates safer?",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Residential Society Security",
+        "Kiran AI \u2014 Retail Vision Product",
+        "PMIS Architecture Design"
+      ],
+      "expected": [
+        "Residential Society Security"
+      ]
+    },
+    {
+      "id": "E09",
+      "cat": "feedback",
+      "query": "Lead qualification for our sales pipeline?",
+      "sc_recall": 0.0,
+      "anc_recall": 0.0,
+      "passed": false,
+      "retrieved": [
+        "Yantra AI \u2014 Sales & Marketing",
+        "Kiran AI \u2014 Retail Vision Product",
+        "B2B Cold Outreach"
+      ],
+      "expected": [
+        "GTM Lead Pipeline"
+      ]
+    },
+    {
+      "id": "E10",
+      "cat": "feedback",
+      "query": "How does our memory system retrieve things?",
+      "sc_recall": 0.0,
+      "anc_recall": 0.0,
+      "passed": false,
+      "retrieved": [
+        "AI Agent Memory Systems Research",
+        "Personal Productivity & Systems",
+        "Vision Pipeline Architecture"
+      ],
+      "expected": [
+        "PMIS System Design"
+      ]
+    },
+    {
+      "id": "F01",
+      "cat": "edge",
+      "query": "Tell me everything about our products",
+      "sc_recall": 0.5,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "Vision AI Products & Engineering",
+        "Yantra AI \u2014 Sales & Marketing"
+      ],
+      "expected": [
+        "Kiran AI Retail Product",
+        "Vision Pipeline Architecture"
+      ]
+    },
+    {
+      "id": "F02",
+      "cat": "edge",
+      "query": "What's the ROI of AI cameras?",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Vision AI Products & Engineering",
+        "Construction Site Monitoring",
+        "Case Study Generation"
+      ],
+      "expected": [
+        "Construction Site Monitoring",
+        "Hospital CCTV Analytics"
+      ]
+    },
+    {
+      "id": "F03",
+      "cat": "edge",
+      "query": "7B parameter model",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "PMIS Architecture Design",
+        "Vision Pipeline Architecture",
+        "Gutzy & Food Innovation"
+      ],
+      "expected": [
+        "Vision Pipeline Architecture"
+      ]
+    },
+    {
+      "id": "F04",
+      "cat": "edge",
+      "query": "MediaMTX",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Vision Pipeline Architecture",
+        "Kiran AI \u2014 Retail Vision Product",
+        "PMIS Architecture Design"
+      ],
+      "expected": [
+        "Vision Pipeline Architecture"
+      ]
+    },
+    {
+      "id": "F05",
+      "cat": "edge",
+      "query": "deployment challenges India",
+      "sc_recall": 0.5,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Gutzy & Food Innovation",
+        "Kiran AI \u2014 Retail Vision Product",
+        "Vision AI Products & Engineering"
+      ],
+      "expected": [
+        "Vision Pipeline Architecture",
+        "Kiran AI Retail Product"
+      ]
+    },
+    {
+      "id": "F06",
+      "cat": "edge",
+      "query": "What doesn't work for email outreach?",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Yantra AI \u2014 Sales & Marketing",
+        "PMIS Architecture Design",
+        "B2B Cold Outreach"
+      ],
+      "expected": [
+        "B2B Cold Outreach"
+      ]
+    },
+    {
+      "id": "F07",
+      "cat": "edge",
+      "query": "Cloudflare tunnel RTSP bypass method",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Vision Pipeline Architecture",
+        "Kiran AI \u2014 Retail Vision Product",
+        "PMIS Architecture Design"
+      ],
+      "expected": [
+        "Vision Pipeline Architecture"
+      ]
+    },
+    {
+      "id": "F08",
+      "cat": "edge",
+      "query": "What's our best product?",
+      "sc_recall": 0.5,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "PMIS Architecture Design",
+        "Gutzy & Food Innovation"
+      ],
+      "expected": [
+        "Kiran AI Retail Product",
+        "Vision Pipeline Architecture"
+      ]
+    },
+    {
+      "id": "F09",
+      "cat": "edge",
+      "query": "NABH accreditation camera placement hospital requirements",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "Vision AI Products & Engineering",
+        "Hospital CCTV Analytics"
+      ],
+      "expected": [
+        "Hospital CCTV Analytics"
+      ]
+    },
+    {
+      "id": "F10",
+      "cat": "edge",
+      "query": "child pool playground safety alert",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Construction Site Monitoring",
+        "Residential Society Security",
+        "Vision AI Products & Engineering"
+      ],
+      "expected": [
+        "Residential Society Security"
+      ]
+    },
+    {
+      "id": "F11",
+      "cat": "edge",
+      "query": "How to name super contexts properly?",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "PMIS Architecture Design",
+        "Personal Productivity & Systems",
+        "Kiran AI \u2014 Retail Vision Product"
+      ],
+      "expected": [
+        "PMIS System Design"
+      ]
+    },
+    {
+      "id": "F12",
+      "cat": "edge",
+      "query": "50 images training",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "AI & ML Knowledge Base",
+        "General Design Principles"
+      ],
+      "expected": [
+        "Kiran AI Retail Product"
+      ]
+    },
+    {
+      "id": "F13",
+      "cat": "edge",
+      "query": "zone heatmap bottleneck",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "Vision AI Products & Engineering",
+        "Construction Site Monitoring"
+      ],
+      "expected": [
+        "Construction Site Monitoring"
+      ]
+    },
+    {
+      "id": "F14",
+      "cat": "edge",
+      "query": "Fortis FMRI hospital Gurgaon target",
+      "sc_recall": 1.0,
+      "anc_recall": 1.0,
+      "passed": true,
+      "retrieved": [
+        "Hospital CCTV Analytics",
+        "Yantra AI \u2014 Sales & Marketing",
+        "Personal Productivity & Systems"
+      ],
+      "expected": [
+        "Hospital CCTV Analytics"
+      ]
+    },
+    {
+      "id": "F15",
+      "cat": "edge",
+      "query": "What's the complete flow from lead to demo to close?",
+      "sc_recall": 0.0,
+      "anc_recall": 1.0,
+      "passed": false,
+      "retrieved": [
+        "Kiran AI \u2014 Retail Vision Product",
+        "PMIS Architecture Design",
+        "Yantra AI \u2014 Sales & Marketing"
+      ],
+      "expected": [
+        "GTM Lead Pipeline",
+        "B2B Cold Outreach",
+        "Security Demo Page"
+      ]
+    }
+  ]
+}
