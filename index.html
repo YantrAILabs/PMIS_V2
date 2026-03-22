@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PMIS — Architecture Overview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0c0c0f;--bg2:#131318;--bg3:#1a1a22;--bg4:#222230;--fg:#e8e6de;--fg2:#8a8880;--fg3:#555550;--g:#4ade80;--g2:#22c55e;--gd:rgba(74,222,128,0.08);--b:#60a5fa;--bd:rgba(96,165,250,0.08);--p:#a78bfa;--pd:rgba(167,139,250,0.08);--o:#fb923c;--od:rgba(251,146,60,0.08);--t:#2dd4bf;--td:rgba(45,212,191,0.08);--y:#facc15;--r:#f87171;--border:#252530;--border2:#303040}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--fg);min-height:100vh;overflow-x:hidden}
+.mono{font-family:'JetBrains Mono',monospace}
+
+/* ── Hero ── */
+.hero{padding:100px 60px 70px;text-align:center;position:relative}
+.hero::after{content:'';position:absolute;bottom:0;left:5%;right:5%;height:1px;background:linear-gradient(90deg,transparent,var(--border),transparent)}
+.hero .eyebrow{font-size:11px;letter-spacing:4px;text-transform:uppercase;color:var(--g);margin-bottom:20px;font-weight:500}
+.hero h1{font-size:clamp(28px,4.5vw,48px);font-weight:300;line-height:1.2;margin-bottom:16px}
+.hero h1 b{font-weight:700}
+.hero .sub{font-size:15px;color:var(--fg2);max-width:620px;margin:0 auto;line-height:1.7}
+
+/* ── Section ── */
+.section{padding:80px 60px;position:relative}
+.section::after{content:'';position:absolute;bottom:0;left:5%;right:5%;height:1px;background:linear-gradient(90deg,transparent,var(--border),transparent)}
+.section:last-of-type::after{display:none}
+.section-inner{max-width:960px;margin:0 auto}
+.sec-label{font-size:11px;letter-spacing:3px;text-transform:uppercase;color:var(--g);margin-bottom:12px;font-weight:500}
+.sec-title{font-size:clamp(20px,3vw,30px);font-weight:600;margin-bottom:12px;line-height:1.3}
+.sec-sub{font-size:14px;color:var(--fg2);margin-bottom:36px;line-height:1.7;max-width:680px}
+
+/* ── Pipeline ── */
+.pipeline{display:flex;gap:0;margin:0 auto;position:relative}
+.pipe{flex:1;padding:24px 20px;background:var(--bg2);border:1px solid var(--border);position:relative;min-height:160px}
+.pipe:first-child{border-radius:14px 0 0 14px}
+.pipe:last-child{border-radius:0 14px 14px 0}
+.pipe::after{content:'';position:absolute;right:-1px;top:50%;transform:translateY(-50%);width:0;height:0;border-top:10px solid transparent;border-bottom:10px solid transparent;border-left:10px solid var(--border);z-index:2}
+.pipe:last-child::after{display:none}
+.pipe-icon{font-size:20px;margin-bottom:10px}
+.pipe-name{font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px}
+.pipe-desc{font-size:12px;color:var(--fg2);line-height:1.6}
+.pipe.p1{border-top:3px solid var(--g)}.pipe.p1 .pipe-name{color:var(--g)}
+.pipe.p2{border-top:3px solid var(--b)}.pipe.p2 .pipe-name{color:var(--b)}
+.pipe.p3{border-top:3px solid var(--p)}.pipe.p3 .pipe-name{color:var(--p)}
+.pipe.p4{border-top:3px solid var(--o)}.pipe.p4 .pipe-name{color:var(--o)}
+.pipe.p5{border-top:3px solid var(--t)}.pipe.p5 .pipe-name{color:var(--t)}
+
+/* ── Layer diagram ── */
+.layers{display:flex;flex-direction:column;gap:12px;max-width:720px;margin:0 auto}
+.layer{display:flex;align-items:stretch;gap:0;border-radius:12px;overflow:hidden;border:1px solid var(--border)}
+.layer-label{width:160px;padding:18px 20px;display:flex;align-items:center;font-size:11px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;flex-shrink:0}
+.layer-content{flex:1;padding:18px 24px;background:var(--bg2)}
+.layer-title{font-size:14px;font-weight:600;margin-bottom:4px}
+.layer-desc{font-size:12px;color:var(--fg2);line-height:1.6}
+.l1 .layer-label{background:rgba(74,222,128,0.1);color:var(--g);border-right:3px solid var(--g)}
+.l2 .layer-label{background:rgba(96,165,250,0.1);color:var(--b);border-right:3px solid var(--b)}
+.l3 .layer-label{background:rgba(167,139,250,0.1);color:var(--p);border-right:3px solid var(--p)}
+.l4 .layer-label{background:rgba(251,146,60,0.1);color:var(--o);border-right:3px solid var(--o)}
+.l5 .layer-label{background:rgba(45,212,191,0.1);color:var(--t);border-right:3px solid var(--t)}
+
+/* ── Three-engine diagram ── */
+.engines{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:24px}
+.engine{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:24px;text-align:center;position:relative}
+.engine::before{content:'';position:absolute;top:0;left:20%;right:20%;height:3px;border-radius:0 0 4px 4px}
+.engine.e1::before{background:var(--g)}.engine.e2::before{background:var(--b)}.engine.e3::before{background:var(--p)}
+.engine-name{font-size:13px;font-weight:600;margin-bottom:6px}
+.engine.e1 .engine-name{color:var(--g)}.engine.e2 .engine-name{color:var(--b)}.engine.e3 .engine-name{color:var(--p)}
+.engine-what{font-size:12px;color:var(--fg2);line-height:1.6;margin-bottom:10px}
+.engine-signal{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--fg3);background:var(--bg3);padding:4px 10px;border-radius:6px;display:inline-block}
+.merge-arrow{text-align:center;margin:0 0 24px;font-size:12px;color:var(--fg3)}
+.merge-arrow span{display:inline-block;padding:6px 20px;border:1px dashed var(--border2);border-radius:8px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--fg2)}
+
+/* ── Signals grid ── */
+.signals{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.signal{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:22px 24px}
+.signal-icon{font-size:18px;margin-bottom:8px}
+.signal-name{font-size:13px;font-weight:600;margin-bottom:4px}
+.signal-desc{font-size:12px;color:var(--fg2);line-height:1.6}
+.signal-range{margin-top:8px;display:flex;align-items:center;gap:8px}
+.signal-bar{flex:1;height:4px;border-radius:2px;background:var(--bg4);position:relative;overflow:hidden}
+.signal-fill{position:absolute;left:0;top:0;height:100%;border-radius:2px}
+.signal-labels{display:flex;justify-content:space-between;font-size:9px;color:var(--fg3);font-family:'JetBrains Mono',monospace;margin-top:4px}
+
+/* ── Lifecycle stages ── */
+.stages{display:flex;gap:0;margin:0 auto;max-width:720px}
+.stage{flex:1;text-align:center;padding:20px 16px;position:relative}
+.stage::after{content:'';position:absolute;right:0;top:20%;height:60%;width:1px;background:var(--border)}
+.stage:last-child::after{display:none}
+.stage-dot{width:36px;height:36px;border-radius:50%;margin:0 auto 10px;display:flex;align-items:center;justify-content:center;font-size:14px}
+.stage-name{font-size:12px;font-weight:600;margin-bottom:4px}
+.stage-desc{font-size:11px;color:var(--fg2);line-height:1.5}
+.stage-boost{font-family:'JetBrains Mono',monospace;font-size:10px;margin-top:6px;padding:2px 8px;border-radius:4px;display:inline-block}
+.s1 .stage-dot{background:var(--pd)}.s1 .stage-name{color:var(--p)}.s1 .stage-boost{background:var(--pd);color:var(--p)}
+.s2 .stage-dot{background:var(--gd)}.s2 .stage-name{color:var(--g)}.s2 .stage-boost{background:var(--gd);color:var(--g)}
+.s3 .stage-dot{background:var(--td)}.s3 .stage-name{color:var(--t)}.s3 .stage-boost{background:var(--td);color:var(--t)}
+.s4 .stage-dot{background:rgba(85,85,80,0.15)}.s4 .stage-name{color:var(--fg3)}.s4 .stage-boost{background:rgba(85,85,80,0.15);color:var(--fg3)}
+
+/* ── Spec pills ── */
+.specs{display:flex;gap:12px;flex-wrap:wrap;margin-top:24px;justify-content:center}
+.spec{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px 18px;font-size:12px;display:flex;align-items:center;gap:8px}
+.spec-val{font-family:'JetBrains Mono',monospace;font-weight:600;color:var(--g)}
+.spec-label{color:var(--fg2)}
+
+/* ── Footnote ── */
+.footnote{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:24px 28px;margin-top:36px;border-left:3px solid var(--fg3)}
+.footnote p{font-size:13px;color:var(--fg2);line-height:1.7}
+.footnote p b{color:var(--fg);font-weight:500}
+
+.footer{padding:40px 60px;text-align:center;font-size:12px;color:var(--fg3);border-top:1px solid var(--border)}
+
+.reveal{opacity:0;transform:translateY(24px);transition:opacity 0.5s ease,transform 0.5s ease}
+.reveal.visible{opacity:1;transform:translateY(0)}
+
+@media(max-width:768px){
+  .hero,.section{padding:60px 24px}
+  .pipeline{flex-direction:column}
+  .pipe{border-radius:0!important}
+  .pipe:first-child{border-radius:14px 14px 0 0!important}
+  .pipe:last-child{border-radius:0 0 14px 14px!important}
+  .pipe::after{display:none}
+  .engines{grid-template-columns:1fr}
+  .signals{grid-template-columns:1fr}
+  .stages{flex-direction:column}
+  .stage::after{display:none}
+  .layer{flex-direction:column}
+  .layer-label{width:100%;border-right:none!important;border-bottom:2px solid}
+}
+</style>
+</head>
+<body>
+
+<!-- ════ HERO ════ -->
+<div class="hero">
+  <div class="eyebrow">Architecture Overview</div>
+  <h1>Inside <b>PMIS</b></h1>
+  <p class="sub">A layered memory system that structures knowledge into a weighted, temporal, evidence-driven graph. Here's how the pieces fit together.</p>
+</div>
+
+<!-- ════ 1. DATA MODEL ════ -->
+<div class="section">
+  <div class="section-inner">
+    <div class="sec-label">Data Model</div>
+    <div class="sec-title">Three-level knowledge graph.</div>
+    <div class="sec-sub">All knowledge is organized in a strict hierarchy. Broad domains contain skill areas, which contain atomic insights. Every node carries a weight that evolves based on real-world outcomes.</div>
+
+    <div class="layers reveal">
+      <div class="layer l1">
+        <div class="layer-label">Domain</div>
+        <div class="layer-content">
+          <div class="layer-title">The broadest category of work.</div>
+          <div class="layer-desc">Reusable across many conversations. Carries a quality score derived from the average outcome of all tasks within it. Examples: "B2B Outreach", "Security Platform", "Retail AI".</div>
+        </div>
+      </div>
+      <div class="layer l2">
+        <div class="layer-label">Skill Area</div>
+        <div class="layer-content">
+          <div class="layer-title">A distinct phase or competency within a domain.</div>
+          <div class="layer-desc">Groups related insights by skill. Weight is computed as the mean of its children's evidence-weighted scores. Examples: "Email Copywriting", "Target Research", "Pricing Strategy".</div>
+        </div>
+      </div>
+      <div class="layer l3">
+        <div class="layer-label">Insight</div>
+        <div class="layer-content">
+          <div class="layer-title">One atomic, reusable piece of knowledge.</div>
+          <div class="layer-desc">The fundamental unit. Each insight has a weight (0&ndash;1) that begins as an estimate and converges toward evidence over time. Tagged for multi-signal retrieval. Carries temporal metadata: when it was used, how often, how consistently.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footnote reveal">
+      <p>The hierarchy is <b>self-deduplicating</b>. Storing knowledge about "B2B Outreach" fifty times doesn't create fifty trees &mdash; it merges into one, growing richer with each contribution. A fuzzy matching engine recognizes when titles refer to the same concept, even with different phrasing.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ════ 2. RETRIEVAL PIPELINE ════ -->
+<div class="section">
+  <div class="section-inner">
+    <div class="sec-label">Retrieval</div>
+    <div class="sec-title">Triple-fusion search pipeline.</div>
+    <div class="sec-sub">Retrieval runs three independent search strategies in parallel, then merges their rankings into a single result set. This is why PMIS finds relevant knowledge even when queries use different vocabulary than what was stored.</div>
+
+    <div class="engines reveal">
+      <div class="engine e1">
+        <div class="engine-name">Tag Engine</div>
+        <div class="engine-what">Matches domain-aware tags generated at store time. Fast set-overlap on structured vocabulary.</div>
+        <div class="engine-signal">structured matching</div>
+      </div>
+      <div class="engine e2">
+        <div class="engine-name">Keyword Engine</div>
+        <div class="engine-what">Full-text search with term importance weighting. Expands queries with related terms from the knowledge graph.</div>
+        <div class="engine-signal">relevance scoring</div>
+      </div>
+      <div class="engine e3">
+        <div class="engine-name">Semantic Engine</div>
+        <div class="engine-what">Computes document-level similarity using term frequency patterns. Catches conceptual matches that keywords miss.</div>
+        <div class="engine-signal">conceptual matching</div>
+      </div>
+    </div>
+
+    <div class="merge-arrow reveal">
+      <span>&darr;&ensp;Reciprocal Rank Fusion&ensp;&darr;</span>
+    </div>
+
+    <div class="layers reveal">
+      <div class="layer l4">
+        <div class="layer-label">Post-Merge</div>
+        <div class="layer-content">
+          <div class="layer-title">Quality, temporal, and context-aware re-ranking.</div>
+          <div class="layer-desc">After fusion, results are further adjusted by: domain quality score (how well has this domain performed historically?), temporal stage (is this knowledge current or stale?), and mode affinity (does this domain match the type of work being done?).</div>
+        </div>
+      </div>
+      <div class="layer l5">
+        <div class="layer-label">Output</div>
+        <div class="layer-content">
+          <div class="layer-title">Ranked context pack with provenance signals.</div>
+          <div class="layer-desc">Each returned insight carries: its evidence-based weight, temporal stage, whether it appeared in the highest-scoring historical task, and if execution details matter. The caller knows not just <em>what</em> to use, but <em>how much to trust it</em>.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ 3. FOUR SIGNAL SYSTEMS ════ -->
+<div class="section">
+  <div class="section-inner">
+    <div class="sec-label">Signal Systems</div>
+    <div class="sec-title">Four independent signals shape every retrieval.</div>
+    <div class="sec-sub">Unlike flat memory stores, PMIS weighs knowledge on multiple axes. Each signal adds a dimension of intelligence that simple keyword systems can't replicate.</div>
+
+    <div class="signals reveal">
+      <div class="signal">
+        <div class="signal-icon">&#9878;</div>
+        <div class="signal-name">Evidence Weight</div>
+        <div class="signal-desc">Every insight starts with an estimated importance. As tasks are scored, the system blends initial estimates with observed outcomes. With enough data, evidence dominates &mdash; bad advice sinks, good advice rises, automatically.</div>
+        <div class="signal-range">
+          <div class="signal-bar"><div class="signal-fill" style="width:85%;background:var(--g)"></div></div>
+        </div>
+        <div class="signal-labels"><span>Estimate-driven</span><span>Evidence-driven</span></div>
+      </div>
+
+      <div class="signal">
+        <div class="signal-icon">&#9202;</div>
+        <div class="signal-name">Temporal Awareness</div>
+        <div class="signal-desc">Three independent measures &mdash; how recently used, how frequently used, and how consistently used &mdash; combine to classify knowledge into lifecycle stages. Battle-tested knowledge is boosted; stale knowledge is suppressed.</div>
+        <div class="signal-range">
+          <div class="signal-bar"><div class="signal-fill" style="width:65%;background:var(--b)"></div></div>
+        </div>
+        <div class="signal-labels"><span>New / untested</span><span>Battle-tested</span></div>
+      </div>
+
+      <div class="signal">
+        <div class="signal-icon">&#9733;</div>
+        <div class="signal-name">Winning Structures</div>
+        <div class="signal-desc">When a task scores well, PMIS snapshots the exact combination of knowledge that produced that outcome. On future retrieval, insights from that winning combination are flagged and surfaced first &mdash; a proven recipe.</div>
+        <div class="signal-range">
+          <div class="signal-bar"><div class="signal-fill" style="width:40%;background:var(--p)"></div></div>
+        </div>
+        <div class="signal-labels"><span>No scored tasks</span><span>Clear winning recipe</span></div>
+      </div>
+
+      <div class="signal">
+        <div class="signal-icon">&#8644;</div>
+        <div class="signal-name">Cross-Domain Transfer</div>
+        <div class="signal-desc">When two domains share structural patterns, PMIS links them and offers knowledge from one when working on the other &mdash; at a reduced confidence level. Lessons transfer between related work without manual tagging.</div>
+        <div class="signal-range">
+          <div class="signal-bar"><div class="signal-fill" style="width:30%;background:var(--o)"></div></div>
+        </div>
+        <div class="signal-labels"><span>Isolated domains</span><span>Rich cross-links</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ 4. KNOWLEDGE LIFECYCLE ════ -->
+<div class="section">
+  <div class="section-inner">
+    <div class="sec-label">Lifecycle</div>
+    <div class="sec-title">Knowledge matures through four stages.</div>
+    <div class="sec-sub">Every piece of knowledge enters as unproven and either earns its place through evidence &mdash; or quietly fades. The system is self-pruning: you don't need to curate it manually.</div>
+
+    <div class="stages reveal">
+      <div class="stage s1">
+        <div class="stage-dot">&#10022;</div>
+        <div class="stage-name">Impulse</div>
+        <div class="stage-desc">Just stored. Unproven. Slight retrieval penalty until validated.</div>
+        <div class="stage-boost">dampened</div>
+      </div>
+      <div class="stage s2">
+        <div class="stage-dot">&#9679;</div>
+        <div class="stage-name">Active</div>
+        <div class="stage-desc">Used multiple times recently. Currently relevant. Retrieval boost applied.</div>
+        <div class="stage-boost">boosted</div>
+      </div>
+      <div class="stage s3">
+        <div class="stage-dot">&#9733;</div>
+        <div class="stage-name">Established</div>
+        <div class="stage-desc">Sustained, consistent usage over time. Highest retrieval priority.</div>
+        <div class="stage-boost">strongest</div>
+      </div>
+      <div class="stage s4">
+        <div class="stage-dot">&#9676;</div>
+        <div class="stage-name">Fading</div>
+        <div class="stage-desc">Not used recently. Low frequency. Deprioritised but never deleted.</div>
+        <div class="stage-boost">suppressed</div>
+      </div>
+    </div>
+
+    <div class="footnote reveal">
+      <p><b>Nothing is ever deleted.</b> Fading knowledge stays in the graph with a reduced retrieval priority. If it becomes relevant again and gets reused, it can re-enter the active stage. The system self-heals &mdash; no manual cleanup needed.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ════ 5. SYSTEM SPECS ════ -->
+<div class="section">
+  <div class="section-inner">
+    <div class="sec-label">System Profile</div>
+    <div class="sec-title">Built for simplicity.</div>
+    <div class="sec-sub">PMIS runs entirely on standard library tooling. No vector databases, no cloud services, no API keys. One file, one database, zero dependencies.</div>
+
+    <div class="specs reveal">
+      <div class="spec"><span class="spec-val">0</span><span class="spec-label">external dependencies</span></div>
+      <div class="spec"><span class="spec-val">1</span><span class="spec-label">Python file</span></div>
+      <div class="spec"><span class="spec-val">SQLite</span><span class="spec-label">embedded database</span></div>
+      <div class="spec"><span class="spec-val">5</span><span class="spec-label">tables</span></div>
+      <div class="spec"><span class="spec-val">3</span><span class="spec-label">retrieval engines</span></div>
+      <div class="spec"><span class="spec-val">4</span><span class="spec-label">signal systems</span></div>
+      <div class="spec"><span class="spec-val">4</span><span class="spec-label">lifecycle stages</span></div>
+      <div class="spec"><span class="spec-val">98.33%</span><span class="spec-label">benchmark accuracy</span></div>
+    </div>
+
+    <div class="pipeline reveal" style="margin-top:36px">
+      <div class="pipe p1">
+        <div class="pipe-icon">&#128218;</div>
+        <div class="pipe-name">Ingest</div>
+        <div class="pipe-desc">Structured knowledge enters the graph. Dedup engine merges duplicates. Tags auto-generated.</div>
+      </div>
+      <div class="pipe p2">
+        <div class="pipe-icon">&#128270;</div>
+        <div class="pipe-name">Retrieve</div>
+        <div class="pipe-desc">Triple-fusion search across tags, keywords, and semantics. Post-ranked by quality and time.</div>
+      </div>
+      <div class="pipe p3">
+        <div class="pipe-icon">&#9881;</div>
+        <div class="pipe-name">Apply</div>
+        <div class="pipe-desc">Retrieved context informs decisions. Proven patterns surface first. Constraints are enforced.</div>
+      </div>
+      <div class="pipe p4">
+        <div class="pipe-icon">&#127919;</div>
+        <div class="pipe-name">Score</div>
+        <div class="pipe-desc">Task outcomes feed back into weights. Winning structures are captured. Evidence accumulates.</div>
+      </div>
+      <div class="pipe p5">
+        <div class="pipe-icon">&#128260;</div>
+        <div class="pipe-name">Evolve</div>
+        <div class="pipe-desc">Weights converge on truth. Stages shift. Transfer edges form. The system improves autonomously.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="footer">
+  PMIS &mdash; Personal Memory Intelligence System &bull; Yantra AI Labs &bull; 2026
+</div>
+
+<script>
+const obs = new IntersectionObserver((entries) => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+}, { threshold: 0.12 });
+document.querySelectorAll('.reveal').forEach(el => obs.observe(el));
+</script>
+
+</body>
+</html>
