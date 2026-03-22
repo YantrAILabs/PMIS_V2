@@ -41,9 +41,49 @@ def get_bench_db():
     return conn
 
 
+def _extract_key_phrases(text, max_phrases=5):
+    """P12: Extract key named entities and specific facts from text."""
+    import re
+    phrases = set()
+    # Proper nouns (capitalized words not at sentence start)
+    for m in re.finditer(r'(?<=[.!?]\s)[A-Z][a-z]+|(?<=\s)[A-Z][a-z]{2,}(?:\s[A-Z][a-z]+)*', text):
+        phrases.add(m.group().strip())
+    # Quoted strings
+    for m in re.finditer(r'["\']([^"\']{3,40})["\']', text):
+        phrases.add(m.group(1))
+    # Dollar/rupee amounts
+    for m in re.finditer(r'[\$\u20b9][\d,]+(?:\.\d{2})?', text):
+        phrases.add(m.group())
+    # Percentages and numbers with context
+    for m in re.finditer(r'\d+(?:\.\d+)?%|\d+\s*(?:weeks?|days?|months?|hours?|years?)\s*ago', text, re.I):
+        phrases.add(m.group())
+    # Preference markers
+    for m in re.finditer(r'(?:I (?:prefer|love|like|enjoy|hate|dislike|usually|always|never))\s+(.{5,50}?)(?:[.,;!]|$)', text, re.I):
+        phrases.add("PREF: " + m.group(1).strip())
+    return list(phrases)[:max_phrases]
+
+
+def _extract_temporal_markers(text, session_date=""):
+    """P12: Extract temporal information from text."""
+    import re
+    markers = []
+    # Relative time references
+    for m in re.finditer(r'(?:last|this|next)\s+(?:week|month|year|monday|tuesday|wednesday|thursday|friday|saturday|sunday)', text, re.I):
+        markers.append(m.group())
+    # Specific dates
+    for m in re.finditer(r'\d{1,2}/\d{1,2}/\d{2,4}|\d{4}-\d{2}-\d{2}', text):
+        markers.append(m.group())
+    # "ago" references
+    for m in re.finditer(r'\d+\s*(?:weeks?|days?|months?|hours?|years?)\s*ago', text, re.I):
+        markers.append(m.group())
+    if session_date:
+        markers.append(f"SESSION_DATE:{session_date}")
+    return markers
+
+
 def ingest_question(conn, question_data):
-    """Ingest one question's haystack sessions into the memory graph.
-    Each session becomes an SC, each turn becomes an anchor."""
+    """P12: Enhanced ingestion with entity extraction, preference detection, and temporal indexing.
+    Each session becomes an SC, each turn becomes an anchor with richer metadata."""
     import memory as mem
 
     sessions = question_data["haystack_sessions"]
@@ -51,8 +91,12 @@ def ingest_question(conn, question_data):
     dates = question_data.get("haystack_dates", [])
 
     for i, (session, sid) in enumerate(zip(sessions, session_ids)):
-        # Build structured memory from this session
+        date_str = dates[i] if i < len(dates) else ""
+
+        # P12: Build multiple anchors per turn — title, key phrases, temporal markers
         anchors = []
+        all_text_for_desc = []  # Collect all text for SC description
+
         for turn in session:
             if isinstance(turn, dict):
                 role = turn.get("role", "user")
@@ -65,31 +109,85 @@ def ingest_question(conn, question_data):
             if not content or len(content) < 10:
                 continue
 
-            # Extract key info from content (first 200 chars as anchor)
-            title = content[:80].replace("\n", " ").strip()
-            if len(title) < 10:
-                continue
+            # P12 FIX 1: Multiple chunks per long turn (every 200 chars)
+            # This ensures keywords deep in a response aren't lost
+            chunks = []
+            clean = content.replace("\n", " ").strip()
+            if len(clean) > 200:
+                for ci in range(0, min(len(clean), 800), 200):
+                    chunk = clean[ci:ci+200].strip()
+                    if len(chunk) > 20:
+                        chunks.append(chunk)
+            else:
+                chunks.append(clean)
 
-            anchors.append({
-                "title": f"[{role}] {title}",
-                "content": content[:500],
-                "weight": 0.7 if role == "user" else 0.5,
-            })
+            for ci, chunk in enumerate(chunks):
+                title = chunk[:100]
+                anchors.append({
+                    "title": f"[{role}] {title}",
+                    "content": chunk,
+                    "weight": 0.8 if role == "user" else 0.5,
+                })
+
+            # P12 FIX 2: Extract key entities/facts as separate anchors
+            key_phrases = _extract_key_phrases(content)
+            for kp in key_phrases:
+                anchors.append({
+                    "title": f"[fact] {kp}",
+                    "content": f"{kp} — mentioned in session {sid} by {role}",
+                    "weight": 0.9,  # High weight for extracted entities
+                })
+
+            # P12 FIX 3: Extract temporal markers
+            temporal = _extract_temporal_markers(content, date_str)
+            for tm in temporal:
+                anchors.append({
+                    "title": f"[time] {tm}",
+                    "content": f"Temporal reference: {tm} in session {sid} on {date_str}",
+                    "weight": 0.85,
+                })
+
+            # Collect for description
+            all_text_for_desc.append(content[:100])
 
         if not anchors:
             continue
 
-        # Create SC for this session
-        date_str = dates[i] if i < len(dates) else ""
+        # P12 FIX 4: Richer SC description from all turns (better BM25 matching)
+        desc_text = " | ".join(all_text_for_desc[:6])
+        if date_str:
+            desc_text = f"[{date_str}] {desc_text}"
+
+        # P12 FIX 5: Multiple contexts per session — user turns vs assistant turns
+        user_anchors = [a for a in anchors if a["title"].startswith("[user]") or a["title"].startswith("[fact]") or a["title"].startswith("[time]")]
+        asst_anchors = [a for a in anchors if a["title"].startswith("[assistant]")]
+        entity_anchors = [a for a in anchors if a["title"].startswith("[fact]") or a["title"].startswith("[time]")]
+
+        contexts = []
+        if user_anchors:
+            contexts.append({
+                "title": f"User_statements_{sid}",
+                "weight": 0.85,
+                "anchors": user_anchors[:30],
+            })
+        if asst_anchors:
+            contexts.append({
+                "title": f"Assistant_responses_{sid}",
+                "weight": 0.6,
+                "anchors": asst_anchors[:20],
+            })
+        if entity_anchors:
+            contexts.append({
+                "title": f"Key_facts_{sid}",
+                "weight": 0.95,  # Highest weight — these are the specific facts
+                "anchors": entity_anchors[:15],
+            })
+
         sc_data = {
             "super_context": f"Session_{sid}",
-            "description": f"Conversation session {sid} on {date_str}",
-            "contexts": [{
-                "title": f"Conversation_{sid}",
-                "weight": 0.7,
-                "anchors": anchors[:20],  # Cap at 20 anchors per session
-            }],
-            "summary": f"Session {sid}",
+            "description": desc_text[:300],
+            "contexts": contexts,
+            "summary": f"Session {sid} on {date_str}",
         }
 
         f = io.StringIO()
@@ -98,10 +196,27 @@ def ingest_question(conn, question_data):
 
 
 def retrieve_for_question(conn, question_data):
-    """Run PMIS retrieval for a question and return matched session IDs."""
+    """P12: Enhanced retrieval with query expansion for temporal/preference/entity queries."""
     from p9_retrieve import p9_retrieve_parameterized, SessionEngine
+    import re
 
     query = question_data["question"]
+    q_date = question_data.get("question_date", "")
+
+    # P12: Query expansion for better matching
+    expanded_query = query
+
+    # Temporal expansion: add date context if query references time
+    if re.search(r'(?:weeks?|days?|months?|years?)\s*ago|last\s+(?:week|month|saturday|sunday)', query, re.I):
+        expanded_query += f" temporal time date {q_date}"
+
+    # Preference expansion: add preference markers
+    if re.search(r'prefer|favorite|recommend|suggest|like|enjoy|usual', query, re.I):
+        expanded_query += " preference prefer like enjoy usually favorite"
+
+    # Entity expansion: add fact markers for specific recall queries
+    if re.search(r'name of|how much|where did|what was|what is the', query, re.I):
+        expanded_query += " fact specific detail name amount"
 
     # Load config
     cfg_path = ROOT / "Graph_DB" / "experiments" / "best_config_v2.json"
