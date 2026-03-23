@@ -13,6 +13,7 @@ import sys
 import os
 import json
 import io
+import sqlite3
 from pathlib import Path
 from contextlib import redirect_stdout
 from typing import Optional
@@ -180,6 +181,169 @@ async def api_score(req: ScoreRequest, user=Depends(get_current_user)):
     import memory as mem
     result = _run_memory_cmd(user["username"], mem.cmd_score, req.task_id, str(req.score))
     return result
+
+
+@app.get("/api/memory/health")
+async def api_health(user=Depends(get_current_user)):
+    """Full memory health report: stages, weights, activity, versions, benchmarks."""
+    import memory as mem
+    conn = get_user_memory_db(user["username"])
+    try:
+        # Node counts
+        counts = {}
+        for t in ("super_context", "context", "anchor"):
+            counts[t] = conn.execute("SELECT COUNT(*) c FROM nodes WHERE type=?", (t,)).fetchone()["c"]
+
+        # Stage distribution
+        stages = {}
+        for r in conn.execute("SELECT memory_stage, COUNT(*) c FROM nodes GROUP BY memory_stage").fetchall():
+            stages[r["memory_stage"]] = r["c"]
+
+        # Weight distribution (anchors only)
+        weight_buckets = [0] * 10
+        for r in conn.execute("SELECT weight FROM nodes WHERE type='anchor'").fetchall():
+            idx = min(int(r["weight"] * 10), 9)
+            weight_buckets[idx] += 1
+
+        # Task activity log
+        tasks = []
+        for r in conn.execute("SELECT id, title, started, completed, score FROM tasks ORDER BY started DESC LIMIT 20").fetchall():
+            tasks.append(dict(r))
+
+        # Task score stats
+        scored = conn.execute("SELECT COUNT(*) c, AVG(score) avg, MAX(score) best, MIN(score) worst FROM tasks WHERE score > 0").fetchone()
+
+        # Top anchors by weight
+        top_anchors = []
+        for r in conn.execute("SELECT title, weight, memory_stage, use_count FROM nodes WHERE type='anchor' ORDER BY weight DESC LIMIT 10").fetchall():
+            top_anchors.append(dict(r))
+
+        # Weakest anchors
+        weak_anchors = []
+        for r in conn.execute("SELECT title, weight, memory_stage, use_count FROM nodes WHERE type='anchor' AND weight < 0.3 ORDER BY weight ASC LIMIT 10").fetchall():
+            weak_anchors.append(dict(r))
+
+        # Temporal health
+        avg_temps = conn.execute("SELECT AVG(recency) r, AVG(frequency) f, AVG(consistency) c FROM nodes WHERE type='anchor'").fetchone()
+
+        result = {
+            "counts": counts,
+            "stages": stages,
+            "weight_distribution": weight_buckets,
+            "tasks": tasks,
+            "scored_tasks": scored["c"] or 0,
+            "avg_score": round(scored["avg"] or 0, 2),
+            "best_score": scored["best"] or 0,
+            "worst_score": scored["worst"] or 0,
+            "top_anchors": top_anchors,
+            "weak_anchors": weak_anchors,
+            "avg_recency": round(avg_temps["r"] or 0, 3),
+            "avg_frequency": round(avg_temps["f"] or 0, 3),
+            "avg_consistency": round(avg_temps["c"] or 0, 3),
+        }
+
+        # Versions (from main memory folder)
+        ver_file = PLATFORM_DIR.parent / "versions" / "VERSION_REGISTRY.json"
+        if ver_file.exists():
+            result["versions"] = json.loads(ver_file.read_text()).get("versions", [])
+
+        # Benchmark results
+        bench_file = PLATFORM_DIR.parent / "longmemeval_results.json"
+        if bench_file.exists():
+            bench = json.loads(bench_file.read_text())
+            result["benchmark"] = {
+                "overall": bench.get("overall_hit_rate", 0),
+                "recall_at_5": bench.get("overall_recall_at_5", 0),
+                "categories": bench.get("by_category", {}),
+                "total_questions": bench.get("n_questions", 0),
+            }
+
+        return result
+    finally:
+        conn.close()
+
+
+class SyncToPortalRequest(BaseModel):
+    source_db_path: Optional[str] = None
+
+@app.post("/api/memory/sync-from-local")
+async def api_sync_from_local(user=Depends(get_current_user)):
+    """Sync/push the main local memory DB into the user's platform memory."""
+    import memory as mem
+
+    local_db = PLATFORM_DIR.parent / "Graph_DB" / "graph.db"
+    if not local_db.exists():
+        raise HTTPException(404, "Local graph.db not found")
+
+    # Read from local DB (read-only)
+    local_conn = sqlite3.connect(str(local_db))
+    local_conn.row_factory = sqlite3.Row
+
+    scs = [dict(r) for r in local_conn.execute("SELECT * FROM nodes WHERE type='super_context'").fetchall()]
+    edges = [dict(r) for r in local_conn.execute("SELECT * FROM edges WHERE type='parent_child'").fetchall()]
+    all_nodes = {r["id"]: dict(r) for r in local_conn.execute("SELECT * FROM nodes").fetchall()}
+    local_conn.close()
+
+    children_map = {}
+    for e in edges:
+        children_map.setdefault(e["src"], []).append(e["tgt"])
+
+    # Build structured data for each SC
+    sc_payloads = []
+    for sc in scs:
+        contexts = []
+        for ctx_id in children_map.get(sc["id"], []):
+            ctx = all_nodes.get(ctx_id)
+            if not ctx: continue
+            anchors = []
+            for anc_id in children_map.get(ctx_id, []):
+                anc = all_nodes.get(anc_id)
+                if not anc: continue
+                anchors.append({"title": anc["title"], "content": anc.get("content", ""), "weight": anc.get("weight", 0.5)})
+            if anchors:
+                contexts.append({"title": ctx["title"], "weight": ctx.get("weight", 0.5), "anchors": anchors})
+        if contexts:
+            sc_payloads.append({
+                "super_context": sc["title"], "description": sc.get("description", ""),
+                "contexts": contexts, "summary": sc["title"]
+            })
+
+    # Store each SC into user's platform DB
+    # Use direct DB connection with proper path isolation
+    user_db_path = get_user_memory_path(user["username"])
+    original_graph = mem.GRAPH_DB
+    original_tasks = mem.TASKS_DIR
+
+    synced = 0
+    errors = []
+    try:
+        mem.GRAPH_DB = user_db_path
+        mem.TASKS_DIR = user_db_path.parent / "tasks"
+        mem.TASKS_DIR.mkdir(parents=True, exist_ok=True)
+        user_conn = mem.get_db()
+
+        for payload in sc_payloads:
+            try:
+                f = io.StringIO()
+                with redirect_stdout(f):
+                    mem.cmd_store(user_conn, json.dumps(payload))
+                synced += 1
+            except Exception as e:
+                errors.append(str(e)[:50])
+
+        user_conn.close()
+    finally:
+        mem.GRAPH_DB = original_graph
+        mem.TASKS_DIR = original_tasks
+
+    # Log the sync
+    udb = get_users_db()
+    udb.execute("INSERT INTO sync_log (id, user_id, direction, items_synced, timestamp) VALUES (?,?,?,?,?)",
+                (_uuid(), user["user_id"], "push", synced, _now()))
+    udb.commit()
+    udb.close()
+
+    return {"synced": True, "super_contexts_pushed": synced, "errors": len(errors)}
 
 
 @app.post("/api/memory/rebuild")
@@ -388,6 +552,13 @@ async def portal_root():
     if portal_path.exists():
         return HTMLResponse(portal_path.read_text())
     return HTMLResponse("<h1>PMIS Platform</h1><p>Portal not built yet.</p>")
+
+@app.get("/health", response_class=HTMLResponse)
+async def health_page():
+    health_path = PLATFORM_DIR / "portal" / "health.html"
+    if health_path.exists():
+        return HTMLResponse(health_path.read_text())
+    return HTMLResponse("<h1>Health page not found</h1>")
 
 app.mount("/portal", StaticFiles(directory=str(PLATFORM_DIR / "portal")), name="portal")
 
