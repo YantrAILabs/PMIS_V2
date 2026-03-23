@@ -27,3 +27,4 @@ node_modules/
 
 # Backups (keep in repo for safety)
 # scripts/backups/
+platform/data/
