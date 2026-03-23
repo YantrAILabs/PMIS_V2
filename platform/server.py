@@ -386,8 +386,10 @@ async def api_org_stats(user=Depends(get_current_user)):
 async def portal_root():
     portal_path = PLATFORM_DIR / "portal" / "index.html"
     if portal_path.exists():
-        return portal_path.read_text()
-    return "<h1>PMIS Platform</h1><p>Portal not built yet. Use <a href='/docs'>API docs</a>.</p>"
+        return HTMLResponse(portal_path.read_text())
+    return HTMLResponse("<h1>PMIS Platform</h1><p>Portal not built yet.</p>")
+
+app.mount("/portal", StaticFiles(directory=str(PLATFORM_DIR / "portal")), name="portal")
 
 
 # ══════════════════════════════════════
