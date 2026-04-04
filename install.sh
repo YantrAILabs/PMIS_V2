@@ -89,12 +89,17 @@ ok "Repository structure valid"
 # ══════════════════════════════════════
 step 2 "Python environment + dependencies"
 
-if [[ -d "$VENV_DIR" ]]; then
+if [[ -d "$VENV_DIR" ]] && [[ -f "$PIP" ]]; then
     info "Existing venv found, updating..."
 else
+    # Remove broken venv if pip is missing
+    [[ -d "$VENV_DIR" ]] && rm -rf "$VENV_DIR" && info "Removed broken venv..."
     info "Creating virtual environment..."
-    $VENV_PYTHON -m venv "$VENV_DIR"
+    $VENV_PYTHON -m venv "$VENV_DIR" || fail "Failed to create venv — check Python installation"
 fi
+# Verify venv works
+[[ -f "$PYTHON" ]] || fail "Venv broken — $PYTHON not found. Delete $VENV_DIR and re-run."
+[[ -f "$PIP" ]] || fail "Venv broken — $PIP not found. Delete $VENV_DIR and re-run."
 ok "Virtual environment at $VENV_DIR"
 
 info "Upgrading pip + setuptools..."
