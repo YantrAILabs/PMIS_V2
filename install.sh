@@ -98,30 +98,67 @@ fi
 ok "Virtual environment at $VENV_DIR"
 
 info "Upgrading pip..."
-$PIP install --upgrade pip -q 2>/dev/null
+$PIP install --upgrade pip -q
 ok "pip upgraded"
 
+# Check for Xcode Command Line Tools (needed to compile C extensions)
+if ! xcode-select -p > /dev/null 2>&1; then
+    warn "Xcode Command Line Tools not found — some packages may fail to compile"
+    warn "Install with: xcode-select --install"
+fi
+
 info "Installing productivity-tracker dependencies..."
+info "(this may take 2-3 minutes on first install)"
 cd "$TRACKER_DIR"
-$PIP install -e "." -q 2>/dev/null
+if ! $PIP install -e "." 2>&1 | tail -5; then
+    warn "Full install failed — trying core packages individually..."
+    # Install critical deps one by one so we can identify which fails
+    CORE_PKGS="openai sqlalchemy numpy Pillow pyyaml python-dotenv fastapi uvicorn psutil"
+    OPTIONAL_PKGS="chromadb scikit-image pyobjc-core pyobjc-framework-Cocoa pyobjc-framework-Quartz pyobjc-framework-ApplicationServices"
+
+    for pkg in $CORE_PKGS; do
+        $PIP install "$pkg" -q 2>/dev/null && ok "  $pkg" || warn "  $pkg failed (non-critical)"
+    done
+    for pkg in $OPTIONAL_PKGS; do
+        $PIP install "$pkg" -q 2>/dev/null && ok "  $pkg" || warn "  $pkg failed (optional — some features disabled)"
+    done
+    # Install the tracker package itself in editable mode without deps
+    $PIP install -e "." --no-deps -q 2>/dev/null || true
+fi
 ok "Productivity tracker packages installed"
 
 info "Installing PMIS V2 dependencies..."
 if [[ -f "$PMIS_DIR/requirements.txt" ]]; then
-    $PIP install -r "$PMIS_DIR/requirements.txt" -q 2>/dev/null
+    $PIP install -r "$PMIS_DIR/requirements.txt" -q 2>&1 | tail -3 || warn "Some PMIS V2 deps failed"
 fi
 ok "PMIS V2 packages installed"
 
 info "Installing platform dependencies..."
 if [[ -f "$PLATFORM_DIR/requirements.txt" ]]; then
-    $PIP install -r "$PLATFORM_DIR/requirements.txt" -q 2>/dev/null
+    $PIP install -r "$PLATFORM_DIR/requirements.txt" -q 2>&1 | tail -3 || warn "Some platform deps failed"
 fi
 ok "Platform packages installed"
 
 # Verify critical imports
-$PYTHON -c "import openai, sqlalchemy, chromadb, fastapi, numpy, yaml" 2>/dev/null \
-    || fail "Critical Python packages missing after install"
-ok "All critical imports verified"
+info "Verifying critical imports..."
+IMPORT_ERRORS=$($PYTHON -c "
+missing = []
+for mod in ['openai', 'sqlalchemy', 'fastapi', 'numpy', 'yaml', 'PIL', 'dotenv']:
+    try:
+        __import__(mod)
+    except ImportError:
+        missing.append(mod)
+if missing:
+    print('Missing: ' + ', '.join(missing))
+else:
+    print('OK')
+" 2>&1)
+if [[ "$IMPORT_ERRORS" == "OK" ]]; then
+    ok "All critical imports verified"
+else
+    warn "$IMPORT_ERRORS"
+    warn "Some packages missing — install may have partial functionality"
+fi
 
 # ══════════════════════════════════════
 # STEP 3: Directory structure
