@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PMIS V2 Dashboard</title>
+<style>
+:root {
+  --bg: #0a0a0f; --bg2: #12121a; --bg3: #1c1c24;
+  --fg: #e8e6e0; --fg2: #8a8880; --fg3: #5a5850;
+  --border: #2a2a32;
+  --green: #4ade80; --blue: #60a5fa; --purple: #a78bfa;
+  --orange: #fb923c; --red: #f87171; --teal: #2dd4bf; --yellow: #ffd93d;
+  --sc: #ff6b6b; --ctx: #ffd93d; --anc: #6bcb77;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:var(--fg); display:flex; min-height:100vh; }
+
+/* SIDEBAR */
+.sidebar { width:260px; background:var(--bg2); border-right:1px solid var(--border); padding:16px; overflow-y:auto; flex-shrink:0; }
+.sidebar h2 { font-size:13px; color:var(--fg3); text-transform:uppercase; letter-spacing:1.5px; margin:20px 0 10px; }
+.sidebar h2:first-child { margin-top:0; }
+.param-section { margin-bottom:8px; }
+.param-toggle { background:var(--bg3); border:1px solid var(--border); border-radius:8px; padding:10px 12px;
+  cursor:pointer; display:flex; justify-content:space-between; align-items:center; font-size:12px; font-weight:600; color:var(--fg); }
+.param-toggle:hover { border-color:var(--fg3); }
+.param-toggle .arrow { transition:transform 0.2s; font-size:10px; color:var(--fg3); }
+.param-toggle.open .arrow { transform:rotate(90deg); }
+.param-body { display:none; padding:10px 0; }
+.param-body.open { display:block; }
+.param-row { margin:6px 0; }
+.param-row label { display:block; font-size:10px; color:var(--fg3); margin-bottom:3px; text-transform:uppercase; letter-spacing:0.5px; }
+.param-row input[type=range] { width:100%; accent-color:var(--green); }
+.param-row input[type=number] { width:70px; background:var(--bg3); border:1px solid var(--border); border-radius:4px;
+  color:var(--fg); padding:4px 8px; font-size:12px; font-family:'JetBrains Mono',monospace; }
+.param-val { float:right; font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--green); }
+.btn { display:block; width:100%; padding:10px; margin-top:12px; background:var(--bg3); border:1px solid var(--border);
+  border-radius:8px; color:var(--fg); font-size:12px; font-weight:600; cursor:pointer; text-align:center; }
+.btn:hover { border-color:var(--green); color:var(--green); }
+.btn.primary { background:linear-gradient(135deg,#166534,#14532d); border-color:#166534; color:var(--green); }
+.btn.danger { border-color:#7f1d1d; color:var(--red); }
+.toast { position:fixed; bottom:20px; right:20px; background:var(--bg2); border:1px solid var(--green);
+  border-radius:8px; padding:12px 20px; font-size:12px; color:var(--green); display:none; z-index:100; }
+
+/* MAIN */
+.main { flex:1; padding:24px 32px; overflow-y:auto; }
+.header { display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; }
+.header h1 { font-size:20px; font-weight:700; }
+.header h1 span { color:var(--fg3); font-weight:400; font-size:14px; }
+.date-picker { display:flex; gap:8px; align-items:center; }
+.date-picker input { background:var(--bg3); border:1px solid var(--border); border-radius:6px;
+  color:var(--fg); padding:6px 10px; font-size:12px; font-family:inherit; }
+.date-picker button { background:var(--bg3); border:1px solid var(--border); border-radius:6px;
+  color:var(--fg); padding:6px 12px; font-size:12px; cursor:pointer; }
+.date-picker button:hover { border-color:var(--green); }
+
+/* STAT CARDS */
+.stats-grid { display:grid; grid-template-columns:repeat(6,1fr); gap:12px; margin-bottom:28px; }
+.stat-card { background:var(--bg2); border:1px solid var(--border); border-radius:10px; padding:14px 16px; text-align:center; }
+.stat-card .val { font-family:'JetBrains Mono',monospace; font-size:28px; font-weight:700; }
+.stat-card .lbl { font-size:10px; color:var(--fg3); margin-top:4px; text-transform:uppercase; letter-spacing:1px; }
+.stat-card.sc .val { color:var(--sc); }
+.stat-card.ctx .val { color:var(--ctx); }
+.stat-card.anc .val { color:var(--anc); }
+.stat-card.calls .val { color:var(--blue); }
+.stat-card.new .val { color:var(--green); }
+.stat-card.updated .val { color:var(--purple); }
+
+/* CONVERSATION LOG */
+.section-title { font-size:14px; font-weight:700; margin-bottom:14px; display:flex; align-items:center; gap:8px; }
+.section-title .badge { font-size:10px; background:var(--bg3); padding:3px 8px; border-radius:4px; color:var(--fg3); }
+.conv-list { display:flex; flex-direction:column; gap:10px; }
+.conv-card { background:var(--bg2); border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+.conv-header { padding:12px 16px; display:flex; justify-content:space-between; align-items:center;
+  cursor:pointer; border-bottom:1px solid transparent; }
+.conv-header:hover { background:var(--bg3); }
+.conv-header.open { border-bottom-color:var(--border); }
+.conv-id { font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--blue); }
+.conv-meta { font-size:11px; color:var(--fg3); display:flex; gap:12px; }
+.conv-meta .mode-tag { padding:2px 6px; border-radius:3px; font-size:10px; font-weight:600; }
+.mode-ASSOCIATIVE { background:#166534; color:var(--green); }
+.mode-BALANCED { background:#713f12; color:var(--yellow); }
+.mode-PREDICTIVE { background:#7f1d1d; color:var(--red); }
+.conv-body { display:none; padding:0 16px 12px; }
+.conv-body.open { display:block; }
+
+/* TURNS */
+.turn { padding:10px 0; border-bottom:1px solid var(--bg3); }
+.turn:last-child { border-bottom:none; }
+.turn-header { display:flex; align-items:center; gap:10px; margin-bottom:6px; }
+.turn-role { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;
+  padding:2px 6px; border-radius:3px; }
+.turn-role.user { background:#1e3a5f; color:var(--blue); }
+.turn-role.assistant { background:#3b1f6e; color:var(--purple); }
+.turn-gamma { font-family:'JetBrains Mono',monospace; font-size:11px; }
+.turn-surprise { font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--fg3); }
+.turn-details { margin-left:20px; font-size:11px; color:var(--fg2); }
+.turn-details .retrieved { margin:4px 0; padding:3px 8px; background:var(--bg3); border-radius:4px; font-size:10px; }
+.turn-details .epistemic { color:var(--orange); font-style:italic; margin:4px 0; font-size:11px; }
+.turn-details .stored { color:var(--green); font-size:10px; }
+
+.empty-state { text-align:center; padding:60px 20px; color:var(--fg3); }
+.empty-state .icon { font-size:48px; margin-bottom:12px; }
+
+/* GAMMA PREVIEW */
+.gamma-preview { width:100%; height:60px; background:var(--bg); border-radius:6px; margin-top:8px; }
+
+@media(max-width:900px) {
+  body { flex-direction:column; }
+  .sidebar { width:100%; max-height:300px; }
+  .stats-grid { grid-template-columns:repeat(3,1fr); }
+}
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <h2>Hyperparameters</h2>
+
+  <!-- Surprise Thresholds -->
+  <div class="param-section">
+    <div class="param-toggle" onclick="toggleSection(this)">Surprise Thresholds <span class="arrow">&#9654;</span></div>
+    <div class="param-body">
+      <div class="param-row">
+        <label>Low threshold <span class="param-val" id="v_surprise_low_threshold"></span></label>
+        <input type="range" min="0" max="1" step="0.05" data-key="surprise_low_threshold" oninput="paramChanged(this)">
+      </div>
+      <div class="param-row">
+        <label>High threshold <span class="param-val" id="v_surprise_high_threshold"></span></label>
+        <input type="range" min="0" max="1" step="0.05" data-key="surprise_high_threshold" oninput="paramChanged(this)">
+      </div>
+      <div class="param-row">
+        <label>Orphan distance <span class="param-val" id="v_orphan_distance_threshold"></span></label>
+        <input type="range" min="0" max="1" step="0.05" data-key="orphan_distance_threshold" oninput="paramChanged(this)">
+      </div>
+    </div>
+  </div>
+
+  <!-- Gamma Curve -->
+  <div class="param-section">
+    <div class="param-toggle" onclick="toggleSection(this)">Gamma Curve <span class="arrow">&#9654;</span></div>
+    <div class="param-body">
+      <div class="param-row">
+        <label>Temperature <span class="param-val" id="v_gamma_temperature"></span></label>
+        <input type="range" min="1" max="10" step="0.5" data-key="gamma_temperature" oninput="paramChanged(this)">
+      </div>
+      <div class="param-row">
+        <label>Bias <span class="param-val" id="v_gamma_bias"></span></label>
+        <input type="range" min="0" max="1" step="0.1" data-key="gamma_bias" oninput="paramChanged(this)">
+      </div>
+      <div class="param-row">
+        <label>Staleness penalty <span class="param-val" id="v_gamma_staleness_penalty"></span></label>
+        <input type="range" min="0" max="3" step="0.1" data-key="gamma_staleness_penalty" oninput="paramChanged(this)">
+      </div>
+      <div class="param-row">
+        <label>Staleness window <span class="param-val" id="v_staleness_window"></span></label>
+        <input type="number" min="1" max="50" data-key="staleness_window" oninput="paramChanged(this)">
+      </div>
+      <div class="param-row">
+        <label>Staleness threshold <span class="param-val" id="v_staleness_threshold"></span></label>
+        <input type="range" min="0" max="1" step="0.05" data-key="staleness_threshold" oninput="paramChanged(this)">
+      </div>
+      <canvas class="gamma-preview" id="gammaCanvas"></canvas>
+    </div>
+  </div>
+
+  <!-- Retrieval Weights -->
+  <div class="param-section">
+    <div class="param-toggle" onclick="toggleSection(this)">Retrieval Weights <span class="arrow">&#9654;</span></div>
+    <div class="param-body">
+      <div class="param-row">
+        <label>Semantic <span class="param-val" id="v_score_weight_semantic"></span></label>
+        <input type="range" min="0" max="1" step="0.05" data-key="score_weight_semantic" oninput="paramChanged(this)">
+      </div>
+      <div class="param-row">
+        <label>Hierarchy <span class="param-val" id="v_score_weight_hierarchy"></span></label>
+        <input type="range" min="0" max="1" step="0.05" data-key="score_weight_hierarchy" oninput="paramChanged(this)">
+      </div>
+      <div class="param-row">
+        <label>Temporal <span class="param-val" id="v_score_weight_temporal"></span></label>
+        <input type="range" min="0" max="1" step="0.05" data-key="score_weight_temporal" oninput="paramChanged(this)">
+      </div>
+      <div class="param-row">
+        <label>Precision <span class="param-val" id="v_score_weight_precision"></span></label>
+        <input type="range" min="0" max="1" step="0.05" data-key="score_weight_precision" oninput="paramChanged(this)">
+      </div>
+      <div class="param-row" style="text-align:center;margin-top:6px">
+        <span id="weightSum" style="font-size:11px;font-family:monospace"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Retrieval Thresholds -->
+  <div class="param-section">
+    <div class="param-toggle" onclick="toggleSection(this)">Retrieval Thresholds <span class="arrow">&#9654;</span></div>
+    <div class="param-body">
+      <div class="param-row">
+        <label>Narrow threshold <span class="param-val" id="v_retrieval_narrow_threshold"></span></label>
+        <input type="range" min="0" max="1" step="0.01" data-key="retrieval_narrow_threshold" oninput="paramChanged(this)">
+      </div>
+      <div class="param-row">
+        <label>Broad threshold <span class="param-val" id="v_retrieval_broad_threshold"></span></label>
+        <input type="range" min="0" max="1" step="0.01" data-key="retrieval_broad_threshold" oninput="paramChanged(this)">
+      </div>
+      <div class="param-row">
+        <label>Max results <span class="param-val" id="v_retrieval_max_results"></span></label>
+        <input type="number" min="1" max="50" data-key="retrieval_max_results" oninput="paramChanged(this)">
+      </div>
+    </div>
+  </div>
+
+  <!-- Consolidation -->
+  <div class="param-section">
+    <div class="param-toggle" onclick="toggleSection(this)">Consolidation <span class="arrow">&#9654;</span></div>
+    <div class="param-body">
+      <div class="param-row">
+        <label>Compress distance <span class="param-val" id="v_compress_distance_threshold"></span></label>
+        <input type="range" min="0" max="1" step="0.01" data-key="compress_distance_threshold" oninput="paramChanged(this)">
+      </div>
+      <div class="param-row">
+        <label>Promote min accesses <span class="param-val" id="v_promote_min_accesses"></span></label>
+        <input type="number" min="1" max="20" data-key="promote_min_accesses" oninput="paramChanged(this)">
+      </div>
+      <div class="param-row">
+        <label>Birth min orphans <span class="param-val" id="v_birth_min_orphans"></span></label>
+        <input type="number" min="1" max="10" data-key="birth_min_orphans" oninput="paramChanged(this)">
+      </div>
+      <div class="param-row">
+        <label>Prune min age (days) <span class="param-val" id="v_prune_min_age_days"></span></label>
+        <input type="number" min="1" max="60" data-key="prune_min_age_days" oninput="paramChanged(this)">
+      </div>
+      <button class="btn danger" onclick="runConsolidation()">Run Consolidation Now</button>
+    </div>
+  </div>
+
+  <button class="btn primary" onclick="applyChanges()">Apply Changes</button>
+</div>
+
+<!-- MAIN CONTENT -->
+<div class="main">
+  <div class="header">
+    <h1>PMIS V2 <span>Dashboard</span></h1>
+    <div class="date-picker">
+      <input type="date" id="dateFilter" onchange="loadDashboard()">
+      <button onclick="document.getElementById('dateFilter').value='';loadDashboard()">All Time</button>
+      <button onclick="location.reload()">Refresh</button>
+    </div>
+  </div>
+
+  <!-- STAT CARDS -->
+  <div class="stats-grid">
+    <div class="stat-card sc"><div class="val" id="stat-sc">-</div><div class="lbl">Super Contexts</div></div>
+    <div class="stat-card ctx"><div class="val" id="stat-ctx">-</div><div class="lbl">Contexts</div></div>
+    <div class="stat-card anc"><div class="val" id="stat-anc">-</div><div class="lbl">Anchors</div></div>
+    <div class="stat-card calls"><div class="val" id="stat-calls">-</div><div class="lbl">Calls Today</div></div>
+    <div class="stat-card new"><div class="val" id="stat-new">-</div><div class="lbl">New Today</div></div>
+    <div class="stat-card updated"><div class="val" id="stat-updated">-</div><div class="lbl">Updated Today</div></div>
+  </div>
+
+  <!-- CONVERSATION LOG -->
+  <div class="section-title">Conversation Log <span class="badge" id="conv-count">0 conversations</span></div>
+  <div class="conv-list" id="convList"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API = '';
+let hyperparams = {};
+let pendingChanges = {};
+
+// ============================================================
+// DATA LOADING
+// ============================================================
+async function loadDashboard() {
+  const date = document.getElementById('dateFilter').value;
+
+  // Stats
+  const statsUrl = date ? `/api/stats/daily?date=${date}` : '/api/stats/daily';
+  const stats = await (await fetch(statsUrl)).json();
+  document.getElementById('stat-sc').textContent = stats.super_contexts || 0;
+  document.getElementById('stat-ctx').textContent = stats.contexts || 0;
+  document.getElementById('stat-anc').textContent = stats.anchors || 0;
+  document.getElementById('stat-calls').textContent = stats.total_turns_today || 0;
+  document.getElementById('stat-new').textContent = stats.new_nodes_today || 0;
+  document.getElementById('stat-updated').textContent = stats.updated_nodes_today || 0;
+
+  // Conversations
+  const convUrl = date ? `/api/conversations?date=${date}&limit=50` : '/api/conversations?limit=50';
+  const convData = await (await fetch(convUrl)).json();
+  renderConversations(convData.conversations || []);
+
+  // Hyperparams
+  hyperparams = await (await fetch('/api/hyperparams')).json();
+  populateParams();
+}
+
+function renderConversations(conversations) {
+  const list = document.getElementById('convList');
+  document.getElementById('conv-count').textContent = `${conversations.length} conversations`;
+
+  if (!conversations.length) {
+    list.innerHTML = '<div class="empty-state"><div class="icon">&#128218;</div>No conversations found for this period.</div>';
+    return;
+  }
+
+  list.innerHTML = conversations.map(c => `
+    <div class="conv-card">
+      <div class="conv-header" onclick="toggleConv(this, '${c.conversation_id}')">
+        <div>
+          <span class="conv-id">${c.conversation_id}</span>
+          <span style="font-size:11px;color:var(--fg3);margin-left:8px">${c.first_turn || ''}</span>
+        </div>
+        <div class="conv-meta">
+          <span>${c.turn_count} turns</span>
+          <span style="font-family:monospace">&#947;=${(c.avg_gamma||0.5).toFixed(2)}</span>
+          <span class="mode-tag mode-${c.dominant_mode}">${c.dominant_mode}</span>
+        </div>
+      </div>
+      <div class="conv-body" id="conv-${c.conversation_id}"></div>
+    </div>
+  `).join('');
+}
+
+async function toggleConv(header, convId) {
+  const body = document.getElementById('conv-' + convId);
+  const isOpen = body.classList.contains('open');
+
+  if (isOpen) {
+    body.classList.remove('open');
+    header.classList.remove('open');
+    return;
+  }
+
+  header.classList.add('open');
+  body.classList.add('open');
+  body.innerHTML = '<div style="padding:12px;color:var(--fg3);font-size:12px">Loading...</div>';
+
+  const data = await (await fetch(`/api/conversation/${convId}`)).json();
+  body.innerHTML = (data.turns || []).map(t => renderTurn(t)).join('')
+    || '<div style="padding:8px;color:var(--fg3);font-size:11px">No turns recorded.</div>';
+}
+
+function renderTurn(t) {
+  const gammaColor = t.gamma > 0.7 ? 'var(--green)' : t.gamma < 0.4 ? 'var(--red)' : 'var(--yellow)';
+  const ctx = t.nearest_context;
+  const mems = t.retrieved_memories || [];
+  const eqs = t.epistemic_questions || [];
+  const preds = t.predictive_memories || [];
+  const actionColor = t.storage_action === 'create' ? 'var(--green)' : t.storage_action === 'update' ? 'var(--yellow)' : 'var(--fg3)';
+
+  return `
+  <div class="turn" style="border-left:3px solid ${gammaColor};padding-left:14px;margin:10px 0">
+    <!-- HEADER -->
+    <div class="turn-header" style="margin-bottom:8px">
+      <span class="turn-role ${t.role}">${t.role}</span>
+      <span class="turn-gamma" style="color:${gammaColor}">&#947;=${(t.gamma||0).toFixed(3)}</span>
+      <span class="mode-tag mode-${t.mode}">${t.mode}</span>
+      <span class="turn-surprise">surprise=${(t.surprise||0).toFixed(3)}</span>
+      ${t.raw_surprise != null ? `<span style="font-size:10px;color:var(--fg3)">(raw=${t.raw_surprise}, prec=${t.cluster_precision})</span>` : ''}
+      ${t.is_stale ? '<span style="font-size:10px;background:#7f1d1d;color:var(--red);padding:1px 5px;border-radius:3px;margin-left:4px">STALE</span>' : ''}
+    </div>
+
+    <!-- META: nearest context + tree + storage -->
+    <div style="font-size:11px;color:var(--fg2);margin-bottom:8px;display:flex;gap:12px;flex-wrap:wrap">
+      ${ctx ? `<span>Nearest: <strong style="color:var(--fg)">${ctx.name||'?'}</strong></span>` : ''}
+      ${t.active_tree ? `<span>Tree: <strong style="color:var(--blue)">${t.active_tree}</strong></span>` : ''}
+      <span>Storage: <strong style="color:${actionColor}">${(t.storage_action||'skip').toUpperCase()}</strong></span>
+      ${t.stored_node_id ? `<span style="color:var(--green)">Stored: ${t.stored_node_id}</span>` : ''}
+    </div>
+
+    <!-- RESPONSE SUMMARY (if Claude logged it) -->
+    ${t.response_summary ? `
+      <div style="background:var(--bg3);border-radius:6px;padding:8px 12px;margin-bottom:8px;font-size:11px;color:var(--fg2);border-left:2px solid var(--purple)">
+        <strong style="color:var(--purple)">Claude's response:</strong> ${t.response_summary}
+      </div>
+    ` : ''}
+
+    <!-- RETRIEVED MEMORIES -->
+    ${mems.length ? `
+      <div style="margin-bottom:8px">
+        <div style="font-size:10px;font-weight:700;color:var(--fg3);cursor:pointer;margin-bottom:4px" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
+          RETRIEVED MEMORIES (${mems.length}) &#9660;
+        </div>
+        <div>
+          ${mems.map(m => `
+            <div style="font-size:10px;padding:4px 0;border-bottom:1px solid var(--bg3)">
+              <span style="color:var(--fg3)">#${m.rank}</span>
+              <span style="background:${m.level==='SC'?'#7f1d1d':m.level==='CTX'?'#713f12':'#14532d'};color:${m.level==='SC'?'var(--sc)':m.level==='CTX'?'var(--ctx)':'var(--anc)'};padding:1px 4px;border-radius:2px;font-size:9px">${m.level}</span>
+              <span style="color:var(--fg)">${m.content_preview||''}</span>
+              <span style="color:var(--green);font-family:monospace">${(m.final_score||0).toFixed(3)}</span>
+              <span style="font-size:9px;background:${m.source==='narrow'?'#1e3a5f':'#3b1f6e'};color:${m.source==='narrow'?'var(--blue)':'var(--purple)'};padding:1px 4px;border-radius:2px">${m.source}</span>
+              <div style="font-size:9px;color:var(--fg3);margin-left:20px;font-family:monospace">
+                sem=${(m.semantic_score||0).toFixed(2)} hier=${(m.hierarchy_score||0).toFixed(2)} temp=${(m.temporal_score||0).toFixed(2)} prec=${(m.precision_score||0).toFixed(2)}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    ` : ''}
+
+    <!-- EPISTEMIC QUESTIONS -->
+    ${eqs.length ? `
+      <div style="margin-bottom:8px">
+        <div style="font-size:10px;font-weight:700;color:var(--orange)">EPISTEMIC QUESTIONS (${eqs.length})</div>
+        ${eqs.map((q,i) => `
+          <div style="font-size:10px;padding:3px 0;color:var(--fg2)">
+            <span style="color:var(--orange)">?${i+1}</span>
+            <span style="font-family:monospace;color:var(--fg3)">[gain=${(q.information_gain||0).toFixed(2)}]</span>
+            ${q.question||''}
+          </div>
+        `).join('')}
+      </div>
+    ` : ''}
+
+    <!-- PREDICTIVE -->
+    ${preds.length ? `
+      <div style="margin-bottom:8px">
+        <div style="font-size:10px;font-weight:700;color:var(--teal)">PREDICTIVE (${preds.length})</div>
+        ${preds.map((p,i) => `
+          <div style="font-size:10px;padding:3px 0;color:var(--fg2)">
+            <span style="color:var(--teal)">&rarr;${i+1}</span>
+            [depth=${p.depth||'?'}, freq=${p.frequency||'?'}]
+            ${p.content_preview||''}
+          </div>
+        `).join('')}
+      </div>
+    ` : ''}
+
+    <!-- SYSTEM PROMPT (collapsible) -->
+    ${t.system_prompt ? `
+      <div style="margin-bottom:8px">
+        <div style="font-size:10px;font-weight:700;color:var(--fg3);cursor:pointer" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
+          CONTEXT INJECTED &#9654;
+        </div>
+        <pre style="display:none;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px;font-size:9px;max-height:300px;overflow-y:auto;white-space:pre-wrap;color:var(--fg2)">${t.system_prompt.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</pre>
+      </div>
+    ` : ''}
+  </div>`;
+}
+
+// ============================================================
+// HYPERPARAMETERS
+// ============================================================
+function populateParams() {
+  document.querySelectorAll('[data-key]').forEach(input => {
+    const key = input.dataset.key;
+    const val = hyperparams[key];
+    if (val !== undefined) {
+      input.value = val;
+      const display = document.getElementById('v_' + key);
+      if (display) display.textContent = val;
+    }
+  });
+  updateWeightSum();
+  drawGammaCurve();
+}
+
+function paramChanged(input) {
+  const key = input.dataset.key;
+  const val = input.type === 'number' ? parseInt(input.value) : parseFloat(input.value);
+  const display = document.getElementById('v_' + key);
+  if (display) display.textContent = val;
+  pendingChanges[key] = val;
+  updateWeightSum();
+  if (key.startsWith('gamma_') || key.startsWith('staleness')) drawGammaCurve();
+}
+
+function updateWeightSum() {
+  const keys = ['score_weight_semantic','score_weight_hierarchy','score_weight_temporal','score_weight_precision'];
+  let sum = 0;
+  keys.forEach(k => {
+    const input = document.querySelector(`[data-key="${k}"]`);
+    if (input) sum += parseFloat(input.value) || 0;
+  });
+  const el = document.getElementById('weightSum');
+  if (el) {
+    el.textContent = `Sum: ${sum.toFixed(2)}`;
+    el.style.color = Math.abs(sum - 1.0) < 0.01 ? 'var(--green)' : 'var(--red)';
+  }
+}
+
+function drawGammaCurve() {
+  const canvas = document.getElementById('gammaCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width = canvas.offsetWidth;
+  const H = canvas.height = 60;
+
+  const temp = parseFloat(document.querySelector('[data-key="gamma_temperature"]')?.value || 3);
+  const bias = parseFloat(document.querySelector('[data-key="gamma_bias"]')?.value || 0.5);
+
+  ctx.fillStyle = '#08080e'; ctx.fillRect(0,0,W,H);
+
+  // Draw curve
+  ctx.beginPath();
+  for (let i = 0; i <= W; i++) {
+    const s = i / W; // surprise 0-1
+    const z = -s * temp + bias;
+    const gamma = 1 / (1 + Math.exp(-z));
+    const y = H - gamma * H;
+    if (i === 0) ctx.moveTo(i, y); else ctx.lineTo(i, y);
+  }
+  ctx.strokeStyle = '#4ade80'; ctx.lineWidth = 2; ctx.stroke();
+
+  // Labels
+  ctx.fillStyle = '#555'; ctx.font = '9px monospace';
+  ctx.fillText('surprise=0', 2, H-4);
+  ctx.fillText('surprise=1', W-60, H-4);
+  ctx.fillText('gamma', 2, 10);
+
+  // Mode zones
+  const y07 = H - 0.7*H, y04 = H - 0.4*H;
+  ctx.strokeStyle = '#33333366'; ctx.setLineDash([2,2]);
+  ctx.beginPath(); ctx.moveTo(0,y07); ctx.lineTo(W,y07); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0,y04); ctx.lineTo(W,y04); ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+function toggleSection(toggle) {
+  toggle.classList.toggle('open');
+  const body = toggle.nextElementSibling;
+  body.classList.toggle('open');
+  if (body.classList.contains('open')) setTimeout(drawGammaCurve, 50);
+}
+
+async function applyChanges() {
+  if (!Object.keys(pendingChanges).length) {
+    showToast('No changes to apply');
+    return;
+  }
+  const resp = await fetch('/api/hyperparams', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({updates: pendingChanges}),
+  });
+  const data = await resp.json();
+  pendingChanges = {};
+  showToast(`Updated: ${data.updated?.join(', ')}`);
+}
+
+async function runConsolidation() {
+  showToast('Running consolidation...');
+  const resp = await fetch('/api/consolidate', {method:'POST'});
+  const data = await resp.json();
+  showToast(data.result || 'Consolidation complete');
+  loadDashboard();
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.display = 'block';
+  setTimeout(() => t.style.display = 'none', 3000);
+}
+
+// ============================================================
+// INIT
+// ============================================================
+document.getElementById('dateFilter').value = new Date().toISOString().split('T')[0];
+loadDashboard();
+</script>
+</body>
+</html>

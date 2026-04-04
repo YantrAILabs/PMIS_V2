@@ -1,0 +1,25 @@
+# Privacy Controls — Apps and windows excluded from tracking
+# Screenshots are NEVER taken when these apps/windows are active
+
+excluded_apps:
+  # Banking and finance
+  - bundle_id: "com.apple.Safari"
+    url_patterns:
+      - "*bank*"
+      - "*netbanking*"
+      - "*paypal*"
+  
+  # Personal messaging (add as needed)
+  # - bundle_id: "com.apple.MobileSMS"
+  # - bundle_id: "org.whatsapp.WhatsApp"
+
+excluded_windows:
+  # Window title patterns (regex)
+  - ".*Password.*"
+  - ".*Login.*Bank.*"
+  - ".*1Password.*"
+
+# Global controls
+pause_on_screen_lock: true
+pause_hotkey: "Ctrl+Shift+P"       # Manual pause toggle
+auto_resume_after_idle: true

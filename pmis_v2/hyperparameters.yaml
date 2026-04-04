@@ -1,0 +1,67 @@
+surprise_low_threshold: 0.25
+surprise_high_threshold: 0.65
+orphan_distance_threshold: 0.8
+precision_anchor_saturation: 50
+precision_recency_halflife: 720
+precision_weight_anchors: 0.4
+precision_weight_recency: 0.35
+precision_weight_consistency: 0.25
+gamma_temperature: 3.0
+gamma_bias: 0.5
+gamma_staleness_penalty: 1.5
+staleness_window: 10
+staleness_threshold: 0.15
+retrieval_narrow_threshold: 0.82
+retrieval_broad_threshold: 0.45
+retrieval_max_results: 10
+score_weight_semantic: 0.4
+score_weight_hierarchy: 0.3
+score_weight_temporal: 0.15
+score_weight_precision: 0.15
+poincare_dimensions: 32
+poincare_curvature: -1.0
+poincare_sc_norm_min: 0.05
+poincare_sc_norm_max: 0.2
+poincare_ctx_norm_min: 0.35
+poincare_ctx_norm_max: 0.6
+poincare_anc_norm_min: 0.7
+poincare_anc_norm_max: 0.95
+temporal_embedding_dim: 16
+temporal_decay_exponent: 0.5
+temporal_reactivation_exponent: 0.3
+era_boundaries:
+  pre_yantra: '2024-12-31'
+  kiran_ai_phase: '2025-03-01'
+  vision_os_phase: '2025-05-01'
+  current: '2026-12-31'
+compress_distance_threshold: 0.12
+compress_access_threshold: 3
+compress_surprise_threshold: 0.2
+promote_min_accesses: 3
+birth_min_orphans: 3
+birth_cluster_threshold: 0.35
+prune_max_precision: 0.15
+prune_max_access_count: 2
+prune_max_surprise: 0.15
+prune_min_age_days: 14
+embedding_model: text-embedding-3-small
+embedding_dimensions: 1536
+local_embedding_model: nomic-embed-text
+local_embedding_dimensions: 768
+use_local: true
+consolidation_model: claude-sonnet-4-20250514
+consolidation_model_local: qwen2.5:14b
+consolidation_max_tokens: 2048
+dedup_semantic_threshold: 0.05
+dedup_temporal_threshold_hours: 2
+dedup_source_overlap_threshold: 0.8
+rsgd_learning_rate: 0.01
+rsgd_epochs_nightly: 50
+rsgd_neg_samples: 10
+rsgd_margin: 1.0
+rsgd_max_norm: 0.95
+rsgd_norm_reg_weight: 0.1
+rsgd_burn_in_lr: 0.1
+rsgd_burn_in_epochs: 10
+rsgd_cross_branch_neg_ratio: 0.5
+session_surprise_buffer_size: 50

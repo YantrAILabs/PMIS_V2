@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pipeline Monitor</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: 'JetBrains Mono', monospace; background:#0d1117; color:#c9d1d9; padding:24px; }
+h1 { font-size:20px; color:#58a6ff; margin-bottom:24px; }
+h2 { font-size:15px; color:#8b949e; margin:20px 0 12px; text-transform:uppercase; letter-spacing:1px; }
+.card { background:#161b22; border:1px solid #30363d; border-radius:8px; padding:16px; margin-bottom:16px; }
+.pipeline { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+.node { padding:8px 14px; border-radius:6px; font-size:13px; border:1px solid #30363d; }
+.node.ok { background:#0d1b0d; border-color:#238636; color:#3fb950; }
+.node.error { background:#1b0d0d; border-color:#da3633; color:#f85149; }
+.node.idle { background:#161b22; color:#8b949e; }
+.node.running { background:#0d1b2b; border-color:#1f6feb; color:#58a6ff; }
+.arrow { color:#484f58; font-size:16px; }
+.stats { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:12px; margin-bottom:20px; }
+.stat { background:#161b22; border:1px solid #30363d; border-radius:8px; padding:14px; text-align:center; }
+.stat .val { font-size:24px; font-weight:bold; color:#58a6ff; }
+.stat .label { font-size:11px; color:#8b949e; margin-top:4px; }
+table { width:100%; border-collapse:collapse; font-size:13px; }
+th { text-align:left; padding:8px 12px; color:#8b949e; border-bottom:1px solid #30363d; }
+td { padding:8px 12px; border-bottom:1px solid #21262d; }
+.btn { background:#21262d; border:1px solid #30363d; color:#c9d1d9; padding:8px 16px; border-radius:6px; cursor:pointer; font-size:13px; }
+.btn:hover { background:#30363d; }
+.match-bar { display:inline-block; height:8px; border-radius:4px; background:#238636; }
+.error-text { color:#f85149; font-size:12px; }
+.footer { margin-top:24px; text-align:center; color:#484f58; font-size:11px; }
+</style>
+</head>
+<body>
+<h1>Pipeline Monitor</h1>
+
+<div class="stats" id="stats">
+    <div class="stat"><div class="val" id="health-score">--</div><div class="label">Health %</div></div>
+    <div class="stat"><div class="val" id="ok-count">--</div><div class="label">Nodes OK</div></div>
+    <div class="stat"><div class="val" id="error-count">--</div><div class="label">Errors</div></div>
+    <div class="stat"><div class="val" id="total-syncs">--</div><div class="label">Total Syncs</div></div>
+</div>
+
+<h2>Pipeline Nodes</h2>
+<div class="card">
+    <div class="pipeline" id="pipeline-nodes">Loading...</div>
+</div>
+
+<h2>Recent Syncs</h2>
+<div class="card">
+    <table>
+        <thead><tr><th>Time</th><th>Segments</th><th>Created</th><th>Updated</th><th>Match %</th><th>Status</th></tr></thead>
+        <tbody id="sync-log">
+            <tr><td colspan="6" style="color:#8b949e">Loading...</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<h2>Match Quality</h2>
+<div class="card" id="match-quality">Loading...</div>
+
+<h2>Errors</h2>
+<div class="card" id="errors">No errors</div>
+
+<div style="margin-top:16px; display:flex; gap:8px;">
+    <button class="btn" onclick="triggerSync()">Trigger Manual Sync</button>
+    <button class="btn" onclick="location.reload()">Refresh</button>
+</div>
+
+<div class="footer">YantrAI Productivity Daemon &middot; Pipeline Monitor</div>
+
+<script>
+const API = '';
+
+async function loadAll() {
+    try {
+        // Pipeline status
+        const status = await (await fetch(`${API}/api/pipeline/status`)).json();
+        renderPipeline(status.nodes);
+
+        // Health
+        const health = await (await fetch(`${API}/api/pipeline/health`)).json();
+        document.getElementById('health-score').textContent = health.health_score + '%';
+        document.getElementById('ok-count').textContent = health.ok_nodes;
+        document.getElementById('error-count').textContent = health.error_nodes;
+
+        // Errors
+        const errors = await (await fetch(`${API}/api/pipeline/errors`)).json();
+        renderErrors(errors.errors);
+
+    } catch(e) {
+        document.getElementById('pipeline-nodes').textContent = 'Failed to connect to daemon API';
+    }
+}
+
+function renderPipeline(nodes) {
+    const order = ['screenshot_capture','frame_analysis','segment_classification',
+                   'memory_sql_update','vector_db_update','hyperbolic_update',
+                   'project_matching','consolidation'];
+    const labels = {
+        screenshot_capture: 'Screenshot', frame_analysis: 'Frame Analysis',
+        segment_classification: 'Segment', memory_sql_update: 'SQL Update',
+        vector_db_update: 'Vector DB', hyperbolic_update: 'Hyperbolic',
+        project_matching: 'Matching', consolidation: 'RSGD'
+    };
+
+    let html = '';
+    order.forEach((key, i) => {
+        const n = nodes[key] || {status:'idle'};
+        html += `<div class="node ${n.status}" title="${n.last_error || 'OK'}">${labels[key]}</div>`;
+        if (i < order.length - 1) html += '<span class="arrow">&rarr;</span>';
+    });
+    document.getElementById('pipeline-nodes').innerHTML = html;
+}
+
+function renderErrors(errors) {
+    const el = document.getElementById('errors');
+    if (!errors.length) { el.textContent = 'No errors in last 24 hours'; return; }
+    el.innerHTML = errors.map(e =>
+        `<div class="error-text"><b>${e.node}</b> (${e.error_count}x): ${e.last_error}</div>`
+    ).join('<br>');
+}
+
+async function triggerSync() {
+    try {
+        await fetch(`${API}/api/pipeline/trigger-sync`, {method:'POST'});
+        alert('Manual sync triggered');
+        setTimeout(loadAll, 2000);
+    } catch(e) { alert('Failed: ' + e.message); }
+}
+
+loadAll();
+setInterval(loadAll, 30000);
+</script>
+</body>
+</html>

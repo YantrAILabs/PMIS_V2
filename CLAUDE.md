@@ -1,184 +1,149 @@
-# Memory System — Claude Desktop Instructions
+# PMIS V2 — Claude Desktop Instructions
 
-You are operating inside a **Personal Memory Intelligence System**. This folder IS the user's second brain. Every conversation here builds, retrieves, and strengthens structured memory.
+You are operating inside a **Personal Memory Intelligence System (PMIS V2)**. This folder IS the user's second brain. Every conversation here builds, retrieves, and strengthens structured memory using surprise minimization, hyperbolic geometry, and learned embeddings.
 
 ## Folder Structure
 
 ```
 Memory/
-├── CLAUDE.md              ← You're reading this
-├── scripts/memory.py      ← Memory operations (zero external deps)
-├── Graph_DB/
-│   ├── graph.db           ← SQLite knowledge graph
-│   └── tasks/             ← Individual task logs (JSON)
-└── Vector_DB/             ← Serialized embeddings (managed by script)
+├── CLAUDE.md                       ← You're reading this
+├── pmis_v2/                        ← Active memory system
+│   ├── cli.py                      ← CLI entry point (call from here)
+│   ├── server.py                   ← HTTP server (port 8100, dashboard)
+│   ├── orchestrator.py             ← Main pipeline controller
+│   ├── hyperparameters.yaml        ← All tunable parameters
+│   ├── data/
+│   │   ├── memory.db               ← SQLite knowledge graph (465+ nodes)
+│   │   └── chroma/                 ← ChromaDB ANN index
+│   ├── core/                       ← Surprise, gamma, poincare, RSGD
+│   ├── ingestion/                  ← Embedding, storage, dedup
+│   ├── retrieval/                  ← Search, scoring, epistemic questions
+│   ├── consolidation/              ← Nightly 5-pass optimization
+│   ├── claude_integration/         ← Prompt composer
+│   └── templates/                  ← Dashboard HTML
+├── archives/                       ← V1 deprecated + exploration files
+└── [project folders]               ← Vision AI, Hindi App, etc.
 ```
 
 ## How Memory Works
 
-Memory is hierarchical:
-- **Super Context** = broad work domain (e.g., "B2B Cold Outreach")
-- **Context** = specific phase (e.g., "Email Copywriting")  
-- **Anchor** = atomic reusable insight (e.g., "CISOs respond to threat language over ROI")
+Memory is hierarchical with three levels:
+- **Super Context (SC)** = broad work domain (e.g., "B2B Cold Outreach")
+- **Context (CTX)** = specific phase (e.g., "Email Copywriting")
+- **Anchor (ANC)** = atomic reusable insight (e.g., "CISOs respond to threat language over ROI")
 
-Every anchor has a **weight** (0-1) representing how much it contributed to successful outcomes. Higher weight = retrieves first.
+Every node has **three embeddings**:
+- **Euclidean (768d)** — what is this ABOUT? (semantic meaning)
+- **Hyperbolic (32d)** — where does this BELONG? (hierarchy position, learned via RSGD)
+- **Temporal (16d)** — when was this RELEVANT? (time patterns)
 
-## Your Behavior Rules
+The system computes **surprise** (how novel is this?) and **gamma** (explore vs exploit) on every turn to decide how to retrieve and what to store.
 
-### On EVERY new conversation in this folder:
+## On EVERY User Message
 
-1. **Auto-retrieve**: Before doing any work, run `python3 scripts/memory.py retrieve "<user's task description>"` to fetch relevant memories
-2. **Show context**: Present the retrieved memories to the user briefly — what you know, what past approaches worked
-3. **Do the work**: Execute the task using retrieved context
-4. **Auto-store**: After completing work, run `python3 scripts/memory.py store "<task title>" "<key learnings and decisions, one per line>"` to save new memories
-
-### Commands the user can say:
-
-| User says | You do |
-|-----------|--------|
-| "retrieve context for X" | Run: `python3 scripts/memory.py retrieve "X"` |
-| "store this" or "remember this" | Run: `python3 scripts/memory.py store "title" "content"` |
-| "ingest this file" | Read file, then store key learnings via the store command |
-| "show my memory" or "browse" | Run: `python3 scripts/memory.py browse` |
-| "show memory tree" | Run: `python3 scripts/memory.py tree` |
-| "visualize" | Run: `python3 scripts/memory.py viz` → then tell user to open Memory/memory.html |
-| "stats" | Run: `python3 scripts/memory.py stats` |
-| "score task X" | Run: `python3 scripts/memory.py score "task_id" "score"` |
-| "rebuild weights" | Run: `python3 scripts/memory.py rebuild` |
-| "what do you know about X" | Run retrieve, then synthesize an answer from the results |
-
-### When storing memory:
-
-You must do the STRUCTURING WORK. The script stores exactly what you give it. If you give flat text, you get flat memory. If you give intelligent structure, you get intelligent memory.
-
-Pass a **single JSON argument** with this format:
-
+**Step 1: Session Begin** — Run this FIRST:
 ```
-python3 scripts/memory.py store '{
+python3 pmis_v2/cli.py session begin "<user's message or task description>"
+```
+
+This returns JSON with:
+- `memories` — the `<memory_context>` block with retrieved context, mode, and behavioral guidance
+- `session.is_new_session` — true if this is a fresh start
+- `session.should_ask_rating` — true every 3rd turn (proactive feedback)
+- `mode` — ASSOCIATIVE (familiar), BALANCED (partial), or PREDICTIVE (novel)
+- `gamma` — explore-exploit balance (0=explore, 1=exploit)
+- `surprise` — how novel this turn is (0=identical, 1=completely new)
+- `retrieved_count` — number of memories found
+- `epistemic_questions` — clarifying questions when ambiguous (ask ONE naturally)
+- `predictive` — what typically follows this topic
+
+**Step 2: Use the context** — The `memories` field contains a `<memory_context>` block. Follow its behavioral guidance:
+- **ASSOCIATIVE mode**: Be specific, reference prior work, push toward decisions
+- **BALANCED mode**: Ground in what you know, probe unfamiliar parts, ask one clarifying question
+- **PREDICTIVE mode**: Explore openly, surface cross-domain connections, ask transformative questions
+- If `epistemic_questions` is non-empty, weave the top question naturally into your response
+
+**Step 2b: Log your response** — After responding, briefly log what you did:
+```
+python3 pmis_v2/cli.py session log-response "Explained cold outreach strategies for CISOs, referenced threat-language anchor, asked about target company size"
+```
+Keep it under 200 words. Include: what you answered, which memories you referenced, what questions you asked.
+
+**Step 3: Store learnings** — After completing work:
+```
+python3 pmis_v2/cli.py session store '{
     "super_context": "B2B Cold Outreach",
-    "description": "Enterprise sales campaigns for Vision AI",
+    "description": "Enterprise sales campaigns",
     "contexts": [
         {
             "title": "Email copywriting",
             "weight": 0.8,
             "anchors": [
-                {"title": "Threat-intel language wins", "content": "CISOs respond to threat language over ROI — 3x higher reply rate", "weight": 0.9},
-                {"title": "Subject under 6 words", "content": "Short subjects get 40% higher open rates", "weight": 0.7},
-                {"title": "Blind spot framing", "content": "Best subject line: Your blind spots are showing", "weight": 0.85}
-            ]
-        },
-        {
-            "title": "Target research",
-            "weight": 0.6,
-            "anchors": [
-                {"title": "VP Security > CISO", "content": "VP Security title responds 2x more than CISO", "weight": 0.8},
-                {"title": "LinkedIn Sales Navigator", "content": "Use LinkedIn to find 50+ enterprise targets", "weight": 0.6}
+                {"title": "Threat-intel language wins", "content": "CISOs respond to threat language over ROI — 3x higher reply rate", "weight": 0.9}
             ]
         }
     ],
-    "summary": "Q1 cold outreach campaign learnings"
+    "summary": "Q1 cold outreach learnings"
 }'
 ```
 
-### The 4 structuring decisions you MUST make:
+**Step 4: End of conversation** — When user says thanks or topic changes:
+- Prompt for rating: "Was this session helpful?"
+- Run: `python3 pmis_v2/cli.py session rate up` or `session rate down`
+- Run: `python3 pmis_v2/cli.py session end`
 
-**1. Super context name** — the broad work domain. Reusable across many tasks.
-- Good: "B2B Cold Outreach", "Kiran AI Marketing", "Security Demo Page"
-- Bad: "Email to Rajesh", "Tuesday's meeting", "Campaign v3"
-- Check existing SCs first: `python3 scripts/memory.py browse`
+## Commands
 
-**2. Context grouping** — group related anchors under named subtasks.
-- Ask: "If I were teaching someone this domain, what are the distinct skills/phases?"
-- "Email copywriting" and "Target research" are different skills → separate contexts
-- "Subject lines" and "Body copy" are both email writing → same context
-- Never create date-stamped contexts like "Mar 18 session" — that's meaningless structure
+| User says | You do |
+|-----------|--------|
+| "retrieve context for X" | `python3 pmis_v2/cli.py session begin "X"` |
+| "store this" or "remember this" | `python3 pmis_v2/cli.py session store '{...}'` |
+| "show my memory" or "browse" | `python3 pmis_v2/cli.py browse` |
+| "stats" | `python3 pmis_v2/cli.py stats` |
+| "what do you know about X" | Run session begin, then synthesize answer |
+| "run consolidation" | `python3 pmis_v2/cli.py consolidate` |
+| "show orphans" | `python3 pmis_v2/cli.py orphans` |
+| "explore mode" | `python3 pmis_v2/cli.py command explore` |
+| "exploit mode" | `python3 pmis_v2/cli.py command exploit` |
+| "show surprise history" | `python3 pmis_v2/cli.py command surprise` |
+| "system status" | `python3 pmis_v2/cli.py status` |
 
-**3. Anchor specificity** — each anchor is ONE atomic, reusable insight.
+## Structuring Decisions When Storing
+
+**1. Super context name** — broad, reusable domain name
+- Good: "B2B Cold Outreach", "Vision AI Product", "Memory System Design"
+- Bad: "Tuesday's meeting", "Email to Rajesh"
+- Check existing: `python3 pmis_v2/cli.py browse`
+
+**2. Context grouping** — group related anchors under named skills/phases
+- "Email copywriting" and "Target research" = separate contexts
+- "Subject lines" and "Body copy" = same context (both email writing)
+
+**3. Anchor specificity** — ONE atomic, reusable insight per anchor
 - Good: "CISOs respond to threat-intel language — 3x higher reply rate"
-- Bad: "Good email copy" (too vague to reuse)
-- Include numbers: "40% higher open rate" not "higher open rate"
-- Include the WHY when you know it: "VP Security responds 2x more because they handle vendor eval directly"
+- Bad: "Good email copy" (too vague)
+- Include numbers and WHY when known
 
-**4. Weight assignment** — how important is each piece relative to its siblings?
-- 0.9 = critical, this insight was the key driver of success
-- 0.7 = important, consistently useful
-- 0.5 = moderate, helpful but not decisive
-- 0.3 = minor, nice to know
-- Ask: "If I could only remember 2 things from this context, which would they be?" → those get 0.8-0.9
+**4. Weight assignment** — importance relative to siblings
+- 0.9 = critical, key driver | 0.7 = important | 0.5 = moderate | 0.3 = minor
 
-### Dedup behavior:
+## Dashboard
 
-The script automatically handles duplicates:
-- If a super context with the same name exists → reuses it, adds new contexts underneath
-- If a context with the same name exists under the same SC → reuses it, adds new anchors
-- If an anchor with the same title exists → updates use count, keeps the higher weight
-- This means you can store learnings about "B2B Cold Outreach" 50 times and they all merge into one growing tree
-
-### Example: storing from a conversation
-
-After a conversation about writing cold emails to hospitals, you would store:
-
+Start the server and open the dashboard:
 ```
-python3 scripts/memory.py store '{"super_context": "B2B Cold Outreach", "description": "Enterprise sales campaigns", "contexts": [{"title": "Healthcare vertical", "weight": 0.7, "anchors": [{"title": "NABH compliance drives decisions", "content": "Hospital camera placement is driven by NABH accreditation requirements, not security needs", "weight": 0.85}, {"title": "CFO signs but IT head evaluates", "content": "Technical decision maker is IT head, but budget approval comes from CFO", "weight": 0.7}]}, {"title": "Pricing strategy", "weight": 0.6, "anchors": [{"title": "Bundle maintenance for 30% uplift", "content": "Adding 3-year maintenance contract increases deal size by 30%", "weight": 0.8}]}], "summary": "Hospital security system proposal learnings"}'
+python3 pmis_v2/server.py
+# Dashboard: http://localhost:8100
+# API docs: http://localhost:8100/docs
 ```
 
-Notice: the super context is "B2B Cold Outreach" (reuses existing domain), but the contexts are new ("Healthcare vertical", "Pricing strategy") with specific, weighted anchors.
-
-### When retrieving:
-
-The script returns a context pack with three signals per anchor:
-
-1. **weight** — evidence-based, not just Claude's initial guess. Anchors that appeared in high-scoring tasks have higher weights. Anchors only in low-scoring tasks have lower weights.
-2. **stage** — temporal classification: `impulse` (new, unproven), `active` (currently in use), `established` (battle-tested), `fading` (old, rarely used).
-3. **in_winning_structure** — `true` if this anchor was present in the highest-scoring task for this super context. This is the "winning recipe."
-
-When presenting retrieved context to the user:
-- Lead with anchors marked `in_winning_structure: true` — these are proven
-- Mention the temporal stage: "This is an established pattern" vs "This is a new untested insight"
-- Note the winning task score: "This combination scored 4.5/5 last time"
-- Show lower-weighted anchors too but mark them as less proven
-
-### Weight system (evidence-based):
-
-Weights are NOT static. They evolve through evidence:
-
-- Initial weight comes from Claude's estimate when storing (the `weight` field you set)
-- After tasks are scored, weights recompute: `weight = blend(initial, evidence)`
-- With few scored tasks: initial estimate matters more (70% initial, 30% evidence)
-- With 5+ scored tasks: evidence dominates (30% initial, 70% evidence)
-- An anchor in only 5/5 tasks rises fast. An anchor in only 2/5 tasks drops fast.
-
-### Scoring tasks:
-
-After the user completes a task, prompt them to score it. Then run:
-```
-python3 scripts/memory.py score "TASK_ID" "4.5"
-```
-
-This does three things:
-1. Captures a **structure snapshot** — the exact tree that produced this outcome
-2. Updates **evidence-based weights** for every anchor in the task
-3. Updates **super context quality** (running average of all task scores)
-
-The task_id is printed when you run the store command. Always note it for the user.
-
-### Temporal stages:
-
-Every memory node is automatically classified:
-- **impulse** — just created, used once, unproven. Retrieval boost: 0.8x (slight penalty)
-- **active** — used multiple times recently. Retrieval boost: 1.2x (hot knowledge)
-- **established** — used consistently over time. Retrieval boost: 1.5x (highest — battle-tested)
-- **fading** — not used recently, low frequency. Retrieval boost: 0.5x (deprioritized)
-
-Stages update automatically as nodes are used. Run `python3 scripts/memory.py rebuild` to force-recompute all temporal scores.
+The dashboard shows: stat cards (SC/CTX/ANC counts, daily activity), conversation log (with gamma/surprise/mode per turn), and hyperparameter controls with live preview.
 
 ## Important
 
+- Always run `session begin` before doing any work — never skip this
 - Never ask "should I store this?" — just store key learnings automatically
-- Never ask "should I retrieve?" — always retrieve before starting work
-- Keep anchor titles short and specific — they're reusable knowledge atoms
-- Always note the task_id after storing — the user needs it for scoring
-- When the user says "that worked well" or "that went great" — immediately offer to score the task
-- When the user says "that didn't work" — score it low so bad anchors get deprioritized
-- Run `python3 scripts/memory.py rebuild` periodically (or at end of day) to refresh all weights
-- The memory.py script has ZERO external dependencies — it uses only Python stdlib
+- When user says thanks → prompt for rating before closing
+- When user expresses frustration → treat as thumbs down, ask what specifically failed
+- Follow the behavioral guidance from the mode (ASSOCIATIVE/BALANCED/PREDICTIVE)
+- If epistemic questions are provided, ask ONE naturally — don't list them mechanically
+- The system runs nightly consolidation (compress, promote, birth, prune, RSGD) automatically

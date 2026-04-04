@@ -1,0 +1,13 @@
+{
+  "overall": 94.0,
+  "categories": {
+    "single-exact": 90.0,
+    "single-semantic": 100.0,
+    "cross-domain": 90.0,
+    "multi-turn": 95.0,
+    "feedback": 90.0,
+    "edge": 100.0
+  },
+  "passed": 94,
+  "total": 100
+}

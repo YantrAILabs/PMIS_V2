@@ -1,0 +1,15 @@
+{
+  "_comment": "Add this to your Claude Desktop config at ~/Library/Application Support/Claude/claude_desktop_config.json",
+  "_instructions": "Merge the mcpServers entry below into your existing config. Adjust the path to match your installation.",
+
+  "mcpServers": {
+    "productivity-tracker": {
+      "command": "/path/to/productivity-tracker/.venv/bin/python",
+      "args": ["-m", "src.mcp.server"],
+      "cwd": "/path/to/productivity-tracker",
+      "env": {
+        "OPENAI_API_KEY": "sk-your-key-here"
+      }
+    }
+  }
+}

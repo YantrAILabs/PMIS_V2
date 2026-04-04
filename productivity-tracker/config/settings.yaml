@@ -1,0 +1,81 @@
+# Productivity Tracker — Main Configuration
+
+tracking:
+  # Screenshot interval in seconds
+  screenshot_interval_active: 10    # When user is active
+  screenshot_interval_idle: 30      # When low activity detected
+  
+  # Idle detection
+  idle_threshold_secs: 60           # No input for this long = idle
+  idle_gap_new_segment_secs: 300    # 5 min idle = force new segment
+  
+  # Screenshot processing
+  screenshot_max_width: 1024        # Resize before sending to API (cost optimization)
+  frame_batch_size: 4               # Frames per ChatGPT Vision call
+  skip_similar_threshold: 0.95      # SSIM > this = skip frame (near identical)
+
+segmentation:
+  # Visual diff threshold for new segment
+  ssim_threshold: 0.7               # SSIM < this between frames = new segment
+  
+  # Minimum segment length (avoid micro-segments)
+  min_segment_secs: 15              # Segments shorter than this get merged with next
+
+chatgpt:
+  # Vision analysis
+  vision_model: "gpt-4o-mini"
+  vision_detail: "low"              # "low" for initial pass, "high" if text is small
+  
+  # Context classification  
+  text_model: "gpt-4o-mini"
+  max_tokens: 500
+  temperature: 0.1                  # Low temp for consistent classification
+
+memory:
+  # Hourly aggregation
+  hourly_cron: "0 * * * *"          # Every hour on the hour
+
+  # 6-hour comprehensive analysis cycle
+  analysis_interval_hours: 6        # Build comprehensive work analysis every 6 hours
+  analysis_hours: [0, 6, 12, 18]    # Analysis checkpoints: midnight, 6am, noon, 6pm
+
+  # Central memory sync (every 6 hours, aligned with analysis)
+  central_sync_interval_hours: 6    # Sync with PMIS central memory every 6 hours
+
+  # Daily rollup still runs at end of day for the full-day view
+  daily_rollup_hour: 23             # 11 PM
+
+  # Embedding model (for tracker's own ChromaDB)
+  embedding_model: "text-embedding-3-small"
+
+  # Matching threshold
+  semantic_match_threshold: 0.8
+
+pmis:
+  # PMIS v2 central memory — SEPARATE from tracker storage
+  # This points to your existing PMIS v2 ChromaDB installation
+  chromadb_path: "~/Desktop/memory/pmis_v2/data/chroma"
+  collection_name: "pmis_central_memory"
+  # All levels merge into central memory for comprehensive tracking
+  merge_levels: ["SC", "context", "anchor"]
+  merge_threshold: 0.75
+
+matching:
+  # Deliverables sync interval (minutes)
+  project_tool_sync_interval: 120   # Every 2 hours
+  
+  # Asana (optional)
+  asana_enabled: false
+  asana_workspace_id: ""
+  asana_token: ""
+  
+  # Notion (optional)
+  notion_enabled: false
+  notion_database_id: ""
+  notion_token: ""
+
+storage:
+  # Retention
+  frame_data_retention_days: 7      # Context 2 detail kept for 7 days
+  daily_memory_retention: "forever"
+  hourly_temp_delete_after_rollup: true

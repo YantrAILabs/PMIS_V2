@@ -1,0 +1,105 @@
+{
+  "versions": [
+    {
+      "name": "P9",
+      "created": "2026-03-22T12:06:55Z",
+      "description": "P9+ Triple Fusion with SessionEngine and Goal Vectors",
+      "benchmark_score": 50.0,
+      "categories": {
+        "single-exact": 60.0,
+        "single-semantic": 40.0,
+        "cross-domain": 40.0,
+        "multi-turn": 45.0,
+        "feedback": 60.0,
+        "edge": 60.0
+      },
+      "key_changes": [],
+      "known_limitations": [],
+      "db_stats": {
+        "super_contexts": 21,
+        "contexts": 93,
+        "anchors": 290,
+        "nodes": 404,
+        "edges": 387,
+        "tasks": 34,
+        "scored_tasks": 23
+      }
+    },
+    {
+      "name": "P10",
+      "created": "2026-03-22T12:10:21Z",
+      "description": "P10: Multiplicative feedback + context tightening + exact-match bypass",
+      "benchmark_score": 74.0,
+      "categories": {
+        "single-exact": 85.0,
+        "single-semantic": 73.33,
+        "cross-domain": 55.0,
+        "multi-turn": 65.0,
+        "feedback": 80.0,
+        "edge": 93.33
+      },
+      "key_changes": [],
+      "known_limitations": [],
+      "db_stats": {
+        "super_contexts": 21,
+        "contexts": 93,
+        "anchors": 290,
+        "nodes": 404,
+        "edges": 387,
+        "tasks": 34,
+        "scored_tasks": 23
+      }
+    },
+    {
+      "name": "P11",
+      "created": "2026-03-22T12:44:18Z",
+      "description": "P11: Synonym expansion + stemming + compound splitting + size normalization + SC enrichment + abbreviations",
+      "benchmark_score": 94.0,
+      "categories": {
+        "single-exact": 90.0,
+        "single-semantic": 100.0,
+        "cross-domain": 90.0,
+        "multi-turn": 95.0,
+        "feedback": 90.0,
+        "edge": 100.0
+      },
+      "key_changes": [],
+      "known_limitations": [],
+      "db_stats": {
+        "super_contexts": 21,
+        "contexts": 93,
+        "anchors": 290,
+        "nodes": 404,
+        "edges": 387,
+        "tasks": 34,
+        "scored_tasks": 23
+      }
+    },
+    {
+      "name": "P11-final",
+      "created": "2026-03-22T12:52:05Z",
+      "description": "P11 Final: 100% benchmark \u2014 synonym expansion, stemming, splitting, size norm, description enrichment, max_results=10",
+      "benchmark_score": 100.0,
+      "categories": {
+        "single-exact": 100.0,
+        "single-semantic": 100.0,
+        "cross-domain": 100.0,
+        "multi-turn": 100.0,
+        "feedback": 100.0,
+        "edge": 100.0
+      },
+      "key_changes": [],
+      "known_limitations": [],
+      "db_stats": {
+        "super_contexts": 21,
+        "contexts": 93,
+        "anchors": 290,
+        "nodes": 404,
+        "edges": 387,
+        "tasks": 34,
+        "scored_tasks": 23
+      }
+    }
+  ],
+  "current": "P11-final"
+}

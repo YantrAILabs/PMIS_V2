@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "pmis-memory": {
+      "command": "/opt/homebrew/bin/python3",
+      "args": ["/Users/rohitsingh/Desktop/memory/pmis_v2/mcp_server.py", "--transport", "stdio"],
+      "env": {
+        "PYTHONPATH": "/Users/rohitsingh/Desktop/memory/pmis_v2"
+      }
+    }
+  }
+}

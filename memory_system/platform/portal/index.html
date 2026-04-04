@@ -1,0 +1,1051 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PMIS Platform</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0a0a0f;--bg2:#12121a;--bg3:#1c1c24;--fg:#e8e6e0;--fg2:#8a8880;--fg3:#5a5850;--green:#4ade80;--blue:#60a5fa;--purple:#a78bfa;--orange:#fb923c;--red:#f87171;--teal:#2dd4bf;--border:#2a2a32}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--fg);min-height:100vh}
+.mono{font-family:'JetBrains Mono',monospace}
+
+/* Layout */
+.app{display:flex;min-height:100vh}
+.sidebar{width:220px;background:var(--bg2);border-right:1px solid var(--border);padding:20px 0;flex-shrink:0;display:flex;flex-direction:column}
+.main{flex:1;padding:32px 40px;overflow-y:auto;max-height:100vh}
+
+/* Sidebar */
+.logo{padding:0 20px 20px;font-size:18px;font-weight:800;letter-spacing:1px}
+.logo span{color:var(--green)}
+.nav-item{padding:10px 20px;font-size:13px;color:var(--fg2);cursor:pointer;border-left:3px solid transparent;transition:all .15s}
+.nav-item:hover{background:var(--bg3);color:var(--fg)}
+.nav-item.active{color:var(--green);border-left-color:var(--green);background:rgba(74,222,128,0.05)}
+.nav-sep{height:1px;background:var(--border);margin:12px 20px}
+.user-info{margin-top:auto;padding:16px 20px;border-top:1px solid var(--border)}
+.user-name{font-size:13px;font-weight:600}
+.user-role{font-size:10px;color:var(--fg3);margin-top:2px}
+.logout-btn{margin-top:8px;font-size:11px;color:var(--red);cursor:pointer;background:none;border:none;font-family:'Inter';padding:0}
+.logout-btn:hover{text-decoration:underline}
+
+/* Header */
+.page-header{margin-bottom:28px}
+.page-header h1{font-size:22px;font-weight:700}
+.page-header p{font-size:13px;color:var(--fg2);margin-top:4px}
+
+/* Cards */
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:18px 20px;margin-bottom:12px}
+.card-title{font-size:11px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:var(--fg3);margin-bottom:10px}
+.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+.stat{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;text-align:center}
+.stat .val{font-family:'JetBrains Mono';font-size:24px;font-weight:700;color:var(--green)}
+.stat .lbl{font-size:10px;color:var(--fg3);margin-top:4px;text-transform:uppercase;letter-spacing:1px}
+
+/* Memory tree */
+.sc-item{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:8px;cursor:pointer;transition:all .15s}
+.sc-item:hover{border-color:rgba(96,165,250,0.3)}
+.sc-name{font-size:14px;font-weight:600;display:flex;justify-content:space-between;align-items:center}
+.sc-meta{font-size:11px;color:var(--fg3);margin-top:4px}
+.sc-badge{font-size:9px;padding:2px 6px;border-radius:4px;font-weight:600}
+.b-impulse{background:#2a2040;color:var(--purple)}
+.b-shared{background:rgba(74,222,128,0.12);color:var(--green)}
+.ctx-list{margin-left:20px;margin-top:8px;display:none}
+.sc-item.open .ctx-list{display:block}
+.ctx-item{padding:6px 10px;border-left:2px solid var(--blue);margin-bottom:4px}
+.ctx-name{font-size:12px;font-weight:600;color:var(--blue)}
+.anc-item{padding:3px 0 3px 16px;font-size:12px;color:var(--fg2)}
+.anc-item .w{font-family:'JetBrains Mono';font-size:10px;color:var(--fg3)}
+
+/* Forms */
+.form-group{margin-bottom:16px}
+.form-group label{display:block;font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--fg3);margin-bottom:6px}
+.form-group input,.form-group textarea,.form-group select{width:100%;padding:10px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--fg);font-family:'Inter';font-size:13px;outline:none}
+.form-group input:focus,.form-group textarea:focus{border-color:var(--green)}
+.form-group textarea{height:80px;resize:vertical}
+.btn{padding:10px 20px;border:none;border-radius:8px;font-family:'Inter';font-size:13px;font-weight:600;cursor:pointer;transition:all .15s}
+.btn-green{background:var(--green);color:#000}
+.btn-green:hover{opacity:0.85}
+.btn-blue{background:var(--blue);color:#000}
+.btn-outline{background:transparent;border:1px solid var(--border);color:var(--fg2)}
+.btn-outline:hover{border-color:var(--green);color:var(--green)}
+.btn-sm{padding:6px 12px;font-size:11px}
+
+/* Daemon heartbeat */
+@keyframes heartbeat{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.35);opacity:0.8}}
+.heart{display:inline-block;font-size:22px;vertical-align:middle;margin-right:8px}
+.heart-active{color:#4ade80;animation:heartbeat 1s ease-in-out infinite}
+.heart-inactive{color:#2a2a32}
+.worker-badge{font-size:10px;padding:2px 8px;border-radius:4px;font-weight:600}
+.worker-human{background:rgba(74,222,128,0.12);color:var(--green)}
+.worker-ai{background:rgba(96,165,250,0.12);color:var(--blue)}
+.seg-table{width:100%;border-collapse:collapse;font-size:12px}
+.seg-table th{text-align:left;padding:8px 10px;color:var(--fg3);font-size:10px;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border)}
+.seg-table td{padding:8px 10px;border-bottom:1px solid rgba(42,42,50,0.5);vertical-align:top}
+.seg-table tr:hover{background:rgba(255,255,255,0.02)}
+.topic-text{color:var(--fg2);max-width:500px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.top-platform{display:flex;justify-content:space-between;padding:4px 0;font-size:13px}
+
+/* Search */
+.search-bar{display:flex;gap:8px;margin-bottom:20px}
+.search-bar input{flex:1;padding:12px 16px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;color:var(--fg);font-family:'Inter';font-size:14px;outline:none}
+.search-bar input:focus{border-color:var(--green)}
+
+/* Results */
+.result-card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:10px}
+.result-sc{font-size:15px;font-weight:700;margin-bottom:6px}
+.result-owner{font-size:11px;color:var(--fg3)}
+.result-ctx{font-size:12px;color:var(--blue);margin-top:8px}
+.result-anc{font-size:12px;color:var(--fg2);padding:2px 0 2px 12px}
+.locked-card{border-color:rgba(251,146,60,0.3)}
+.locked-msg{font-size:12px;color:var(--orange);margin-top:8px}
+
+/* Share modal */
+.share-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)}
+.share-row:last-child{border:none}
+.share-scope{font-size:13px;flex:1}
+.share-level{font-size:11px;padding:3px 8px;border-radius:4px}
+.sl-read{background:rgba(74,222,128,0.12);color:var(--green)}
+.sl-request{background:rgba(251,146,60,0.12);color:var(--orange)}
+
+/* Toast */
+.toast{position:fixed;top:20px;right:20px;padding:12px 20px;border-radius:8px;font-size:13px;font-weight:600;z-index:999;transition:all .3s;opacity:0;transform:translateY(-10px)}
+.toast.show{opacity:1;transform:translateY(0)}
+.toast-ok{background:rgba(74,222,128,0.15);border:1px solid var(--green);color:var(--green)}
+.toast-err{background:rgba(248,113,113,0.15);border:1px solid var(--red);color:var(--red)}
+
+/* Login */
+.login-wrap{display:flex;align-items:center;justify-content:center;min-height:100vh}
+.login-box{width:360px;background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:32px}
+.login-box h2{font-size:20px;font-weight:800;margin-bottom:4px}
+.login-box .sub{font-size:12px;color:var(--fg3);margin-bottom:24px}
+
+/* Responsive */
+@media(max-width:768px){.sidebar{display:none}.main{padding:20px}.stat-grid{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- Login Screen -->
+<div class="login-wrap" id="loginScreen">
+  <div class="login-box">
+    <h2>PMIS <span style="color:var(--green)">Platform</span></h2>
+    <div class="sub">Multi-user Memory Intelligence</div>
+    <div class="form-group">
+      <label>Username</label>
+      <input type="text" id="loginUser" value="rohit" placeholder="username">
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" id="loginPass" value="test123" placeholder="password">
+    </div>
+    <button class="btn btn-green" style="width:100%" onclick="doLogin()">Login</button>
+    <div style="text-align:center;margin-top:12px">
+      <span style="font-size:11px;color:var(--fg3)">or</span>
+      <button class="btn btn-outline btn-sm" style="margin-left:8px" onclick="doRegister()">Register New User</button>
+    </div>
+  </div>
+</div>
+
+<!-- App Shell (hidden until login) -->
+<div class="app" id="appShell" style="display:none">
+  <div class="sidebar">
+    <div class="logo">PMIS <span>Platform</span></div>
+    <div class="nav-item active" onclick="showPage('dashboard')">&#128202; Dashboard</div>
+    <div class="nav-item" onclick="showPage('browse')">&#128194; Browse Memory</div>
+    <div class="nav-item" onclick="showPage('retrieve')">&#128270; Search</div>
+    <div class="nav-item" onclick="showPage('store')">&#10133; Store Memory</div>
+    <div class="nav-sep"></div>
+    <div class="nav-item" onclick="showPage('org')">&#127758; Org Knowledge</div>
+    <div class="nav-item" onclick="showPage('sharing')">&#128274; Sharing</div>
+    <div class="nav-item" onclick="showPage('requests')">&#128276; Requests</div>
+    <div class="nav-sep"></div>
+    <div class="nav-item" onclick="showPage('productivity')">&#9201; Productivity</div>
+    <div class="nav-item" onclick="showPage('projects')">&#128203; Projects</div>
+    <div class="nav-item" onclick="showPage('daemon')">&#128308; Daemon</div>
+    <div class="user-info">
+      <div class="user-name" id="dispName"></div>
+      <div class="user-role" id="dispRole"></div>
+      <button class="logout-btn" onclick="doLogout()">Logout</button>
+    </div>
+  </div>
+
+  <div class="main">
+    <!-- DASHBOARD -->
+    <div class="page" id="page-dashboard">
+      <div class="page-header"><h1>Dashboard</h1><p>Your memory at a glance</p></div>
+      <div class="stat-grid" id="statsGrid"></div>
+      <div class="card"><div class="card-title">Recent Super Contexts</div><div id="recentSCs"></div></div>
+    </div>
+
+    <!-- BROWSE -->
+    <div class="page" id="page-browse" style="display:none">
+      <div class="page-header"><h1>Browse Memory</h1><p>Your full knowledge tree</p></div>
+      <div id="browseTree"></div>
+    </div>
+
+    <!-- RETRIEVE -->
+    <div class="page" id="page-retrieve" style="display:none">
+      <div class="page-header"><h1>Search Memory</h1><p>Find knowledge by query</p></div>
+      <div class="search-bar">
+        <input type="text" id="searchInput" placeholder="What are you looking for?" onkeydown="if(event.key==='Enter')doSearch()">
+        <button class="btn btn-green" onclick="doSearch()">Search</button>
+      </div>
+      <div id="searchResults"></div>
+    </div>
+
+    <!-- STORE -->
+    <div class="page" id="page-store" style="display:none">
+      <div class="page-header"><h1>Store Memory</h1><p>Add new knowledge</p></div>
+      <div class="card">
+        <div class="form-group"><label>Super Context</label><input type="text" id="storeSC" placeholder="e.g. B2B Cold Outreach"></div>
+        <div class="form-group"><label>Context</label><input type="text" id="storeCtx" placeholder="e.g. Email Strategy"></div>
+        <div class="form-group"><label>Anchor Title</label><input type="text" id="storeAncTitle" placeholder="e.g. Short subjects get 40% more opens"></div>
+        <div class="form-group"><label>Anchor Content</label><textarea id="storeAncContent" placeholder="Detailed explanation..."></textarea></div>
+        <div class="form-group"><label>Weight (0.1 - 1.0)</label><input type="number" id="storeWeight" value="0.7" min="0.1" max="1.0" step="0.1"></div>
+        <button class="btn btn-green" onclick="doStore()">Store Memory</button>
+      </div>
+    </div>
+
+    <!-- ORG KNOWLEDGE -->
+    <div class="page" id="page-org" style="display:none">
+      <div class="page-header"><h1>Org Knowledge</h1><p>Search across all shared team memories</p></div>
+      <div class="search-bar">
+        <input type="text" id="orgSearchInput" placeholder="Search org knowledge..." onkeydown="if(event.key==='Enter')doOrgSearch()">
+        <button class="btn btn-blue" onclick="doOrgSearch()">Search Org</button>
+      </div>
+      <div id="orgResults"></div>
+      <div class="card" style="margin-top:20px"><div class="card-title">Org Stats</div><div id="orgStats"></div></div>
+    </div>
+
+    <!-- SHARING -->
+    <div class="page" id="page-sharing" style="display:none">
+      <div class="page-header"><h1>Sharing Manager</h1><p>Control who can access your knowledge</p></div>
+      <div class="card"><div class="card-title">My Shared Items</div><div id="myShares"></div></div>
+      <div class="card" style="margin-top:12px"><div class="card-title">Shared With Me</div><div id="sharedWithMe"></div></div>
+    </div>
+
+    <!-- REQUESTS -->
+    <div class="page" id="page-requests" style="display:none">
+      <div class="page-header"><h1>Access Requests</h1><p>Approve or deny access to your knowledge</p></div>
+      <div id="requestInbox"></div>
+    </div>
+
+    <!-- PRODUCTIVITY DASHBOARD -->
+    <div class="page" id="page-productivity" style="display:none">
+      <div class="page-header">
+        <h1>Productivity Dashboard</h1>
+        <p>Time tracking powered by PMIS V2 memory pipeline</p>
+      </div>
+      <div style="margin-bottom:16px">
+        <input type="date" id="prodDate" onchange="loadProductivity()" style="padding:8px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--fg);font-family:'Inter';font-size:13px">
+      </div>
+      <div class="stat-grid" id="prodStats">
+        <div class="stat"><div class="val" id="prodWorking">--</div><div class="lbl">Working</div></div>
+        <div class="stat"><div class="val" id="prodIdle">--</div><div class="lbl">Idle</div></div>
+        <div class="stat"><div class="val" id="prodProductive">--</div><div class="lbl">Productive</div></div>
+        <div class="stat"><div class="val" id="prodUnproductive">--</div><div class="lbl">Unproductive</div></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Productive Time Breakdown</div>
+        <div style="display:flex;gap:20px;margin-bottom:12px">
+          <div><span style="color:var(--green);font-weight:700" id="prodHuman">--</span> <span style="color:var(--fg3);font-size:11px">Human</span></div>
+          <div><span style="color:var(--blue);font-weight:700" id="prodAI">--</span> <span style="color:var(--fg3);font-size:11px">AI</span></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+          <div>
+            <div style="font-size:12px;font-weight:600;color:var(--green);margin-bottom:8px">Human Work</div>
+            <div id="prodHumanTree"></div>
+          </div>
+          <div>
+            <div style="font-size:12px;font-weight:600;color:var(--blue);margin-bottom:8px">AI Work</div>
+            <div id="prodAITree"></div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Unproductive Time</div>
+        <div id="prodUnprodTree"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Top 5</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
+          <div><div style="font-size:11px;color:var(--fg3);margin-bottom:6px">Super Contexts</div><div id="top5SC"></div></div>
+          <div><div style="font-size:11px;color:var(--fg3);margin-bottom:6px">Contexts</div><div id="top5CTX"></div></div>
+          <div><div style="font-size:11px;color:var(--fg3);margin-bottom:6px">Anchors</div><div id="top5ANC"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PROJECTS -->
+    <div class="page" id="page-projects" style="display:none">
+      <div class="page-header" style="display:flex;justify-content:space-between;align-items:center">
+        <div><h1>Projects</h1><p>Track project progress and deliverables</p></div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-green" onclick="showAddProject()">+ Add Project</button>
+          <button class="btn btn-outline btn-sm" onclick="alert('Asana import coming soon')">Import</button>
+        </div>
+      </div>
+      <div style="margin-bottom:12px">
+        <select id="projFilter" onchange="loadProjects()" style="padding:8px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--fg);font-size:13px">
+          <option value="">All</option>
+          <option value="active">Active</option>
+          <option value="completed">Completed</option>
+          <option value="on_hold">On Hold</option>
+        </select>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px" id="projTable">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border)">
+            <th style="text-align:left;padding:10px 12px;color:var(--fg3);font-size:11px;text-transform:uppercase;letter-spacing:1px">Project</th>
+            <th style="text-align:left;padding:10px 12px;color:var(--fg3);font-size:11px;text-transform:uppercase;letter-spacing:1px">Status</th>
+            <th style="text-align:left;padding:10px 12px;color:var(--fg3);font-size:11px;text-transform:uppercase;letter-spacing:1px">Mapped SC</th>
+            <th style="text-align:left;padding:10px 12px;color:var(--fg3);font-size:11px;text-transform:uppercase;letter-spacing:1px">Time Spent</th>
+            <th style="text-align:left;padding:10px 12px;color:var(--fg3);font-size:11px;text-transform:uppercase;letter-spacing:1px">Deadline</th>
+            <th style="text-align:left;padding:10px 12px;color:var(--fg3);font-size:11px;text-transform:uppercase;letter-spacing:1px">Progress</th>
+          </tr>
+        </thead>
+        <tbody id="projBody"><tr><td colspan="6" style="padding:20px;color:var(--fg3);text-align:center">Loading...</td></tr></tbody>
+      </table>
+    </div>
+
+    <!-- DAEMON MONITOR -->
+    <div class="page" id="page-daemon" style="display:none">
+      <div class="page-header"><h1>Daemon Monitor</h1><p>Live tracking activity</p></div>
+
+      <!-- Status Header -->
+      <div class="card" style="display:flex;align-items:center;gap:24px;flex-wrap:wrap">
+        <div>
+          <span class="heart heart-inactive" id="daemonHeart">&#9829;</span>
+          <span id="daemonActiveText" style="font-size:14px;font-weight:600;color:var(--fg3)">Checking...</span>
+        </div>
+        <div style="border-left:1px solid var(--border);padding-left:20px">
+          <div style="font-size:24px;font-weight:700;color:var(--green)" id="daemonSegCount">--</div>
+          <div style="font-size:10px;color:var(--fg3);text-transform:uppercase;letter-spacing:1px">Segments Today</div>
+        </div>
+        <div style="border-left:1px solid var(--border);padding-left:20px">
+          <div style="font-size:24px;font-weight:700;color:var(--blue)" id="daemonWinCount">--</div>
+          <div style="font-size:10px;color:var(--fg3);text-transform:uppercase;letter-spacing:1px">Windows Tracked</div>
+        </div>
+        <div style="border-left:1px solid var(--border);padding-left:20px;min-width:180px">
+          <div style="font-size:10px;color:var(--fg3);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Top Platforms</div>
+          <div id="daemonTopPlatforms"></div>
+        </div>
+      </div>
+
+      <!-- Live Segment Log -->
+      <div class="card" style="margin-top:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <div class="card-title" style="margin:0">Live Segment Log</div>
+          <div style="font-size:10px;color:var(--fg3)" id="daemonRefreshTimer">Auto-refresh: 15s</div>
+        </div>
+        <div style="max-height:500px;overflow-y:auto">
+          <table class="seg-table">
+            <thead>
+              <tr>
+                <th style="width:40px">#</th>
+                <th style="width:120px">Window</th>
+                <th>Detailed Topic</th>
+                <th style="width:60px">Worker</th>
+                <th style="width:50px">Time</th>
+              </tr>
+            </thead>
+            <tbody id="daemonSegBody">
+              <tr><td colspan="5" style="text-align:center;color:var(--fg3);padding:20px">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ADD PROJECT MODAL -->
+    <div id="addProjectModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:100;display:none;align-items:center;justify-content:center">
+      <div class="card" style="width:420px;max-width:90vw">
+        <div class="card-title">New Project</div>
+        <div class="form-group"><label>Project Name</label><input id="projName"></div>
+        <div class="form-group"><label>Company / SC</label><input id="projCompany" placeholder="e.g. YantrAI"></div>
+        <div class="form-group"><label>Description</label><textarea id="projDesc"></textarea></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div class="form-group"><label>Deadline</label><input type="date" id="projDeadline"></div>
+          <div class="form-group"><label>Expected Hours</label><input type="number" id="projHours" value="0"></div>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          <button class="btn btn-outline" onclick="hideAddProject()">Cancel</button>
+          <button class="btn btn-green" onclick="createProject()">Create</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+var API = '';  // same origin
+var TOKEN = '';
+var USER = {};
+
+// ══════════════════════════════════════
+// AUTH
+// ══════════════════════════════════════
+async function api(method, path, body) {
+  var opts = { method: method, headers: { 'Content-Type': 'application/json' } };
+  if (TOKEN) opts.headers['Authorization'] = 'Bearer ' + TOKEN;
+  if (body) opts.body = JSON.stringify(body);
+  var res = await fetch(API + path, opts);
+  var data = await res.json();
+  if (!res.ok) throw new Error(data.detail || data.error || 'API error');
+  return data;
+}
+
+async function doLogin() {
+  var user = document.getElementById('loginUser').value;
+  var pass = document.getElementById('loginPass').value;
+  try {
+    var data = await api('POST', '/api/auth/login', { username: user, password: pass });
+    TOKEN = data.token;
+    USER = data;
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('appShell').style.display = 'flex';
+    document.getElementById('dispName').textContent = data.display_name;
+    document.getElementById('dispRole').textContent = data.role;
+    showPage('dashboard');
+    toast('Logged in as ' + data.display_name, 'ok');
+  } catch (e) {
+    toast(e.message, 'err');
+  }
+}
+
+async function doRegister() {
+  var user = document.getElementById('loginUser').value;
+  var pass = document.getElementById('loginPass').value;
+  if (!user || !pass) { toast('Enter username and password', 'err'); return; }
+  try {
+    var data = await api('POST', '/api/auth/register', { username: user, password: pass, display_name: user });
+    TOKEN = data.token;
+    USER = data;
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('appShell').style.display = 'flex';
+    document.getElementById('dispName').textContent = data.display_name;
+    document.getElementById('dispRole').textContent = 'member';
+    showPage('dashboard');
+    toast('Registered & logged in as ' + data.username, 'ok');
+  } catch (e) {
+    toast(e.message, 'err');
+  }
+}
+
+function doLogout() {
+  TOKEN = '';
+  USER = {};
+  document.getElementById('appShell').style.display = 'none';
+  document.getElementById('loginScreen').style.display = 'flex';
+}
+
+// ══════════════════════════════════════
+// NAVIGATION
+// ══════════════════════════════════════
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(function(p) { p.style.display = 'none'; });
+  document.getElementById('page-' + name).style.display = 'block';
+  document.querySelectorAll('.nav-item').forEach(function(n) { n.classList.remove('active'); });
+  event.target.classList.add('active');
+
+  if (name === 'dashboard') loadDashboard();
+  if (name === 'browse') loadBrowse();
+  if (name === 'sharing') loadSharing();
+  if (name === 'requests') loadRequests();
+  if (name === 'org') loadOrgStats();
+  if (name === 'productivity') loadProductivity();
+  if (name === 'projects') loadProjects();
+  if (name === 'daemon') loadDaemonStatus();
+}
+
+// ══════════════════════════════════════
+// DASHBOARD
+// ══════════════════════════════════════
+async function loadDashboard() {
+  try {
+    var stats = await api('GET', '/api/memory/stats');
+    document.getElementById('statsGrid').innerHTML =
+      mkStat(stats.super_contexts || 0, 'Super Contexts') +
+      mkStat(stats.contexts || 0, 'Contexts') +
+      mkStat(stats.anchors || 0, 'Anchors') +
+      mkStat(stats.tasks_scored || 0, 'Scored Tasks');
+
+    var browse = await api('GET', '/api/memory/browse');
+    var scs = (browse.super_contexts || []).slice(0, 5);
+    document.getElementById('recentSCs').innerHTML = scs.length === 0
+      ? '<p style="font-size:13px;color:var(--fg3)">No memories yet. Go to "Store Memory" to add your first one.</p>'
+      : scs.map(function(sc) {
+          return '<div class="sc-item"><div class="sc-name">' + sc.title +
+            ' <span class="sc-badge b-impulse">' + sc.stage + '</span></div>' +
+            '<div class="sc-meta">' + sc.anchors + ' anchors &bull; ' + sc.uses + ' uses &bull; q=' + (sc.quality || 0).toFixed(1) + '</div></div>';
+        }).join('');
+  } catch (e) {
+    toast(e.message, 'err');
+  }
+}
+
+function mkStat(val, label) {
+  return '<div class="stat"><div class="val">' + val + '</div><div class="lbl">' + label + '</div></div>';
+}
+
+// ══════════════════════════════════════
+// BROWSE
+// ══════════════════════════════════════
+var _browseData = {};  // Cache browse data for expansion
+
+async function loadBrowse() {
+  try {
+    var data = await api('GET', '/api/memory/browse');
+    var scs = data.super_contexts || [];
+    if (scs.length === 0) {
+      document.getElementById('browseTree').innerHTML = '<p style="color:var(--fg3)">No memories stored yet.</p>';
+      return;
+    }
+
+    // Cache for expansion
+    _browseData = {};
+    scs.forEach(function(sc) { _browseData[sc.id] = sc; });
+
+    var html = '';
+    for (var sc of scs) {
+      var prodInfo = '';
+      if (sc.prod_time > 0) {
+        prodInfo = ' &bull; <span style="color:var(--green)">' + fmtTime(sc.prod_time) + '</span>';
+        prodInfo += ' <span style="font-size:10px;color:var(--fg3)">(H:' + fmtTime(sc.prod_human) + ' AI:' + fmtTime(sc.prod_ai) + ')</span>';
+      }
+
+      html += '<div class="sc-item" onclick="this.classList.toggle(\'open\')">' +
+        '<div class="sc-name">' + sc.title + ' <span style="font-size:11px;color:var(--fg3)">' + sc.contexts + ' ctx, ' + sc.anchors + ' anc' + prodInfo + '</span></div>' +
+        '<div class="sc-meta">Uses: ' + sc.uses +
+        ' &bull; <button class="btn btn-outline btn-sm" onclick="event.stopPropagation();shareThis(\'' + sc.id + '\',\'' + esc(sc.title) + '\')">Share</button></div>' +
+        '<div class="ctx-list">' + renderContextTree(sc) + '</div></div>';
+    }
+    document.getElementById('browseTree').innerHTML = html;
+  } catch (e) {
+    toast(e.message, 'err');
+  }
+}
+
+function renderContextTree(sc) {
+  var ctxList = sc.context_list || [];
+  if (ctxList.length === 0) {
+    return '<div style="font-size:11px;color:var(--fg3);padding:4px">No contexts yet</div>';
+  }
+  var html = '';
+  for (var ctx of ctxList) {
+    html += '<div class="ctx-item"><div class="ctx-name">' + ctx.title + '</div>';
+    var anchors = ctx.anchors || [];
+    for (var anc of anchors) {
+      html += '<div class="anc-item">' + anc.title +
+        ' <span class="w">p:' + (anc.precision || 0).toFixed(2) + ' uses:' + (anc.access_count || 0) + '</span></div>';
+    }
+    if (anchors.length === 0) {
+      html += '<div class="anc-item" style="color:var(--fg3)">No anchors</div>';
+    }
+    html += '</div>';
+  }
+  return html;
+}
+
+function esc(s) { return s.replace(/'/g, "\\'").replace(/"/g, '&quot;'); }
+
+// ══════════════════════════════════════
+// SEARCH
+// ══════════════════════════════════════
+async function doSearch() {
+  var q = document.getElementById('searchInput').value;
+  if (!q) return;
+  document.getElementById('searchResults').innerHTML = '<p style="color:var(--fg3)">Searching...</p>';
+  try {
+    var data = await api('GET', '/api/memory/retrieve?q=' + encodeURIComponent(q));
+    var mems = data.memories || [];
+    if (mems.length === 0) {
+      document.getElementById('searchResults').innerHTML = '<p style="color:var(--fg3)">No results found.</p>';
+      return;
+    }
+    var html = '';
+    for (var m of mems) {
+      html += '<div class="result-card"><div class="result-sc">' + m.super_context + '</div>';
+      html += '<div style="font-size:11px;color:var(--fg3)">Relevance: ' + (m.relevance || 0) + ' &bull; Stage: ' + (m.stage || '?') + '</div>';
+      for (var ctx of (m.contexts || [])) {
+        html += '<div class="result-ctx">' + ctx.context + ' (w=' + ctx.weight + ')</div>';
+        for (var anc of (ctx.anchors || []).slice(0, 5)) {
+          html += '<div class="result-anc">' + anc.title + ' <span class="w">w=' + anc.weight.toFixed(2) + '</span></div>';
+        }
+      }
+      html += '</div>';
+    }
+    document.getElementById('searchResults').innerHTML = html;
+  } catch (e) {
+    toast(e.message, 'err');
+  }
+}
+
+// ══════════════════════════════════════
+// STORE
+// ══════════════════════════════════════
+async function doStore() {
+  var sc = document.getElementById('storeSC').value;
+  var ctx = document.getElementById('storeCtx').value;
+  var title = document.getElementById('storeAncTitle').value;
+  var content = document.getElementById('storeAncContent').value;
+  var weight = parseFloat(document.getElementById('storeWeight').value) || 0.7;
+
+  if (!sc || !ctx || !title) { toast('Fill SC, Context, and Anchor Title', 'err'); return; }
+
+  try {
+    var data = await api('POST', '/api/memory/store', {
+      super_context: sc,
+      contexts: [{ title: ctx, weight: 0.8, anchors: [{ title: title, content: content || title, weight: weight }] }],
+      summary: sc
+    });
+    toast('Stored! Task ID: ' + (data.task_id || '?'), 'ok');
+    // Clear form
+    document.getElementById('storeAncTitle').value = '';
+    document.getElementById('storeAncContent').value = '';
+  } catch (e) {
+    toast(e.message, 'err');
+  }
+}
+
+// ══════════════════════════════════════
+// ORG SEARCH
+// ══════════════════════════════════════
+async function doOrgSearch() {
+  var q = document.getElementById('orgSearchInput').value;
+  if (!q) return;
+  document.getElementById('orgResults').innerHTML = '<p style="color:var(--fg3)">Searching org...</p>';
+  try {
+    var data = await api('GET', '/api/org/search?q=' + encodeURIComponent(q));
+    var results = data.org_results || [];
+    if (results.length === 0) {
+      document.getElementById('orgResults').innerHTML = '<p style="color:var(--fg3)">No shared knowledge found for this query.</p>';
+      return;
+    }
+    var html = '';
+    for (var r of results) {
+      var cls = r.locked ? 'result-card locked-card' : 'result-card';
+      html += '<div class="' + cls + '"><div class="result-sc">' + r.super_context + '</div>';
+      html += '<div class="result-owner">by ' + (r.owner || '?') + ' &bull; ' + (r.access_level || '?') + '</div>';
+      if (r.locked) {
+        html += '<div class="locked-msg">' + r.message + '</div>';
+        html += '<button class="btn btn-outline btn-sm" style="margin-top:6px" onclick="requestAccess(\'' + (r.owner_username || '') + '\',\'' + (r.sc_id || '') + '\',\'' + esc(r.super_context) + '\')">Request Access</button>';
+      } else {
+        for (var ctx of (r.contexts || [])) {
+          html += '<div class="result-ctx">' + ctx.context + '</div>';
+          for (var anc of (ctx.anchors || []).slice(0, 3)) {
+            html += '<div class="result-anc">' + anc.title + '</div>';
+          }
+        }
+      }
+      html += '</div>';
+    }
+    document.getElementById('orgResults').innerHTML = html;
+  } catch (e) {
+    toast(e.message, 'err');
+  }
+}
+
+async function loadOrgStats() {
+  try {
+    var data = await api('GET', '/api/org/stats');
+    var html = '<div style="font-size:13px">Total users: <strong>' + data.total_users + '</strong></div>';
+    for (var u of (data.users || [])) {
+      html += '<div style="font-size:12px;color:var(--fg2);margin-top:4px">' + u.display_name + ': ' + u.nodes + ' nodes, ' + (u.super_contexts || 0) + ' SCs, ' + (u.anchors || 0) + ' anchors</div>';
+    }
+    document.getElementById('orgStats').innerHTML = html;
+  } catch (e) {}
+}
+
+// ══════════════════════════════════════
+// SHARING
+// ══════════════════════════════════════
+async function shareThis(scopeId, scopeTitle) {
+  var level = prompt('Access level?\n\n1. read (org can browse & retrieve)\n2. request_based (needs approval)\n\nType "read" or "request_based":');
+  if (!level || (level !== 'read' && level !== 'request_based')) return;
+  try {
+    await api('POST', '/api/sharing/share', {
+      scope_type: 'full_sc', scope_id: scopeId, scope_title: scopeTitle,
+      target_type: 'org', access_level: level
+    });
+    toast('Shared "' + scopeTitle + '" with org (' + level + ')', 'ok');
+  } catch (e) {
+    toast(e.message, 'err');
+  }
+}
+
+async function loadSharing() {
+  try {
+    var mine = await api('GET', '/api/sharing/my-shares');
+    var shares = mine.shares || [];
+    document.getElementById('myShares').innerHTML = shares.length === 0
+      ? '<p style="font-size:12px;color:var(--fg3)">You haven\'t shared anything yet. Go to Browse → click Share on an SC.</p>'
+      : shares.map(function(s) {
+          return '<div class="share-row"><span class="share-scope">' + (s.scope_title || s.scope_id) + '</span>' +
+            '<span class="share-level ' + (s.access_level === 'read' ? 'sl-read' : 'sl-request') + '">' + s.access_level + '</span>' +
+            '<button class="btn btn-outline btn-sm" onclick="revokeShare(\'' + s.id + '\')">Revoke</button></div>';
+        }).join('');
+
+    var theirs = await api('GET', '/api/sharing/shared-with-me');
+    var shared = theirs.shares || [];
+    document.getElementById('sharedWithMe').innerHTML = shared.length === 0
+      ? '<p style="font-size:12px;color:var(--fg3)">No one has shared memories with you yet.</p>'
+      : shared.map(function(s) {
+          return '<div class="share-row"><span class="share-scope">' + (s.scope_title || s.scope_id) +
+            ' <span style="font-size:10px;color:var(--fg3)">by ' + (s.owner_username || '?') + '</span></span>' +
+            '<span class="share-level ' + (s.access_level === 'read' ? 'sl-read' : 'sl-request') + '">' + s.access_level + '</span></div>';
+        }).join('');
+  } catch (e) {
+    toast(e.message, 'err');
+  }
+}
+
+async function revokeShare(ruleId) {
+  try {
+    await api('DELETE', '/api/sharing/' + ruleId);
+    toast('Share revoked', 'ok');
+    loadSharing();
+  } catch (e) {
+    toast(e.message, 'err');
+  }
+}
+
+// ══════════════════════════════════════
+// REQUESTS
+// ══════════════════════════════════════
+async function loadRequests() {
+  try {
+    var data = await api('GET', '/api/requests/inbox');
+    var reqs = data.requests || [];
+    document.getElementById('requestInbox').innerHTML = reqs.length === 0
+      ? '<div class="card"><p style="font-size:13px;color:var(--fg3)">No pending access requests.</p></div>'
+      : reqs.map(function(r) {
+          return '<div class="card"><div style="font-size:14px;font-weight:600">' + (r.requester_name || r.requester_username) +
+            ' requests access to "' + (r.scope_title || r.scope_id) + '"</div>' +
+            '<div style="font-size:12px;color:var(--fg3);margin:6px 0">' + (r.task_context || 'No reason given') + '</div>' +
+            '<button class="btn btn-green btn-sm" onclick="resolveReq(\'' + r.id + '\',\'approved\')">Approve</button> ' +
+            '<button class="btn btn-outline btn-sm" onclick="resolveReq(\'' + r.id + '\',\'denied\')">Deny</button></div>';
+        }).join('');
+  } catch (e) {
+    toast(e.message, 'err');
+  }
+}
+
+async function resolveReq(reqId, status) {
+  try {
+    await api('POST', '/api/requests/' + reqId + '/resolve', { status: status });
+    toast('Request ' + status, 'ok');
+    loadRequests();
+  } catch (e) {
+    toast(e.message, 'err');
+  }
+}
+
+async function requestAccess(ownerUsername, scopeId, scopeTitle) {
+  var reason = prompt('Why do you need access to "' + scopeTitle + '"?');
+  if (!reason) return;
+  // Get owner user_id
+  try {
+    var users = await api('GET', '/api/auth/users');
+    var owner = (users.users || []).find(function(u) { return u.username === ownerUsername; });
+    if (!owner) { toast('Owner not found', 'err'); return; }
+    await api('POST', '/api/requests/create', {
+      owner_id: owner.id, scope_id: scopeId, scope_title: scopeTitle, task_context: reason
+    });
+    toast('Access requested from ' + ownerUsername, 'ok');
+  } catch (e) {
+    toast(e.message, 'err');
+  }
+}
+
+// ══════════════════════════════════════
+// PRODUCTIVITY DASHBOARD
+// ══════════════════════════════════════
+function fmtTime(mins) {
+  if (!mins || mins <= 0) return '0m';
+  var h = Math.floor(mins / 60);
+  var m = Math.round(mins % 60);
+  return h > 0 ? h + 'h ' + m + 'm' : m + 'm';
+}
+
+async function loadProductivity() {
+  var dateEl = document.getElementById('prodDate');
+  if (!dateEl.value) dateEl.value = new Date().toISOString().split('T')[0];
+  var dateStr = dateEl.value;
+
+  try {
+    var d = await api('GET', '/api/productivity/dashboard?date=' + dateStr);
+
+    var totalProd = d.total_productive_mins || 0;
+    var totalHuman = d.productive_human_mins || 0;
+    var totalAI = d.productive_ai_mins || 0;
+    var totalWorking = totalProd; // TODO: add idle/unproductive from segment data
+    var totalIdle = 0;
+    var totalUnprod = 0;
+
+    document.getElementById('prodWorking').textContent = fmtTime(totalWorking);
+    document.getElementById('prodIdle').textContent = fmtTime(totalIdle);
+    document.getElementById('prodProductive').textContent = fmtTime(totalProd);
+    document.getElementById('prodUnproductive').textContent = fmtTime(totalUnprod);
+    document.getElementById('prodHuman').textContent = fmtTime(totalHuman);
+    document.getElementById('prodAI').textContent = fmtTime(totalAI);
+
+    // Render SC trees
+    var breakdown = d.sc_breakdown || [];
+    document.getElementById('prodHumanTree').innerHTML = renderTimeTree(breakdown, 'human');
+    document.getElementById('prodAITree').innerHTML = renderTimeTree(breakdown, 'ai');
+
+    // Top 5
+    document.getElementById('top5SC').innerHTML = renderTop5(d.top_5_sc || []);
+    document.getElementById('top5CTX').innerHTML = renderTop5(d.top_5_context || []);
+    document.getElementById('top5ANC').innerHTML = renderTop5(d.top_5_anchor || []);
+
+  } catch (e) {
+    document.getElementById('prodHumanTree').innerHTML = '<div style="color:var(--fg3)">No data yet — productivity sync has not run</div>';
+    document.getElementById('prodAITree').innerHTML = '';
+  }
+}
+
+function renderTimeTree(scList, workerFilter) {
+  if (!scList || !scList.length) return '<div style="color:var(--fg3);font-size:12px">No data</div>';
+  var html = '';
+  scList.forEach(function(sc) {
+    var scTime = workerFilter === 'human' ? (sc.productivity_human_mins || 0) : (sc.productivity_ai_mins || 0);
+    if (scTime <= 0) return;
+    var contexts = sc.contexts || [];
+
+    // SC row — click to expand contexts
+    html += '<div style="margin-bottom:6px">';
+    html += '<div style="font-size:13px;font-weight:600;cursor:pointer;padding:4px 0;border-bottom:1px solid rgba(42,42,50,0.3)" onclick="var el=this.nextElementSibling;el.style.display=el.style.display===\'none\'?\'block\':\'none\';this.querySelector(\'.arrow\').textContent=el.style.display===\'none\'?\'\\u25B6\':\'\\u25BC\'">';
+    html += '<span class="arrow" style="font-size:10px;margin-right:6px">&#9654;</span>';
+    html += (sc.content || 'Unknown') + ' <span class="mono" style="color:var(--fg3);font-size:11px">(' + fmtTime(scTime) + ')</span></div>';
+
+    // Contexts container (hidden by default)
+    html += '<div style="display:none;margin-left:16px;border-left:2px solid var(--border);padding-left:12px;margin-top:4px">';
+    contexts.forEach(function(ctx) {
+      var ctxTime = workerFilter === 'human' ? (ctx.productivity_human_mins || 0) : (ctx.productivity_ai_mins || 0);
+      if (ctxTime <= 0) return;
+      var anchors = ctx.anchors || [];
+
+      // Context row — click to expand anchors
+      html += '<div style="margin-bottom:4px">';
+      html += '<div style="font-size:12px;font-weight:600;color:var(--blue);cursor:pointer;padding:3px 0" onclick="var el=this.nextElementSibling;el.style.display=el.style.display===\'none\'?\'block\':\'none\';this.querySelector(\'.arrow\').textContent=el.style.display===\'none\'?\'\\u25B6\':\'\\u25BC\'">';
+      html += '<span class="arrow" style="font-size:9px;margin-right:5px">&#9654;</span>';
+      html += (ctx.content || '') + ' <span style="color:var(--fg3);font-size:10px">(' + fmtTime(ctxTime) + ')</span></div>';
+
+      // Anchors container (hidden by default)
+      html += '<div style="display:none;margin-left:14px;padding-left:10px;border-left:1px solid rgba(96,165,250,0.2)">';
+      anchors.forEach(function(anc) {
+        var ancTime = workerFilter === 'human' ? (anc.productivity_human_mins || 0) : (anc.productivity_ai_mins || 0);
+        if (ancTime <= 0) return;
+        html += '<div style="font-size:11px;color:var(--fg2);padding:2px 0">' + (anc.content || '').substring(0, 80) + ' <span class="mono" style="color:var(--fg3);font-size:10px">(' + fmtTime(ancTime) + ')</span></div>';
+      });
+      if (anchors.length === 0) {
+        html += '<div style="font-size:11px;color:var(--fg3)">No anchors</div>';
+      }
+      html += '</div></div>';
+    });
+    if (contexts.length === 0) {
+      html += '<div style="font-size:11px;color:var(--fg3)">No contexts</div>';
+    }
+    html += '</div></div>';
+  });
+  return html || '<div style="color:var(--fg3);font-size:12px">No data</div>';
+}
+
+function renderTop5(items) {
+  if (!items || !items.length) return '<div style="color:var(--fg3);font-size:11px">--</div>';
+  return items.map(function(it, i) {
+    return '<div style="font-size:12px;padding:3px 0;display:flex;justify-content:space-between">' +
+      '<span>' + (i+1) + '. ' + (it.name || '').substring(0, 30) + '</span>' +
+      '<span class="mono" style="color:var(--fg3);font-size:11px">' + fmtTime(it.time_mins) + '</span></div>';
+  }).join('');
+}
+
+// ══════════════════════════════════════
+// PROJECTS
+// ══════════════════════════════════════
+async function loadProjects() {
+  var filter = document.getElementById('projFilter').value;
+  var url = '/api/projects' + (filter ? '?status=' + filter : '');
+  try {
+    var d = await api('GET', url);
+    var projects = d.projects || [];
+    var tbody = document.getElementById('projBody');
+
+    if (!projects.length) {
+      tbody.innerHTML = '<tr><td colspan="6" style="padding:20px;color:var(--fg3);text-align:center">No projects yet. Click "+ Add Project" to create one.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = projects.map(function(p) {
+      var totalMins = p.total_time_mins || 0;
+      var humanMins = p.human_time_mins || 0;
+      var aiMins = p.ai_time_mins || 0;
+      var expectedH = p.expected_hours || 0;
+      var progressPct = expectedH > 0 ? Math.min(Math.round((totalMins / 60) / expectedH * 100), 100) : 0;
+
+      var statusColors = {active:'var(--green)',completed:'var(--blue)',on_hold:'var(--orange)',cancelled:'var(--red)'};
+      var statusColor = statusColors[p.status] || 'var(--fg3)';
+
+      var deadlineStyle = '';
+      if (p.deadline && new Date(p.deadline) < new Date() && p.status === 'active') {
+        deadlineStyle = 'color:var(--red);font-weight:600';
+      }
+
+      return '<tr style="border-bottom:1px solid var(--border)">' +
+        '<td style="padding:10px 12px;font-weight:600">' + (p.name || '') + '</td>' +
+        '<td style="padding:10px 12px"><span style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(255,255,255,0.05);color:' + statusColor + '">' + (p.status || '') + '</span></td>' +
+        '<td style="padding:10px 12px;color:var(--fg2);font-size:12px">' + (p.company || '--') + '</td>' +
+        '<td style="padding:10px 12px;font-size:12px"><span class="mono">' + fmtTime(totalMins) + '</span> <span style="color:var(--fg3);font-size:10px">H:' + fmtTime(humanMins) + ' AI:' + fmtTime(aiMins) + '</span></td>' +
+        '<td style="padding:10px 12px;font-size:12px;' + deadlineStyle + '">' + (p.deadline || '--') + '</td>' +
+        '<td style="padding:10px 12px">' +
+          '<div style="display:flex;align-items:center;gap:8px">' +
+            '<div style="flex:1;height:6px;background:var(--bg3);border-radius:3px;overflow:hidden">' +
+              '<div style="width:' + progressPct + '%;height:100%;background:var(--green);border-radius:3px"></div>' +
+            '</div>' +
+            '<span class="mono" style="font-size:11px;color:var(--fg3)">' + progressPct + '%</span>' +
+          '</div>' +
+        '</td></tr>';
+    }).join('');
+  } catch (e) {
+    document.getElementById('projBody').innerHTML = '<tr><td colspan="6" style="padding:20px;color:var(--fg3);text-align:center">' + e.message + '</td></tr>';
+  }
+}
+
+function showAddProject() {
+  document.getElementById('addProjectModal').style.display = 'flex';
+}
+function hideAddProject() {
+  document.getElementById('addProjectModal').style.display = 'none';
+}
+
+async function createProject() {
+  var name = document.getElementById('projName').value;
+  var company = document.getElementById('projCompany').value;
+  var desc = document.getElementById('projDesc').value;
+  var deadline = document.getElementById('projDeadline').value;
+  var hours = parseFloat(document.getElementById('projHours').value) || 0;
+
+  if (!name) { toast('Project name required', 'err'); return; }
+
+  try {
+    await api('POST', '/api/projects', {
+      name: name, company: company, description: desc,
+      deadline: deadline, expected_hours: hours
+    });
+    hideAddProject();
+    toast('Project created', 'ok');
+    loadProjects();
+    // Clear form
+    document.getElementById('projName').value = '';
+    document.getElementById('projCompany').value = '';
+    document.getElementById('projDesc').value = '';
+    document.getElementById('projDeadline').value = '';
+    document.getElementById('projHours').value = '0';
+  } catch (e) {
+    toast(e.message, 'err');
+  }
+}
+
+// ══════════════════════════════════════
+// DAEMON MONITOR
+// ══════════════════════════════════════
+var _daemonInterval = null;
+
+async function loadDaemonStatus() {
+  // Clear previous auto-refresh
+  if (_daemonInterval) clearInterval(_daemonInterval);
+
+  await _fetchDaemonData();
+
+  // Auto-refresh every 15 seconds while on daemon page
+  _daemonInterval = setInterval(function() {
+    var page = document.getElementById('page-daemon');
+    if (page && page.style.display !== 'none') {
+      _fetchDaemonData();
+    } else {
+      clearInterval(_daemonInterval);
+      _daemonInterval = null;
+    }
+  }, 15000);
+}
+
+async function _fetchDaemonData() {
+  try {
+    var d = await api('GET', '/api/daemon/status');
+
+    // Heart
+    var heart = document.getElementById('daemonHeart');
+    var activeText = document.getElementById('daemonActiveText');
+    if (d.is_active) {
+      heart.className = 'heart heart-active';
+      activeText.textContent = 'Active';
+      activeText.style.color = 'var(--green)';
+    } else {
+      heart.className = 'heart heart-inactive';
+      activeText.textContent = 'Inactive';
+      activeText.style.color = 'var(--fg3)';
+    }
+
+    // Counts
+    document.getElementById('daemonSegCount').textContent = d.total_segments_today || 0;
+    document.getElementById('daemonWinCount').textContent = d.total_unique_windows || 0;
+
+    // Top platforms
+    var plats = d.top_platforms || [];
+    var platHtml = '';
+    for (var i = 0; i < plats.length; i++) {
+      platHtml += '<div class="top-platform"><span>' + (i+1) + '. ' + plats[i].name + '</span><span class="mono" style="color:var(--fg3)">' + plats[i].count + '</span></div>';
+    }
+    document.getElementById('daemonTopPlatforms').innerHTML = platHtml || '<span style="color:var(--fg3)">--</span>';
+
+    // Segment log table
+    var segs = d.segments || [];
+    var tbody = document.getElementById('daemonSegBody');
+    if (segs.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--fg3);padding:20px">No segments captured today</td></tr>';
+      return;
+    }
+
+    var html = '';
+    for (var s of segs) {
+      var workerClass = s.worker === 'ai' ? 'worker-ai' : 'worker-human';
+      var durText = s.duration_secs > 0 ? s.duration_secs + 's' : '<1s';
+      var topic = (s.detailed_topic || '').replace(/</g, '&lt;');
+
+      html += '<tr>' +
+        '<td class="mono" style="color:var(--fg3)">' + s.sl_no + '</td>' +
+        '<td style="font-weight:600;white-space:nowrap">' + s.window + '</td>' +
+        '<td class="topic-text" title="' + topic.replace(/"/g, '&quot;') + '">' + topic + '</td>' +
+        '<td><span class="worker-badge ' + workerClass + '">' + s.worker + '</span></td>' +
+        '<td class="mono" style="color:var(--fg3)">' + durText + '</td>' +
+        '</tr>';
+    }
+    tbody.innerHTML = html;
+
+    // Update refresh timer
+    document.getElementById('daemonRefreshTimer').textContent = 'Updated: ' + new Date().toLocaleTimeString();
+
+  } catch (e) {
+    document.getElementById('daemonSegBody').innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--red);padding:20px">' + e.message + '</td></tr>';
+  }
+}
+
+// ══════════════════════════════════════
+// TOAST
+// ══════════════════════════════════════
+function toast(msg, type) {
+  var el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast show toast-' + type;
+  setTimeout(function() { el.className = 'toast'; }, 3000);
+}
+</script>
+
+</body>
+</html>

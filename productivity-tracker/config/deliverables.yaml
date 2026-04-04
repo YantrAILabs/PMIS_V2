@@ -1,0 +1,32 @@
+# Deliverables — Define your work assignments here
+# These are matched against tracked activity to show time allocation
+
+deliverables:
+  - id: "D-001"
+    name: "Productivity Dashboard + Recording Engine"
+    supercontext: "Product Development"
+    expected_contexts:
+      - "Dashboard UI"
+      - "Recording Engine"
+      - "Tracking Pipeline"
+      - "Memory Integration"
+      - "Testing"
+      - "API Development"
+    owner: "Rohit"
+    deadline: "2026-04-03"
+    status: "active"
+
+  - id: "D-002"
+    name: "Haryana Government SOW Plan"
+    supercontext: "Government Project"
+    expected_contexts:
+      - "SOW Drafting"
+      - "Requirements Analysis"
+      - "Scope Definition"
+      - "Technical Architecture"
+      - "Pricing"
+      - "Compliance"
+      - "Research"
+    owner: "Rohit"
+    deadline: "2026-04-03"
+    status: "active"

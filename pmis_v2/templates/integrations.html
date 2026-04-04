@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PMIS V2 — Platform Integrations</title>
+<style>
+:root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --surface2: #1a1a28;
+    --border: #2a2a3a;
+    --text: #e0e0e0;
+    --text-dim: #888;
+    --accent: #4ade80;
+    --accent2: #60a5fa;
+    --warn: #fbbf24;
+    --danger: #f87171;
+    --radius: 10px;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'SF Mono', 'Fira Code', monospace; background: var(--bg); color: var(--text); padding: 24px; max-width: 1400px; margin: 0 auto; }
+
+/* Header */
+.header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; }
+.header h1 { font-size: 1.5em; color: #fff; }
+.agent-badge { display: flex; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 6px 16px; font-size: 0.85em; }
+.agent-dot { width: 8px; height: 8px; border-radius: 50%; }
+.agent-dot.running { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+.agent-dot.stopped { background: var(--danger); }
+.nav-links { display: flex; gap: 16px; }
+.nav-links a { color: var(--accent2); text-decoration: none; font-size: 0.85em; }
+
+/* Stat cards */
+.stats-row { display: flex; gap: 12px; margin-bottom: 32px; flex-wrap: wrap; }
+.stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 24px; text-align: center; flex: 1; min-width: 120px; }
+.stat-card .val { font-size: 2em; font-weight: bold; color: var(--accent); }
+.stat-card .lbl { font-size: 0.75em; color: var(--text-dim); margin-top: 4px; }
+
+/* Section headers */
+.section-header { font-size: 1.1em; color: #fff; margin: 32px 0 16px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+
+/* Platform cards */
+.platforms-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; margin-bottom: 32px; }
+.platform-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; transition: border-color 0.3s; }
+.platform-card:hover { border-color: var(--accent2); }
+.platform-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.platform-name { font-size: 1em; font-weight: 600; }
+.status-badge { font-size: 0.75em; padding: 2px 10px; border-radius: 12px; }
+.status-badge.active { background: rgba(74,222,128,0.15); color: var(--accent); }
+.status-badge.idle { background: rgba(251,191,36,0.15); color: var(--warn); }
+.status-badge.disconnected { background: rgba(248,113,113,0.15); color: var(--danger); }
+.status-badge.not-connected { background: rgba(136,136,136,0.15); color: var(--text-dim); }
+.platform-stats { display: flex; gap: 16px; font-size: 0.8em; color: var(--text-dim); margin-bottom: 12px; }
+.platform-stat span { color: var(--text); font-weight: 600; }
+.platform-actions { display: flex; gap: 8px; }
+.btn { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 6px 14px; border-radius: 6px; font-size: 0.8em; cursor: pointer; font-family: inherit; transition: all 0.2s; }
+.btn:hover { border-color: var(--accent2); color: var(--accent2); }
+.btn.primary { background: rgba(74,222,128,0.15); border-color: var(--accent); color: var(--accent); }
+.btn.primary:hover { background: rgba(74,222,128,0.25); }
+.btn.danger { border-color: var(--danger); color: var(--danger); }
+.btn.danger:hover { background: rgba(248,113,113,0.1); }
+
+/* Setup wizard */
+.wizard-panel { display: none; background: var(--surface); border: 1px solid var(--accent2); border-radius: var(--radius); padding: 24px; margin-top: 16px; }
+.wizard-panel.active { display: block; }
+.wizard-steps { list-style: none; counter-reset: step; }
+.wizard-steps li { position: relative; padding: 12px 0 12px 48px; border-left: 2px solid var(--border); margin-left: 14px; }
+.wizard-steps li:last-child { border-left: none; }
+.wizard-steps li::before { content: counter(step); counter-increment: step; position: absolute; left: -13px; top: 10px; width: 24px; height: 24px; background: var(--surface2); border: 2px solid var(--border); border-radius: 50%; text-align: center; line-height: 20px; font-size: 0.75em; }
+.wizard-steps li.done::before { background: var(--accent); border-color: var(--accent); color: var(--bg); content: '✓'; }
+.wizard-steps li .step-title { font-weight: 600; margin-bottom: 4px; }
+.wizard-steps li .step-desc { font-size: 0.85em; color: var(--text-dim); }
+
+/* API key display */
+.api-key-box { background: var(--bg); border: 1px solid var(--accent); border-radius: 6px; padding: 10px 14px; font-size: 0.85em; margin: 8px 0; display: flex; justify-content: space-between; align-items: center; word-break: break-all; }
+.api-key-box .key-text { flex: 1; margin-right: 10px; }
+.copy-btn { background: none; border: none; color: var(--accent2); cursor: pointer; font-size: 0.85em; }
+
+/* Memory flow table */
+.memory-table { width: 100%; border-collapse: collapse; font-size: 0.85em; }
+.memory-table th { text-align: left; padding: 10px 12px; border-bottom: 2px solid var(--border); color: var(--text-dim); font-weight: 500; }
+.memory-table td { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+.memory-table tr:hover { background: var(--surface2); }
+.merge-badge { font-size: 0.75em; padding: 1px 8px; border-radius: 8px; }
+.merge-badge.merged { background: rgba(74,222,128,0.15); color: var(--accent); }
+.merge-badge.skipped { background: rgba(251,191,36,0.15); color: var(--warn); }
+.merge-badge.pending { background: rgba(136,136,136,0.15); color: var(--text-dim); }
+
+/* Keys table */
+.keys-table { width: 100%; border-collapse: collapse; font-size: 0.85em; margin-top: 12px; }
+.keys-table th { text-align: left; padding: 8px 12px; border-bottom: 2px solid var(--border); color: var(--text-dim); }
+.keys-table td { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+
+/* Toast */
+.toast { position: fixed; bottom: 20px; right: 20px; background: var(--surface2); border: 1px solid var(--accent); border-radius: var(--radius); padding: 12px 20px; font-size: 0.85em; opacity: 0; transition: opacity 0.3s; z-index: 100; }
+.toast.show { opacity: 1; }
+
+/* Filter bar */
+.filter-bar { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+.filter-chip { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 4px 12px; font-size: 0.8em; cursor: pointer; color: var(--text-dim); }
+.filter-chip.active { border-color: var(--accent2); color: var(--accent2); background: rgba(96,165,250,0.1); }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+    <div>
+        <h1>Platform Integrations</h1>
+    </div>
+    <div style="display:flex;gap:16px;align-items:center;">
+        <div class="nav-links">
+            <a href="/">Dashboard</a>
+            <a href="/docs">API Docs</a>
+        </div>
+        <div class="agent-badge">
+            <div class="agent-dot" id="agentDot"></div>
+            <span id="agentLabel">Agent: checking...</span>
+        </div>
+    </div>
+</div>
+
+<!-- Stats -->
+<div class="stats-row" id="statsRow">
+    <div class="stat-card"><div class="val" id="totalPlatforms">-</div><div class="lbl">Platforms</div></div>
+    <div class="stat-card"><div class="val" id="activePlatforms">-</div><div class="lbl">Active</div></div>
+    <div class="stat-card"><div class="val" id="totalTurns">-</div><div class="lbl">Total Turns</div></div>
+    <div class="stat-card"><div class="val" id="totalMemories">-</div><div class="lbl">Memories Created</div></div>
+    <div class="stat-card"><div class="val" id="ollamaStatus">-</div><div class="lbl">Ollama</div></div>
+    <div class="stat-card"><div class="val" id="serverUptime">-</div><div class="lbl">Uptime</div></div>
+</div>
+
+<!-- Platform Cards -->
+<div class="section-header">Connected Platforms</div>
+<div class="platforms-grid" id="platformsGrid"></div>
+
+<!-- Setup Wizard -->
+<div class="section-header">Add New Platform</div>
+<div class="platforms-grid" id="availablePlatforms"></div>
+<div class="wizard-panel" id="wizardPanel">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <h3 id="wizardTitle">Setup Wizard</h3>
+        <button class="btn" onclick="closeWizard()">Close</button>
+    </div>
+    <ol class="wizard-steps" id="wizardSteps"></ol>
+    <div id="wizardKeyBox" style="display:none;">
+        <div class="api-key-box">
+            <span class="key-text" id="wizardKeyText"></span>
+            <button class="copy-btn" onclick="copyKey()">Copy</button>
+        </div>
+    </div>
+</div>
+
+<!-- Memory Flow -->
+<div class="section-header">Recent Memory Flow</div>
+<div class="filter-bar" id="filterBar">
+    <div class="filter-chip active" data-platform="all" onclick="filterMemories('all', this)">All</div>
+</div>
+<table class="memory-table">
+    <thead>
+        <tr><th>Platform</th><th>Content</th><th>Status</th><th>Node ID</th><th>Surprise</th><th>Time</th></tr>
+    </thead>
+    <tbody id="memoryFlow"></tbody>
+</table>
+
+<!-- API Keys -->
+<div class="section-header">API Keys</div>
+<div style="margin-bottom:12px;">
+    <button class="btn primary" onclick="showGenerateKey()">Generate New Key</button>
+</div>
+<table class="keys-table">
+    <thead><tr><th>Platform</th><th>Hash</th><th>Created</th><th>Last Used</th><th>Requests</th><th>Action</th></tr></thead>
+    <tbody id="keysTable"></tbody>
+</table>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+const API = '';
+let currentFilter = 'all';
+let sseSource = null;
+
+// ─── Init ───
+document.addEventListener('DOMContentLoaded', () => {
+    loadAgentStatus();
+    loadPlatforms();
+    loadMemoryFlow();
+    loadKeys();
+    loadAvailablePlatforms();
+    connectSSE();
+    setInterval(loadAgentStatus, 30000);
+});
+
+// ─── SSE ───
+function connectSSE() {
+    sseSource = new EventSource('/api/platforms/stream');
+    sseSource.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.type === 'init') {
+            renderPlatformCards(data.platforms);
+        } else if (data.type === 'status_change') {
+            loadPlatforms();
+            showToast(`${data.platform_id}: ${data.old_status} → ${data.new_status}`);
+        } else if (data.type === 'turn') {
+            loadMemoryFlow();
+            loadPlatforms();
+        }
+    };
+    sseSource.onerror = () => { setTimeout(connectSSE, 5000); };
+}
+
+// ─── Agent Status ───
+async function loadAgentStatus() {
+    try {
+        const res = await fetch('/api/agent/status');
+        const data = await res.json();
+        const dot = document.getElementById('agentDot');
+        const label = document.getElementById('agentLabel');
+        if (data.agent_running) {
+            dot.className = 'agent-dot running';
+            label.textContent = 'Agent: Running';
+        } else {
+            dot.className = 'agent-dot stopped';
+            label.textContent = 'Agent: Stopped';
+        }
+        document.getElementById('totalPlatforms').textContent = data.total_platforms || 0;
+        document.getElementById('activePlatforms').textContent = data.active_platforms || 0;
+        document.getElementById('ollamaStatus').textContent = data.ollama_status === 'running' ? 'OK' : 'Down';
+        document.getElementById('ollamaStatus').style.color = data.ollama_status === 'running' ? 'var(--accent)' : 'var(--danger)';
+
+        const uptime = data.server_uptime_seconds || 0;
+        const h = Math.floor(uptime/3600), m = Math.floor((uptime%3600)/60);
+        document.getElementById('serverUptime').textContent = `${h}h ${m}m`;
+
+        // Total turns and memories from platforms
+        let totalT = 0, totalM = 0;
+        (data.platforms || []).forEach(p => { totalT += (p.total_turns||0); totalM += (p.total_memories||0); });
+        document.getElementById('totalTurns').textContent = totalT;
+        document.getElementById('totalMemories').textContent = totalM;
+    } catch(e) {
+        document.getElementById('agentDot').className = 'agent-dot stopped';
+        document.getElementById('agentLabel').textContent = 'Agent: Unreachable';
+    }
+}
+
+// ─── Platforms ───
+async function loadPlatforms() {
+    try {
+        const res = await fetch('/api/platforms');
+        const data = await res.json();
+        renderPlatformCards(data.platforms || []);
+    } catch(e) {}
+}
+
+function renderPlatformCards(platforms) {
+    const grid = document.getElementById('platformsGrid');
+    if (!platforms.length) {
+        grid.innerHTML = '<p style="color:var(--text-dim);padding:20px;">No platforms connected yet. Use the setup wizard below to add one.</p>';
+        return;
+    }
+    grid.innerHTML = platforms.map(p => `
+        <div class="platform-card" id="pcard-${p.id}">
+            <div class="platform-header">
+                <span class="platform-name">${p.name || p.id}</span>
+                <span class="status-badge ${p.status || 'not-connected'}">${p.status || 'not connected'}</span>
+            </div>
+            <div class="platform-stats">
+                <div>Turns: <span>${p.total_turns || 0}</span></div>
+                <div>Memories: <span>${p.total_memories || 0}</span></div>
+                <div>Merged: <span>${p.merge_count || 0}</span></div>
+            </div>
+            <div style="font-size:0.75em;color:var(--text-dim);margin-bottom:8px;">
+                Last seen: ${p.last_seen ? new Date(p.last_seen).toLocaleString() : 'never'}
+            </div>
+            <div class="platform-actions">
+                <button class="btn" onclick="viewPlatformMemories('${p.id}')">View Memories</button>
+                <button class="btn" onclick="testConnection('${p.id}')">Test</button>
+            </div>
+        </div>
+    `).join('');
+
+    // Update filter bar
+    const filterBar = document.getElementById('filterBar');
+    const existing = new Set(Array.from(filterBar.children).map(c => c.dataset.platform));
+    platforms.forEach(p => {
+        if (!existing.has(p.id)) {
+            const chip = document.createElement('div');
+            chip.className = 'filter-chip';
+            chip.dataset.platform = p.id;
+            chip.textContent = p.name || p.id;
+            chip.onclick = () => filterMemories(p.id, chip);
+            filterBar.appendChild(chip);
+        }
+    });
+}
+
+// ─── Available Platforms (setup wizard) ───
+const AVAILABLE = [
+    {id:'claude-code',name:'Claude Code',desc:'CLI hook — auto-detected',icon:'⌘'},
+    {id:'claude-web',name:'Claude Web',desc:'MCP server via tunnel',icon:'🌐'},
+    {id:'claude-desktop',name:'Claude Desktop',desc:'MCP server via stdio',icon:'🖥'},
+    {id:'openai-gpt',name:'OpenAI Custom GPT',desc:'Actions API via tunnel',icon:'🧠'},
+    {id:'cursor',name:'Cursor IDE',desc:'Local HTTP webhook',icon:'</>'},
+    {id:'custom',name:'Custom Platform',desc:'Universal webhook',icon:'🔌'},
+];
+
+function loadAvailablePlatforms() {
+    const grid = document.getElementById('availablePlatforms');
+    grid.innerHTML = AVAILABLE.map(p => `
+        <div class="platform-card" style="cursor:pointer;" onclick="openWizard('${p.id}')">
+            <div class="platform-header">
+                <span class="platform-name">${p.icon} ${p.name}</span>
+                <button class="btn primary" onclick="event.stopPropagation();openWizard('${p.id}')">Setup</button>
+            </div>
+            <div style="font-size:0.85em;color:var(--text-dim);">${p.desc}</div>
+        </div>
+    `).join('');
+}
+
+// ─── Setup Wizard ───
+let wizardKey = '';
+
+async function openWizard(platformId) {
+    const panel = document.getElementById('wizardPanel');
+    const title = document.getElementById('wizardTitle');
+    const steps = document.getElementById('wizardSteps');
+    const keyBox = document.getElementById('wizardKeyBox');
+
+    const platform = AVAILABLE.find(p => p.id === platformId);
+    title.textContent = `Setup: ${platform ? platform.name : platformId}`;
+    keyBox.style.display = 'none';
+
+    // Fetch steps from server
+    try {
+        const res = await fetch(`/api/agent/connect/${platformId}`, {method:'POST'});
+        const data = await res.json();
+        const setupSteps = data.steps || [];
+
+        steps.innerHTML = setupSteps.map((s, i) => `
+            <li id="wstep-${i}">
+                <div class="step-title">${s.title}</div>
+                <div class="step-desc">${s.description}</div>
+                ${s.action === 'generate_key' ? '<button class="btn primary" style="margin-top:8px;" onclick="generateWizardKey(\'' + platformId + '\',' + i + ')">Generate Key</button>' : ''}
+                ${s.action === 'test' ? '<button class="btn" style="margin-top:8px;" onclick="testWizardStep(' + i + ')">Test Connection</button>' : ''}
+            </li>
+        `).join('');
+    } catch(e) {
+        steps.innerHTML = '<li>Error loading setup steps. Is the server running?</li>';
+    }
+
+    panel.classList.add('active');
+    panel.scrollIntoView({behavior:'smooth'});
+}
+
+function closeWizard() {
+    document.getElementById('wizardPanel').classList.remove('active');
+}
+
+async function generateWizardKey(platformId, stepIdx) {
+    try {
+        const res = await fetch(`/api/platforms/${platformId}/generate-key`, {method:'POST'});
+        const data = await res.json();
+        wizardKey = data.api_key;
+        document.getElementById('wizardKeyText').textContent = wizardKey;
+        document.getElementById('wizardKeyBox').style.display = 'block';
+        document.getElementById(`wstep-${stepIdx}`).classList.add('done');
+        showToast('API key generated. Copy it now — it won\'t be shown again.');
+        loadKeys();
+    } catch(e) {
+        showToast('Error generating key');
+    }
+}
+
+function copyKey() {
+    navigator.clipboard.writeText(wizardKey).then(() => showToast('Key copied!'));
+}
+
+async function testWizardStep(stepIdx) {
+    try {
+        const res = await fetch('/health');
+        if (res.ok) {
+            document.getElementById(`wstep-${stepIdx}`).classList.add('done');
+            showToast('Connection test passed!');
+        } else {
+            showToast('Connection test failed');
+        }
+    } catch(e) { showToast('Connection test failed: server unreachable'); }
+}
+
+// ─── Memory Flow ───
+async function loadMemoryFlow() {
+    try {
+        const res = await fetch('/api/platforms');
+        const data = await res.json();
+        const platforms = data.platforms || [];
+
+        // Fetch memories for each platform
+        let allMemories = [];
+        for (const p of platforms) {
+            const mRes = await fetch(`/api/platforms/${p.id}/memories?limit=20`);
+            const mData = await mRes.json();
+            allMemories = allMemories.concat((mData.memories || []).map(m => ({...m, platform_name: p.name || p.id})));
+        }
+        allMemories.sort((a,b) => (b.created_at || '').localeCompare(a.created_at || ''));
+        renderMemoryFlow(allMemories.slice(0, 50));
+    } catch(e) {}
+}
+
+function renderMemoryFlow(memories) {
+    const tbody = document.getElementById('memoryFlow');
+    if (!memories.length) {
+        tbody.innerHTML = '<tr><td colspan="6" style="color:var(--text-dim);text-align:center;padding:20px;">No memories yet. Start a conversation on any connected platform.</td></tr>';
+        return;
+    }
+    tbody.innerHTML = memories
+        .filter(m => currentFilter === 'all' || m.platform_id === currentFilter)
+        .map(m => `
+        <tr data-platform="${m.platform_id}">
+            <td>${m.platform_name || m.platform_id}</td>
+            <td style="max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${(m.content||'').substring(0,120)}</td>
+            <td><span class="merge-badge ${m.merge_status}">${m.merge_status}</span></td>
+            <td style="font-size:0.75em;">${m.merged_node_id ? m.merged_node_id.substring(0,8)+'...' : '-'}</td>
+            <td>${m.raw_surprise != null ? m.raw_surprise.toFixed(2) : '-'}</td>
+            <td style="font-size:0.75em;">${m.created_at ? new Date(m.created_at).toLocaleString() : '-'}</td>
+        </tr>
+    `).join('');
+}
+
+function filterMemories(platform, el) {
+    currentFilter = platform;
+    document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+    el.classList.add('active');
+    loadMemoryFlow();
+}
+
+// ─── API Keys ───
+async function loadKeys() {
+    try {
+        const res = await fetch('/api/auth/keys');
+        const data = await res.json();
+        const tbody = document.getElementById('keysTable');
+        const keys = data.keys || [];
+        if (!keys.length) {
+            tbody.innerHTML = '<tr><td colspan="6" style="color:var(--text-dim);">No API keys. Generate one above.</td></tr>';
+            return;
+        }
+        tbody.innerHTML = keys.map(k => `
+            <tr>
+                <td>${k.platform}</td>
+                <td style="font-size:0.75em;">${k.hash_prefix}</td>
+                <td style="font-size:0.75em;">${k.created_at ? k.created_at.substring(0,10) : '-'}</td>
+                <td style="font-size:0.75em;">${k.last_used ? new Date(k.last_used).toLocaleString() : 'never'}</td>
+                <td>${k.request_count || 0}</td>
+                <td><button class="btn danger" onclick="revokeKey('${k.platform}')">Revoke</button></td>
+            </tr>
+        `).join('');
+    } catch(e) {}
+}
+
+async function revokeKey(platform) {
+    if (!confirm(`Revoke all keys for ${platform}?`)) return;
+    await fetch(`/api/platforms/${platform}/revoke-key`, {method:'DELETE'});
+    showToast(`Keys revoked for ${platform}`);
+    loadKeys();
+}
+
+function showGenerateKey() {
+    const platform = prompt('Platform name (e.g., openai-gpt, cursor, custom):');
+    if (!platform) return;
+    fetch(`/api/platforms/${platform}/generate-key`, {method:'POST'})
+        .then(r => r.json())
+        .then(data => {
+            wizardKey = data.api_key;
+            prompt('Copy your API key (shown once):', data.api_key);
+            loadKeys();
+        });
+}
+
+// ─── Helpers ───
+async function testConnection(platformId) {
+    try {
+        const res = await fetch(`/api/platforms/${platformId}/test`, {method:'POST'});
+        const data = await res.json();
+        showToast(data.server_healthy ? `${platformId}: Connected` : `${platformId}: Failed`);
+    } catch(e) { showToast(`${platformId}: Connection failed`); }
+}
+
+async function viewPlatformMemories(platformId) {
+    currentFilter = platformId;
+    document.querySelectorAll('.filter-chip').forEach(c => {
+        c.classList.toggle('active', c.dataset.platform === platformId);
+    });
+    loadMemoryFlow();
+    document.getElementById('memoryFlow').closest('table').scrollIntoView({behavior:'smooth'});
+}
+
+function showToast(msg) {
+    const toast = document.getElementById('toast');
+    toast.textContent = msg;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 3000);
+}
+</script>
+</body>
+</html>
