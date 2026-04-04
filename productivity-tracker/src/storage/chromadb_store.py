@@ -8,7 +8,11 @@ import logging
 import os
 from pathlib import Path
 
-import chromadb
+try:
+    import chromadb
+    _HAS_CHROMADB = True
+except ImportError:
+    _HAS_CHROMADB = False
 from openai import OpenAI
 
 logger = logging.getLogger("tracker.chromadb_store")

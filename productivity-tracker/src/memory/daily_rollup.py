@@ -11,7 +11,10 @@ from datetime import datetime
 from openai import AsyncOpenAI
 
 from src.storage.db import Database
-from src.storage.chromadb_store import ChromaDBStore
+try:
+    from src.storage.chromadb_store import ChromaDBStore
+except ImportError:
+    ChromaDBStore = None
 from src.pipeline.prompts import DAILY_SYNTHESIS_PROMPT
 
 logger = logging.getLogger("tracker.daily_rollup")

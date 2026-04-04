@@ -8,7 +8,10 @@ import logging
 from dataclasses import dataclass
 
 from src.storage.db import Database
-from src.storage.chromadb_store import ChromaDBStore
+try:
+    from src.storage.chromadb_store import ChromaDBStore
+except ImportError:
+    ChromaDBStore = None
 
 logger = logging.getLogger("tracker.matching")
 

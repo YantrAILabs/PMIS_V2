@@ -9,7 +9,10 @@ import logging
 from datetime import datetime
 
 from src.storage.db import Database
-from src.storage.chromadb_store import ChromaDBStore
+try:
+    from src.storage.chromadb_store import ChromaDBStore
+except ImportError:
+    ChromaDBStore = None
 
 logger = logging.getLogger("tracker.hourly_agg")
 

@@ -12,7 +12,10 @@ from datetime import datetime, date, timedelta
 from mcp.server.fastmcp import FastMCP
 
 from src.storage.db import Database
-from src.storage.chromadb_store import ChromaDBStore
+try:
+    from src.storage.chromadb_store import ChromaDBStore
+except ImportError:
+    ChromaDBStore = None
 from src.memory.daily_rollup import DailyRollup
 from src.matching.matching_engine import MatchingEngine
 from src.matching.deliverables_loader import DeliverablesLoader
