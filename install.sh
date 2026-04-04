@@ -272,7 +272,7 @@ cd "$PLATFORM_DIR"
 $PYTHON -c "
 import sys
 sys.path.insert(0, '.')
-from db import get_users_db
+from platform_db import get_users_db
 conn = get_users_db()
 conn.close()
 print('  Tables: users, api_tokens, sharing_rules, access_requests, sync_log')
