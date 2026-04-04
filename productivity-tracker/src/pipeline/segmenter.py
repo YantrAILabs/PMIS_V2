@@ -9,7 +9,15 @@ from datetime import datetime, date
 
 import numpy as np
 from PIL import Image
-from skimage.metrics import structural_similarity as ssim
+try:
+    from skimage.metrics import structural_similarity as ssim
+except ImportError:
+    # Fallback: simple MSE-based similarity if scikit-image not installed
+    def ssim(img1, img2, **kwargs):
+        """Fallback SSIM approximation using normalized MSE."""
+        diff = (img1.astype(float) - img2.astype(float)) / 255.0
+        mse = np.mean(diff ** 2)
+        return max(0.0, 1.0 - mse * 10)  # rough approximation
 
 logger = logging.getLogger("tracker.segmenter")
 
