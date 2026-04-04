@@ -19,7 +19,7 @@ PLATFORM_DIR = Path(__file__).parent
 sys.path.insert(0, str(PLATFORM_DIR))
 sys.path.insert(0, str(PLATFORM_DIR.parent / "scripts"))
 
-from auth import get_user_from_token
+from platform_auth import get_user_from_token
 from team_weights import recompute_team_weights
 
 router = APIRouter(prefix="/api/sync", tags=["sync"])
