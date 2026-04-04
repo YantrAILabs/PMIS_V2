@@ -1,10 +1,12 @@
+# PMIS V2 dependencies — versions loosened for cross-Python compatibility
 numpy>=1.24.0
-chromadb>=0.4.0
 pyyaml>=6.0
-scikit-learn>=1.3.0
-scipy>=1.11.0
 openai>=1.0.0
 httpx>=0.25.0
-fastapi>=0.115.0
-uvicorn[standard]>=0.30.0
+fastapi>=0.100.0
+uvicorn>=0.20.0
 jinja2>=3.1.0
+# These may fail on Python 3.13 — installed separately by install.sh
+# chromadb>=0.4.0
+# scikit-learn>=1.3.0
+# scipy>=1.11.0

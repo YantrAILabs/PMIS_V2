@@ -5,38 +5,38 @@ description = "Mac-native productivity tracker with ChatGPT Vision + PMIS v2 mem
 requires-python = ">=3.11"
 dependencies = [
     # AI / Vision
-    "openai>=1.30.0",
-    
+    "openai>=1.0.0",
+
     # Storage
     "sqlalchemy>=2.0",
-    "chromadb>=0.5.0",
-    
-    # Mac native
+
+    # API + config
+    "fastapi>=0.100.0",
+    "uvicorn>=0.20.0",
+    "pyyaml>=6.0",
+    "python-dotenv>=1.0",
+
+    # Image processing
+    "Pillow>=10.0",
+
+    # Utilities
+    "numpy>=1.24",
+    "psutil>=5.9",
+    "httpx>=0.25.0",
+]
+
+[project.optional-dependencies]
+# Heavy deps that may fail on some Python versions — install separately
+full = [
+    "chromadb>=0.4.0",
+    "scikit-image>=0.22",
     "pyobjc-core>=10.0",
     "pyobjc-framework-Cocoa>=10.0",
     "pyobjc-framework-Quartz>=10.0",
     "pyobjc-framework-ApplicationServices>=10.0",
-    
-    # Image processing
-    "Pillow>=10.0",
-    "scikit-image>=0.22",  # SSIM computation
-    
-    # MCP server
     "mcp[cli]>=1.0.0",
-    
-    # API + config
-    "fastapi>=0.110.0",
-    "uvicorn>=0.30.0",
-    "pyyaml>=6.0",
-    "python-dotenv>=1.0",
-    
-    # Utilities
-    "numpy>=1.26",
     "schedule>=1.2",
-    "psutil>=5.9",
 ]
-
-[project.optional-dependencies]
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",

@@ -97,8 +97,8 @@ else
 fi
 ok "Virtual environment at $VENV_DIR"
 
-info "Upgrading pip..."
-$PIP install --upgrade pip -q
+info "Upgrading pip + setuptools..."
+$PIP install --upgrade pip setuptools wheel -q
 ok "pip upgraded"
 
 # Check for Xcode Command Line Tools (needed to compile C extensions)
@@ -107,57 +107,76 @@ if ! xcode-select -p > /dev/null 2>&1; then
     warn "Install with: xcode-select --install"
 fi
 
-info "Installing productivity-tracker dependencies..."
-info "(this may take 2-3 minutes on first install)"
+# ── Stage A: Core packages (must succeed) ──
+info "Installing core dependencies..."
+CORE_FAIL=0
+for pkg in openai sqlalchemy numpy Pillow pyyaml python-dotenv fastapi uvicorn httpx psutil pyjwt bcrypt jinja2; do
+    if $PIP install "$pkg" -q 2>/dev/null; then
+        ok "  $pkg"
+    else
+        # Retry without -q to show error
+        echo -e "  ${YELLOW}Retrying $pkg...${NC}"
+        if $PIP install "$pkg" 2>&1 | tail -3; then
+            ok "  $pkg (retry)"
+        else
+            fail "  Core package $pkg failed to install. Cannot continue."
+            CORE_FAIL=1
+        fi
+    fi
+done
+[[ $CORE_FAIL -eq 1 ]] && fail "Core packages missing — fix errors above and re-run ./install.sh"
+ok "Core packages installed"
+
+# ── Stage B: Heavy/optional packages (can fail gracefully) ──
+info "Installing optional packages (chromadb, pyobjc, scikit-image)..."
+info "(these may take a few minutes or fail on some Python versions)"
+for pkg in chromadb scikit-image scikit-learn scipy; do
+    $PIP install "$pkg" -q 2>/dev/null && ok "  $pkg" || warn "  $pkg skipped (optional)"
+done
+for pkg in pyobjc-core pyobjc-framework-Cocoa pyobjc-framework-Quartz pyobjc-framework-ApplicationServices; do
+    $PIP install "$pkg" -q 2>/dev/null && ok "  $pkg" || warn "  $pkg skipped (macOS-specific, input monitor may use fallback)"
+done
+ok "Optional packages done"
+
+# ── Stage C: Install tracker + PMIS V2 packages ──
+info "Installing productivity-tracker package..."
 cd "$TRACKER_DIR"
-if ! $PIP install -e "." 2>&1 | tail -5; then
-    warn "Full install failed — trying core packages individually..."
-    # Install critical deps one by one so we can identify which fails
-    CORE_PKGS="openai sqlalchemy numpy Pillow pyyaml python-dotenv fastapi uvicorn psutil"
-    OPTIONAL_PKGS="chromadb scikit-image pyobjc-core pyobjc-framework-Cocoa pyobjc-framework-Quartz pyobjc-framework-ApplicationServices"
+$PIP install -e "." --no-deps -q 2>/dev/null || $PIP install -e "." --no-deps 2>&1 | tail -3
+ok "Productivity tracker installed"
 
-    for pkg in $CORE_PKGS; do
-        $PIP install "$pkg" -q 2>/dev/null && ok "  $pkg" || warn "  $pkg failed (non-critical)"
-    done
-    for pkg in $OPTIONAL_PKGS; do
-        $PIP install "$pkg" -q 2>/dev/null && ok "  $pkg" || warn "  $pkg failed (optional — some features disabled)"
-    done
-    # Install the tracker package itself in editable mode without deps
-    $PIP install -e "." --no-deps -q 2>/dev/null || true
-fi
-ok "Productivity tracker packages installed"
-
-info "Installing PMIS V2 dependencies..."
+info "Installing PMIS V2 requirements..."
 if [[ -f "$PMIS_DIR/requirements.txt" ]]; then
-    $PIP install -r "$PMIS_DIR/requirements.txt" -q 2>&1 | tail -3 || warn "Some PMIS V2 deps failed"
+    $PIP install -r "$PMIS_DIR/requirements.txt" -q 2>/dev/null || warn "Some PMIS V2 deps already installed or skipped"
 fi
-ok "PMIS V2 packages installed"
+ok "PMIS V2 done"
 
-info "Installing platform dependencies..."
+info "Installing platform requirements..."
 if [[ -f "$PLATFORM_DIR/requirements.txt" ]]; then
-    $PIP install -r "$PLATFORM_DIR/requirements.txt" -q 2>&1 | tail -3 || warn "Some platform deps failed"
+    $PIP install -r "$PLATFORM_DIR/requirements.txt" -q 2>/dev/null || warn "Some platform deps already installed or skipped"
 fi
-ok "Platform packages installed"
+ok "Platform done"
 
-# Verify critical imports
+# ── Verify critical imports ──
 info "Verifying critical imports..."
-IMPORT_ERRORS=$($PYTHON -c "
-missing = []
-for mod in ['openai', 'sqlalchemy', 'fastapi', 'numpy', 'yaml', 'PIL', 'dotenv']:
+IMPORT_RESULT=$($PYTHON -c "
+ok, fail = [], []
+for mod, name in [('openai','openai'), ('sqlalchemy','sqlalchemy'), ('fastapi','fastapi'),
+                   ('numpy','numpy'), ('yaml','pyyaml'), ('PIL','Pillow'), ('dotenv','python-dotenv'),
+                   ('uvicorn','uvicorn'), ('httpx','httpx'), ('psutil','psutil')]:
     try:
         __import__(mod)
+        ok.append(name)
     except ImportError:
-        missing.append(mod)
-if missing:
-    print('Missing: ' + ', '.join(missing))
-else:
-    print('OK')
+        fail.append(name)
+print(f'{len(ok)} OK, {len(fail)} missing')
+if fail:
+    print('Missing: ' + ', '.join(fail))
 " 2>&1)
-if [[ "$IMPORT_ERRORS" == "OK" ]]; then
+echo "  $IMPORT_RESULT"
+if echo "$IMPORT_RESULT" | grep -q "0 missing"; then
     ok "All critical imports verified"
 else
-    warn "$IMPORT_ERRORS"
-    warn "Some packages missing — install may have partial functionality"
+    warn "Some packages missing — check errors above"
 fi
 
 # ══════════════════════════════════════
