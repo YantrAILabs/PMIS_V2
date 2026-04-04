@@ -114,27 +114,12 @@ def get_user_memory_path(username):
 
 def get_user_memory_db(username):
     """Get a connection to a user's memory database.
-    Uses the existing PMIS memory.py schema via get_db()."""
-    import sys
-    sys.path.insert(0, str(PLATFORM_DIR.parent / "scripts"))
-    import memory as mem
-
+    V1 memory.py retired — returns a basic SQLite connection for legacy compat."""
+    import sqlite3
     db_path = get_user_memory_path(username)
-
-    # Override PMIS paths for this user
-    original_graph = mem.GRAPH_DB
-    original_tasks = mem.TASKS_DIR
-
-    mem.GRAPH_DB = db_path
-    mem.TASKS_DIR = db_path.parent / "tasks"
-    mem.TASKS_DIR.mkdir(parents=True, exist_ok=True)
-
-    conn = mem.get_db()
-
-    # Restore originals
-    mem.GRAPH_DB = original_graph
-    mem.TASKS_DIR = original_tasks
-
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(str(db_path))
+    conn.row_factory = sqlite3.Row
     return conn
 
 
