@@ -4,7 +4,7 @@
 
 set -e
 
-PMIS_DIR="/Users/rohitsingh/Desktop/memory/pmis_v2"
+PMIS_DIR="$(cd "$(dirname "$0")" && pwd)"
 LOG_DIR="${PMIS_DIR}/logs"
 
 mkdir -p "${LOG_DIR}"
@@ -14,4 +14,13 @@ export PATH="/opt/homebrew/bin:${PATH}"
 
 cd "${PMIS_DIR}"
 
-exec /opt/homebrew/bin/python3 "${PMIS_DIR}/server.py"
+PYTHON3=""
+for candidate in /opt/homebrew/bin/python3 /usr/local/bin/python3 python3; do
+    if command -v "$candidate" > /dev/null 2>&1; then
+        PYTHON3="$candidate"
+        break
+    fi
+done
+[[ -z "$PYTHON3" ]] && { echo "Python3 not found"; exit 1; }
+
+exec "$PYTHON3" "${PMIS_DIR}/server.py"

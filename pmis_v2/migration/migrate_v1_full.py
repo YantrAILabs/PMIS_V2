@@ -5,7 +5,7 @@ Migrates all data from the V1 graph.db (465 nodes, 447 edges, 41 tasks)
 to the V2 schema with re-embedded 768-dim vectors via Ollama nomic-embed-text.
 
 Usage:
-    cd /Users/rohitsingh/Desktop/memory
+    cd <repo-root>
     python3 pmis_v2/migration/migrate_v1_full.py
 
 Source: memory_system/Graph_DB/graph.db + Vector_DB/embeddings.npz

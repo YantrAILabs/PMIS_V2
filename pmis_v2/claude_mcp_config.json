@@ -1,10 +1,11 @@
 {
+  "_note": "Paths are placeholders — install.sh generates the real config. Replace __REPO__ with your repo path.",
   "mcpServers": {
     "pmis-memory": {
-      "command": "/opt/homebrew/bin/python3",
-      "args": ["/Users/rohitsingh/Desktop/memory/pmis_v2/mcp_server.py", "--transport", "stdio"],
+      "command": "python3",
+      "args": ["__REPO__/pmis_v2/mcp_server.py", "--transport", "stdio"],
       "env": {
-        "PYTHONPATH": "/Users/rohitsingh/Desktop/memory/pmis_v2"
+        "PYTHONPATH": "__REPO__/pmis_v2"
       }
     }
   }

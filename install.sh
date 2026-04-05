@@ -2,7 +2,7 @@
 # ═══════════════════════════════════════════════════════
 # YantrAI Memory System — One-Command Installer
 # ═══════════════════════════════════════════════════════
-# Usage: git clone <repo> ~/Desktop/memory && cd ~/Desktop/memory && ./install.sh
+# Usage: git clone <repo> && cd memory && ./install.sh
 # Idempotent — safe to run multiple times.
 set -e
 
@@ -66,7 +66,6 @@ ok "Python $PY_VER ($PYTHON3)"
 $PYTHON3 -m pip --version > /dev/null 2>&1 || fail "pip not available for $PYTHON3"
 ok "pip available"
 
-# Update VENV creation to use detected python
 VENV_PYTHON="$PYTHON3"
 
 # Stop existing daemon if running
@@ -84,22 +83,50 @@ fi
 [[ -d "$PMIS_DIR" ]] || fail "pmis_v2/ not found in repo"
 ok "Repository structure valid"
 
+# Pre-check macOS permissions (advisory)
+PERM_ISSUES=0
+if ! $PYTHON3 -c "
+import subprocess, sys
+try:
+    r = subprocess.run(['screencapture', '-x', '/tmp/.pmis_perm_test.png'],
+                       capture_output=True, timeout=5)
+    if r.returncode != 0:
+        sys.exit(1)
+except Exception:
+    sys.exit(1)
+" 2>/dev/null; then
+    warn "Screen Recording permission not granted — daemon won't capture screenshots"
+    warn "Grant it now: System Settings → Privacy & Security → Screen Recording → Terminal"
+    PERM_ISSUES=1
+else
+    rm -f /tmp/.pmis_perm_test.png
+    ok "Screen Recording permission granted"
+fi
+
+if [[ $PERM_ISSUES -eq 1 ]]; then
+    echo ""
+    echo -e "  ${YELLOW}You can continue installing — grant permissions after.${NC}"
+    echo ""
+fi
+
 # ══════════════════════════════════════
 # STEP 2: Python venv + dependencies
 # ══════════════════════════════════════
 step 2 "Python environment + dependencies"
 
-if [[ -d "$VENV_DIR" ]] && [[ -f "$PIP" ]]; then
-    info "Existing venv found, updating..."
+# Auto-fix broken venv — no manual intervention needed
+if [[ -d "$VENV_DIR" ]]; then
+    if [[ -f "$PIP" ]] && [[ -f "$PYTHON" ]]; then
+        info "Existing venv found, updating..."
+    else
+        info "Broken venv detected — rebuilding automatically..."
+        rm -rf "$VENV_DIR"
+        $VENV_PYTHON -m venv "$VENV_DIR" || fail "Failed to create venv — check Python installation"
+    fi
 else
-    # Remove broken venv if pip is missing
-    [[ -d "$VENV_DIR" ]] && rm -rf "$VENV_DIR" && info "Removed broken venv..."
     info "Creating virtual environment..."
     $VENV_PYTHON -m venv "$VENV_DIR" || fail "Failed to create venv — check Python installation"
 fi
-# Verify venv works
-[[ -f "$PYTHON" ]] || fail "Venv broken — $PYTHON not found. Delete $VENV_DIR and re-run."
-[[ -f "$PIP" ]] || fail "Venv broken — $PIP not found. Delete $VENV_DIR and re-run."
 ok "Virtual environment at $VENV_DIR"
 
 info "Upgrading pip + setuptools..."
@@ -119,7 +146,6 @@ for pkg in openai sqlalchemy numpy Pillow pyyaml python-dotenv fastapi uvicorn h
     if $PIP install "$pkg" -q 2>/dev/null; then
         ok "  $pkg"
     else
-        # Retry without -q to show error
         echo -e "  ${YELLOW}Retrying $pkg...${NC}"
         if $PIP install "$pkg" 2>&1 | tail -3; then
             ok "  $pkg (retry)"
@@ -132,16 +158,46 @@ done
 [[ $CORE_FAIL -eq 1 ]] && fail "Core packages missing — fix errors above and re-run ./install.sh"
 ok "Core packages installed"
 
-# ── Stage B: Heavy/optional packages (can fail gracefully) ──
-info "Installing optional packages (chromadb, pyobjc, scikit-image)..."
-info "(these may take a few minutes or fail on some Python versions)"
+# ── Stage B: Heavy/optional packages (track what installed vs skipped) ──
+info "Installing optional packages (may take a few minutes)..."
+OPT_INSTALLED=()
+OPT_SKIPPED=()
 for pkg in chromadb scikit-image scikit-learn scipy; do
-    $PIP install "$pkg" -q 2>/dev/null && ok "  $pkg" || warn "  $pkg skipped (optional)"
+    if $PIP install "$pkg" -q 2>/dev/null; then
+        ok "  $pkg"
+        OPT_INSTALLED+=("$pkg")
+    else
+        warn "  $pkg skipped"
+        OPT_SKIPPED+=("$pkg")
+    fi
 done
 for pkg in pyobjc-core pyobjc-framework-Cocoa pyobjc-framework-Quartz pyobjc-framework-ApplicationServices; do
-    $PIP install "$pkg" -q 2>/dev/null && ok "  $pkg" || warn "  $pkg skipped (macOS-specific, input monitor may use fallback)"
+    if $PIP install "$pkg" -q 2>/dev/null; then
+        ok "  $pkg"
+        OPT_INSTALLED+=("$pkg")
+    else
+        warn "  $pkg skipped"
+        OPT_SKIPPED+=("$pkg")
+    fi
 done
-ok "Optional packages done"
+
+# Summary of optional packages
+if [[ ${#OPT_SKIPPED[@]} -gt 0 ]]; then
+    echo ""
+    warn "Optional packages skipped: ${OPT_SKIPPED[*]}"
+    # Explain impact
+    for pkg in "${OPT_SKIPPED[@]}"; do
+        case "$pkg" in
+            chromadb)        warn "  → No vector search (falls back to linear scan)" ;;
+            scikit-image)    warn "  → No frame segmentation (screenshot dedup disabled)" ;;
+            scikit-learn)    warn "  → Some ML consolidation features unavailable" ;;
+            scipy)           warn "  → Matrix operations fall back to numpy" ;;
+            pyobjc-core|pyobjc-framework-*) warn "  → Input monitor uses fallback (less accurate app detection)" ;;
+        esac
+    done
+    echo ""
+fi
+ok "Optional packages done (${#OPT_INSTALLED[@]} installed, ${#OPT_SKIPPED[@]} skipped)"
 
 # ── Stage C: Install tracker + PMIS V2 packages ──
 info "Installing productivity-tracker package..."
@@ -210,7 +266,6 @@ step 4 "Environment configuration"
 
 ENV_FILE="$TRACKER_DIR/.env"
 if [[ -f "$ENV_FILE" ]]; then
-    # Check if it has a real API key (not placeholder)
     if grep -q "your-openai-api-key-here" "$ENV_FILE" 2>/dev/null; then
         warn "Existing .env has placeholder API key — will prompt for real key"
     else
@@ -225,16 +280,32 @@ if [[ -z "${SKIP_KEY_PROMPT:-}" ]]; then
     echo -e "  ${YELLOW}OpenAI API key required for ChatGPT Vision (screenshot analysis).${NC}"
     echo -e "  ${YELLOW}Get one at: https://platform.openai.com/api-keys${NC}"
     echo ""
-    read -p "  Enter your OpenAI API key (sk-...): " API_KEY
-    if [[ -z "$API_KEY" ]]; then
-        warn "No API key entered — daemon will fail on screenshot analysis."
-        warn "Add it later: edit $ENV_FILE"
-        API_KEY="your-openai-api-key-here"
-    fi
+
+    API_KEY=""
+    ATTEMPTS=0
+    while [[ $ATTEMPTS -lt 2 ]]; do
+        read -p "  Enter your OpenAI API key (sk-...), or press Enter to skip: " API_KEY
+        if [[ -z "$API_KEY" ]]; then
+            warn "No API key entered — daemon will fail on screenshot analysis."
+            warn "Add it later: edit $ENV_FILE"
+            API_KEY="your-openai-api-key-here"
+            break
+        elif [[ "$API_KEY" == sk-* ]] && [[ ${#API_KEY} -ge 20 ]]; then
+            ok "API key accepted"
+            break
+        else
+            warn "API key should start with 'sk-' and be at least 20 characters."
+            ATTEMPTS=$((ATTEMPTS + 1))
+            if [[ $ATTEMPTS -ge 2 ]]; then
+                warn "Using entered value as-is. Edit $ENV_FILE later if needed."
+            fi
+        fi
+    done
 
     cp "$TRACKER_DIR/.env.example" "$ENV_FILE"
     sed -i '' "s|your-openai-api-key-here|$API_KEY|g" "$ENV_FILE"
-    sed -i '' "s|USERNAME|$(whoami)|g" "$ENV_FILE"
+    sed -i '' "s|__HOME__|$HOME|g" "$ENV_FILE"
+    sed -i '' "s|__REPO__|$REPO_DIR|g" "$ENV_FILE"
     ok ".env created"
 fi
 
@@ -339,15 +410,61 @@ ok "LaunchAgent plist written"
 info "Loading daemon..."
 launchctl load "$PLIST_PATH" 2>/dev/null || true
 launchctl start "$PLIST_NAME" 2>/dev/null || true
-sleep 3
 
-# Verify daemon is running
-if launchctl list "$PLIST_NAME" > /dev/null 2>&1; then
-    DAEMON_PID=$(launchctl list "$PLIST_NAME" 2>/dev/null | grep PID | awk '{print $NF}' | tr -d '";')
-    ok "Daemon running (PID: $DAEMON_PID)"
-else
-    warn "Daemon may not have started — check logs at $DATA_DIR/tracker-stderr.log"
+# Poll for daemon startup (up to 5 seconds)
+DAEMON_STARTED=false
+for i in 1 2 3 4 5; do
+    if launchctl list "$PLIST_NAME" > /dev/null 2>&1; then
+        DAEMON_PID=$(launchctl list "$PLIST_NAME" 2>/dev/null | grep PID | awk '{print $NF}' | tr -d '";')
+        if [[ -n "$DAEMON_PID" ]] && [[ "$DAEMON_PID" != "-" ]] && [[ "$DAEMON_PID" != "0" ]]; then
+            ok "Daemon running (PID: $DAEMON_PID)"
+            DAEMON_STARTED=true
+            break
+        fi
+    fi
+    sleep 1
+done
+if [[ "$DAEMON_STARTED" != "true" ]]; then
+    warn "Daemon may not have started — check logs:"
+    warn "  tail -f $DATA_DIR/tracker-stderr.log"
 fi
+
+# ══════════════════════════════════════
+# STEP 7b: Generate .claude/launch.json
+# ══════════════════════════════════════
+info "Writing .claude/launch.json for dev servers..."
+mkdir -p "$REPO_DIR/.claude"
+cat > "$REPO_DIR/.claude/launch.json" << LAUNCHEOF
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "pmis-v2-server",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["$PMIS_DIR/server.py"],
+      "port": 8100
+    }
+  ]
+}
+LAUNCHEOF
+ok ".claude/launch.json generated"
+
+# Generate MCP config with correct paths
+info "Writing pmis_v2/claude_mcp_config.json..."
+cat > "$PMIS_DIR/claude_mcp_config.json" << MCPEOF
+{
+  "mcpServers": {
+    "pmis-memory": {
+      "command": "$VENV_DIR/bin/python",
+      "args": ["$PMIS_DIR/mcp_server.py", "--transport", "stdio"],
+      "env": {
+        "PYTHONPATH": "$PMIS_DIR"
+      }
+    }
+  }
+}
+MCPEOF
+ok "MCP config generated"
 
 # ══════════════════════════════════════
 # STEP 8: Summary
@@ -360,19 +477,21 @@ echo -e "${BOLD}  Installation Complete!${NC}"
 echo -e "${BOLD}═══════════════════════════════════════${NC}"
 echo ""
 echo -e "  ${GREEN}Daemon:${NC}     Running (captures screenshots every 10s)"
-echo -e "  ${GREEN}Portal:${NC}     Start with: cd $PLATFORM_DIR && $PYTHON server.py"
+echo -e "  ${GREEN}Portal:${NC}     Start with: ./start.sh"
 echo -e "  ${GREEN}Portal URL:${NC} http://localhost:8000"
 echo -e "  ${GREEN}Data:${NC}       $DATA_DIR/"
 echo -e "  ${GREEN}Logs:${NC}       $DATA_DIR/tracker-stderr.log"
 echo ""
-echo -e "  ${YELLOW}macOS Permissions Required:${NC}"
-echo -e "  ${YELLOW}1.${NC} System Settings → Privacy & Security → Screen Recording → Enable Terminal/Python"
-echo -e "  ${YELLOW}2.${NC} System Settings → Privacy & Security → Accessibility → Enable Terminal/Python"
-echo ""
+if [[ $PERM_ISSUES -eq 1 ]]; then
+    echo -e "  ${RED}ACTION REQUIRED — Grant macOS permissions:${NC}"
+    echo -e "  ${YELLOW}1.${NC} System Settings → Privacy & Security → Screen Recording → Enable Terminal/Python"
+    echo -e "  ${YELLOW}2.${NC} System Settings → Privacy & Security → Accessibility → Enable Terminal/Python"
+    echo ""
+fi
 echo -e "  ${BLUE}Useful commands:${NC}"
 echo -e "    Check daemon:   launchctl list $PLIST_NAME"
 echo -e "    Stop daemon:    launchctl unload $PLIST_PATH"
 echo -e "    Start daemon:   launchctl load $PLIST_PATH"
 echo -e "    View logs:      tail -f $DATA_DIR/tracker-stderr.log"
-echo -e "    Start portal:   cd $PLATFORM_DIR && $PYTHON server.py"
+echo -e "    Start portal:   ./start.sh"
 echo ""
