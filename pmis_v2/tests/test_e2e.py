@@ -87,7 +87,7 @@ class E2ETestSuite:
             self._test_14_prompt_composition()
             self._test_15_session_state()
             self._test_16_orchestrator_e2e()
-            self._test_17_migration_parsers()
+            # self._test_17_migration_parsers()  # removed: migration modules not shipped
             self._test_18_nightly_consolidation()
             self._test_19_temporal_decay()
             self._test_20_multi_tree_membership()
