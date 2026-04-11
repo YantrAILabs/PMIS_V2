@@ -25,18 +25,18 @@ class HourlyAggregator:
         self.config = config
         self.chroma = ChromaDBStore(config)
 
-    async def run(self, target_hour: int | None = None):
+    async def run(self, target_hour: int | None = None, target_date: str | None = None):
         """Run hourly aggregation for a specific hour (or current hour)."""
         now = datetime.now()
-        target_date = now.strftime("%Y-%m-%d")
+        target_date = target_date or now.strftime("%Y-%m-%d")
         current_hour = target_hour if target_hour is not None else now.hour
 
         logger.info(f"Running hourly aggregation: {target_date} hour {current_hour}")
 
         segments = self.db.get_segments_for_hour(target_date, current_hour)
         if not segments:
-            logger.info(f"No segments for hour {current_hour}.")
-            return
+            logger.info(f"No segments for {target_date} hour {current_hour}.")
+            return 0
 
         # Group by (supercontext, context, anchor)
         groups = {}
@@ -57,7 +57,7 @@ class HourlyAggregator:
             duration = seg.get("target_segment_length_secs", 0)
             g["segments"].append(seg["target_segment_id"])
             g["total_secs"] += duration
-            if seg.get("worker") == "agent":
+            if seg.get("worker") in ("agent", "ai"):
                 g["agent_secs"] += duration
             else:
                 g["human_secs"] += duration
@@ -106,21 +106,30 @@ class HourlyAggregator:
             )
 
         logger.info(f"Hourly aggregation complete: {len(groups)} groups from {len(segments)} segments.")
+        return len(segments)
 
-    async def run_all_pending(self):
-        """Aggregate all hours that have segments but no hourly entries yet (catch-up on startup)."""
-        from datetime import date as date_mod
-        target_date = date_mod.today().strftime("%Y-%m-%d")
-        existing_hours = set()
-        for entry in self.db.get_hourly_for_date(target_date):
-            existing_hours.add(entry.get("hour"))
+    async def run_all_pending(self, target_date: str | None = None):
+        """Catch up all missed hours. If no date given, process ALL dates with unprocessed hours."""
+        if target_date:
+            dates = [target_date]
+        else:
+            dates = self.db.get_dates_with_segments()
 
-        processed = 0
-        for hour in range(24):
-            segments = self.db.get_segments_for_hour(target_date, hour)
-            if segments and hour not in existing_hours:
-                await self.run(target_hour=hour)
-                processed += 1
+        total_processed = 0
+        for d in dates:
+            processed_hours = self.db.get_processed_hours(d)
+            for hour in range(24):
+                if hour not in processed_hours:
+                    segments = self.db.get_segments_for_hour(d, hour)
+                    if segments:
+                        # Delete any existing hourly data for this hour (clean rebuild)
+                        seg_count = await self.run(target_hour=hour, target_date=d)
+                        self.db.log_pipeline_run(
+                            date=d, stage="hourly", hour=hour,
+                            segments=seg_count or len(segments),
+                        )
+                        total_processed += 1
 
-        if processed:
-            logger.info(f"Catch-up: processed {processed} pending hours.")
+        if total_processed:
+            logger.info(f"Catch-up complete: processed {total_processed} pending hours across {len(dates)} dates.")
+        return total_processed
