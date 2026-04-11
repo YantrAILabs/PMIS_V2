@@ -11,7 +11,7 @@ from pathlib import Path
 from sqlalchemy import create_engine, func
 from sqlalchemy.orm import sessionmaker, Session
 
-from src.storage.models import Base, Context1, Context2, HourlyMemory, DailyMemory, Deliverable
+from src.storage.models import Base, Context1, Context2, HourlyMemory, DailyMemory, Deliverable, PipelineLog
 
 logger = logging.getLogger("tracker.db")
 
@@ -184,6 +184,68 @@ class Database:
         with self.get_session() as s:
             row = DailyMemory(**kwargs)
             s.add(row)
+            s.commit()
+
+    def delete_daily_for_date(self, target_date: str):
+        """Delete all daily memory entries for a date (clean rebuild)."""
+        with self.get_session() as s:
+            s.query(DailyMemory).filter(DailyMemory.date == target_date).delete()
+            s.commit()
+
+    # ─── Pipeline log ───────────────────────────────────────────────────
+
+    def log_pipeline_run(self, date: str, stage: str, hour: int = None,
+                         segments: int = 0, time_mins: float = 0, status: str = "done"):
+        """Record that a pipeline stage completed."""
+        with self.get_session() as s:
+            row = PipelineLog(
+                date=date, stage=stage, hour=hour,
+                segments_processed=segments, time_mins=time_mins, status=status,
+            )
+            s.add(row)
+            s.commit()
+
+    def get_processed_hours(self, target_date: str) -> set:
+        """Return set of hours already processed for a date."""
+        with self.get_session() as s:
+            rows = (
+                s.query(PipelineLog.hour)
+                .filter(PipelineLog.date == target_date,
+                        PipelineLog.stage == "hourly",
+                        PipelineLog.status == "done")
+                .all()
+            )
+            return {r[0] for r in rows if r[0] is not None}
+
+    def get_processed_daily_dates(self) -> set:
+        """Return set of dates that have completed daily rollup."""
+        with self.get_session() as s:
+            rows = (
+                s.query(PipelineLog.date)
+                .filter(PipelineLog.stage == "daily", PipelineLog.status == "done")
+                .distinct()
+                .all()
+            )
+            return {r[0] for r in rows}
+
+    def get_dates_with_segments(self) -> list:
+        """Return all distinct dates that have context_1 data."""
+        with self.get_session() as s:
+            rows = (
+                s.query(func.date(Context1.timestamp_start))
+                .distinct()
+                .order_by(func.date(Context1.timestamp_start))
+                .all()
+            )
+            return [r[0] for r in rows if r[0]]
+
+    def clear_pipeline_log_for_date(self, target_date: str, stage: str = None):
+        """Clear pipeline log entries for a date (and optionally a specific stage)."""
+        with self.get_session() as s:
+            q = s.query(PipelineLog).filter(PipelineLog.date == target_date)
+            if stage:
+                q = q.filter(PipelineLog.stage == stage)
+            q.delete()
             s.commit()
 
     def get_daily_for_date(self, target_date: str) -> list[dict]:

@@ -518,15 +518,94 @@ async def api_org_stats(user=Depends(get_current_user)):
 @app.get("/api/productivity/dashboard")
 async def api_productivity_dashboard(date: str = None, user=Depends(get_current_user)):
     """Full productivity dashboard data for a given date."""
-    v2 = _get_pmis_v2_db()
-    if not v2:
-        raise HTTPException(503, "PMIS V2 not available")
+    target_date = date or datetime.now().strftime("%Y-%m-%d")
+
+    # Read date-specific data from the productivity tracker's daily_memory table
+    tracker_db_path = Path.home() / ".productivity-tracker" / "tracker.db"
+    if not tracker_db_path.exists():
+        # Fall back to cumulative PMIS V2 data if tracker DB doesn't exist
+        v2 = _get_pmis_v2_db()
+        if not v2:
+            raise HTTPException(503, "PMIS V2 not available")
+        try:
+            sc_breakdown = v2.get_productivity_by_sc()
+            total_productive = sum(sc.get("productivity_time_mins", 0) for sc in sc_breakdown)
+            total_human = sum(sc.get("productivity_human_mins", 0) for sc in sc_breakdown)
+            total_ai = sum(sc.get("productivity_ai_mins", 0) for sc in sc_breakdown)
+            return {
+                "date": target_date,
+                "total_productive_mins": round(total_productive, 1),
+                "productive_human_mins": round(total_human, 1),
+                "productive_ai_mins": round(total_ai, 1),
+                "sc_breakdown": sc_breakdown,
+                "top_5_sc": [], "top_5_context": [], "top_5_anchor": [],
+            }
+        finally:
+            v2.close()
+
+    conn = sqlite3.connect(str(tracker_db_path))
+    conn.row_factory = sqlite3.Row
 
     try:
-        # Get productivity breakdown by SC
-        sc_breakdown = v2.get_productivity_by_sc()
+        # Query daily_memory for the selected date — this has per-date SC/CTX/ANC rows
+        rows = conn.execute("""
+            SELECT supercontext, context, anchor, level, time_mins, human_mins, agent_mins
+            FROM daily_memory
+            WHERE date = ?
+            ORDER BY supercontext, context, anchor
+        """, (target_date,)).fetchall()
 
-        # Compute totals
+        # Build SC hierarchy from daily rows
+        sc_map = {}  # supercontext -> {contexts: {ctx_name -> {anchors: [...]}}}
+        for r in rows:
+            sc_name = r["supercontext"] or "Unknown"
+            ctx_name = r["context"] or ""
+            anc_name = r["anchor"] or ""
+            level = r["level"] or ""
+            time_mins = r["time_mins"] or 0
+            human_mins = r["human_mins"] or 0
+            agent_mins = r["agent_mins"] or 0
+
+            if sc_name not in sc_map:
+                sc_map[sc_name] = {
+                    "content": sc_name,
+                    "productivity_time_mins": 0, "productivity_human_mins": 0, "productivity_ai_mins": 0,
+                    "contexts": {}
+                }
+
+            if level == "SC":
+                sc_map[sc_name]["productivity_time_mins"] += time_mins
+                sc_map[sc_name]["productivity_human_mins"] += human_mins
+                sc_map[sc_name]["productivity_ai_mins"] += agent_mins
+            elif level == "context" and ctx_name:
+                if ctx_name not in sc_map[sc_name]["contexts"]:
+                    sc_map[sc_name]["contexts"][ctx_name] = {
+                        "content": ctx_name,
+                        "productivity_time_mins": 0, "productivity_human_mins": 0, "productivity_ai_mins": 0,
+                        "anchors": {}
+                    }
+                sc_map[sc_name]["contexts"][ctx_name]["productivity_time_mins"] += time_mins
+                sc_map[sc_name]["contexts"][ctx_name]["productivity_human_mins"] += human_mins
+                sc_map[sc_name]["contexts"][ctx_name]["productivity_ai_mins"] += agent_mins
+            elif level == "anchor" and ctx_name and anc_name:
+                if ctx_name not in sc_map[sc_name]["contexts"]:
+                    sc_map[sc_name]["contexts"][ctx_name] = {
+                        "content": ctx_name,
+                        "productivity_time_mins": 0, "productivity_human_mins": 0, "productivity_ai_mins": 0,
+                        "anchors": {}
+                    }
+                ctx_obj = sc_map[sc_name]["contexts"][ctx_name]
+                if anc_name not in ctx_obj["anchors"]:
+                    ctx_obj["anchors"][anc_name] = {
+                        "content": anc_name,
+                        "productivity_time_mins": 0, "productivity_human_mins": 0, "productivity_ai_mins": 0,
+                    }
+                ctx_obj["anchors"][anc_name]["productivity_time_mins"] += time_mins
+                ctx_obj["anchors"][anc_name]["productivity_human_mins"] += human_mins
+                ctx_obj["anchors"][anc_name]["productivity_ai_mins"] += agent_mins
+
+        # Convert to list format expected by frontend
+        sc_breakdown = []
         total_productive = 0
         total_human = 0
         total_ai = 0
@@ -534,29 +613,46 @@ async def api_productivity_dashboard(date: str = None, user=Depends(get_current_
         top_ctx = []
         top_anc = []
 
-        for sc in sc_breakdown:
-            sc_time = sc.get("productivity_time_mins", 0)
-            sc_human = sc.get("productivity_human_mins", 0)
-            sc_ai = sc.get("productivity_ai_mins", 0)
+        for sc_name, sc_data in sc_map.items():
+            sc_time = sc_data["productivity_time_mins"]
+            sc_human = sc_data["productivity_human_mins"]
+            sc_ai = sc_data["productivity_ai_mins"]
             total_productive += sc_time
             total_human += sc_human
             total_ai += sc_ai
-            top_sc.append({"name": sc["content"], "time_mins": sc_time})
+            top_sc.append({"name": sc_name, "time_mins": sc_time})
 
-            for ctx in sc.get("contexts", []):
-                ctx_time = ctx.get("productivity_time_mins", 0)
-                top_ctx.append({"name": ctx["content"], "time_mins": ctx_time})
-                for anc in ctx.get("anchors", []):
-                    anc_time = anc.get("productivity_time_mins", 0)
-                    top_anc.append({"name": anc["content"], "time_mins": anc_time})
+            ctx_list = []
+            for ctx_name, ctx_data in sc_data["contexts"].items():
+                ctx_time = ctx_data["productivity_time_mins"]
+                top_ctx.append({"name": ctx_name, "time_mins": ctx_time})
 
-        # Sort and take top 5
+                anc_list = []
+                for anc_name, anc_data in ctx_data["anchors"].items():
+                    anc_time = anc_data["productivity_time_mins"]
+                    top_anc.append({"name": anc_name, "time_mins": anc_time})
+                    anc_list.append(anc_data)
+
+                ctx_data_out = dict(ctx_data)
+                ctx_data_out["anchors"] = sorted(anc_list, key=lambda x: x["productivity_time_mins"], reverse=True)
+                ctx_list.append(ctx_data_out)
+
+            sc_entry = {
+                "content": sc_name,
+                "productivity_time_mins": sc_time,
+                "productivity_human_mins": sc_human,
+                "productivity_ai_mins": sc_ai,
+                "contexts": sorted(ctx_list, key=lambda x: x["productivity_time_mins"], reverse=True),
+            }
+            sc_breakdown.append(sc_entry)
+
+        sc_breakdown.sort(key=lambda x: x["productivity_time_mins"], reverse=True)
         top_sc.sort(key=lambda x: x["time_mins"], reverse=True)
         top_ctx.sort(key=lambda x: x["time_mins"], reverse=True)
         top_anc.sort(key=lambda x: x["time_mins"], reverse=True)
 
         return {
-            "date": date or datetime.now().strftime("%Y-%m-%d"),
+            "date": target_date,
             "total_productive_mins": round(total_productive, 1),
             "productive_human_mins": round(total_human, 1),
             "productive_ai_mins": round(total_ai, 1),
@@ -566,7 +662,7 @@ async def api_productivity_dashboard(date: str = None, user=Depends(get_current_
             "top_5_anchor": top_anc[:5],
         }
     finally:
-        v2.close()
+        conn.close()
 
 
 @app.get("/api/productivity/sync-log")

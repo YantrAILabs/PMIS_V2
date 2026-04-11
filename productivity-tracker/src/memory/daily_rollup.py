@@ -1,7 +1,7 @@
 """
-Daily rollup — runs at end of day (default 11 PM).
+Daily rollup — runs at end of day (default 11 PM) and at 6-hour checkpoints.
 Merges all hourly tables into a final daily memory hierarchy.
-Stores in PMIS v2 and triggers central memory merge.
+Uses delete-then-insert to ensure clean data on every run (no duplicates).
 """
 
 import json
@@ -38,8 +38,11 @@ class DailyRollup:
 
         hourly_entries = self.db.get_hourly_for_date(target_date)
         if not hourly_entries:
-            logger.info("No hourly entries to roll up.")
+            logger.info(f"No hourly entries to roll up for {target_date}.")
             return
+
+        # ─── Clean slate: delete previous daily entries for this date ──────
+        self.db.delete_daily_for_date(target_date)
 
         # ─── Build hierarchy by aggregating hourly data ─────────────────
 
@@ -153,18 +156,42 @@ class DailyRollup:
                         embedding_id=anc_embed_id,
                     )
 
-        # ─── Cleanup hourly temp data ───────────────────────────────────
+        # ─── Cleanup hourly temp data (only at end-of-day) ────────────────
 
         if self.config["storage"]["hourly_temp_delete_after_rollup"]:
-            self.db.delete_hourly_for_date(target_date)
-            self.chroma.delete_hourly_for_date(target_date)
-            logger.info("Hourly temp data deleted.")
+            rollup_hour = self.config["memory"].get("daily_rollup_hour", 23)
+            if datetime.now().hour == rollup_hour:
+                self.db.delete_hourly_for_date(target_date)
+                self.chroma.delete_hourly_for_date(target_date)
+                logger.info("Hourly temp data deleted (end-of-day cleanup).")
 
         total_mins = sum(sc["total_mins"] for sc in sc_groups.values())
+
+        # Log completion to pipeline_log
+        self.db.log_pipeline_run(
+            date=target_date, stage="daily",
+            time_mins=round(total_mins, 2),
+        )
+
         logger.info(
             f"Daily rollup complete: {len(sc_groups)} supercontexts, "
             f"{total_mins:.0f} total minutes tracked."
         )
+
+    async def run_all_pending(self):
+        """Rebuild daily entries for ALL dates that have segment data."""
+        all_dates = self.db.get_dates_with_segments()
+
+        processed = 0
+        for d in all_dates:
+            hourly_entries = self.db.get_hourly_for_date(d)
+            if hourly_entries:
+                await self.run(target_date=d)
+                processed += 1
+
+        if processed:
+            logger.info(f"Daily catch-up complete: rebuilt {processed} dates.")
+        return processed
 
     def get_daily_hierarchy(self, target_date: str) -> dict:
         """Reconstruct the hierarchy from daily_memory rows for display."""

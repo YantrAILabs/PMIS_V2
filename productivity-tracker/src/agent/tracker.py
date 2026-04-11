@@ -78,8 +78,18 @@ class ProductivityTracker:
         self.activity_monitor.start()
         self.input_monitor.start()
 
-        # Catch up any unprocessed hours from before restart
-        await self.hourly_agg.run_all_pending()
+        # On startup: catch up ALL missed pipeline work across ALL dates
+        logger.info("=== STARTUP CATCH-UP: Processing all missed pipeline work ===")
+
+        # Step 1: Hourly — process all dates/hours that have segments but no hourly log
+        hourly_count = await self.hourly_agg.run_all_pending()
+        logger.info(f"Hourly catch-up: {hourly_count} hours processed.")
+
+        # Step 2: Daily — rebuild daily entries for all dates with hourly data
+        daily_count = await self.daily_rollup.run_all_pending()
+        logger.info(f"Daily catch-up: {daily_count} dates rebuilt.")
+
+        logger.info("=== STARTUP CATCH-UP COMPLETE ===")
 
         # Schedule periodic jobs
         asyncio.create_task(self._hourly_job())
@@ -258,8 +268,8 @@ class ProductivityTracker:
                 if f.get("has_keyboard_activity") or f.get("has_mouse_activity")
             )
             ai_frames = len(self._frame_buffer) - human_frames
-            # Worker type based on majority vote
-            segment_worker = "human" if human_frames >= ai_frames else "ai"
+            # Worker type: any human input in the segment = human work
+            segment_worker = "human" if human_frames > 0 else "ai"
 
             # Store in Context 1
             self.db.insert_context1(
@@ -358,8 +368,10 @@ class ProductivityTracker:
                 try:
                     logger.info(f"=== 6-HOUR ANALYSIS CHECKPOINT ({now.strftime('%H:%M')}) ===")
 
-                    # Step 1: Run hourly aggregation for any pending data
-                    await self.hourly_agg.run()
+                    # Step 1: Catch up ALL missed hours for today (not just current hour)
+                    await self.hourly_agg.run_all_pending(
+                        target_date=date.today().strftime("%Y-%m-%d")
+                    )
 
                     # Step 2: Build comprehensive analysis (daily rollup with current data)
                     await self.daily_rollup.run()
