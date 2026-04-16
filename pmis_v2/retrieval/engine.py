@@ -70,12 +70,16 @@ class RetrievalEngine:
         # Compute query hyperbolic coords for hierarchy scoring
         # Use nearest context centroid if available, else place from projection
         query_hyperbolic = None
+        target_dim = self.hp.get("poincare_dimensions", 16)
         if tree_context:
-            query_hyperbolic = self.db.get_centroid(tree_context)
+            centroid = self.db.get_centroid(tree_context)
+            # Only use centroid if dimension matches current config
+            if centroid is not None and len(centroid) == target_dim:
+                query_hyperbolic = centroid
         if query_hyperbolic is None:
             # Fallback: use projection for approximate position
             from core.poincare import assign_hyperbolic_coords, ProjectionManager
-            pm = ProjectionManager(input_dim=len(query_embedding), output_dim=self.hp.get("poincare_dimensions", 32))
+            pm = ProjectionManager(input_dim=len(query_embedding), output_dim=target_dim)
             query_hyperbolic = assign_hyperbolic_coords(
                 query_embedding, "ANC", pm, hyperparams=self.hp
             )
@@ -97,6 +101,14 @@ class RetrievalEngine:
             candidate["temporal_score"] = scores["temporal_score"]
             candidate["precision_score"] = scores["precision_score"]
             scored.append(candidate)
+
+        # --- GRAPH ENRICHMENT: bottom-up + sibling expansion ---
+        # For top semantic hits, pull in their parent CTX (context framing)
+        # and sibling ANCs (topical completeness). This makes retrieval
+        # respect the tree structure without any ML — pure graph traversal.
+        scored = self._enrich_from_graph(scored, all_candidates, top_k,
+                                         query_embedding, query_temporal,
+                                         gamma, tree_context, query_hyperbolic)
 
         # --- SORT & FILTER ---
         scored.sort(key=lambda x: x["final_score"], reverse=True)
@@ -249,6 +261,98 @@ class RetrievalEngine:
         results.sort(key=lambda x: x["semantic_similarity"], reverse=True)
         return results[:k]
 
+    def _enrich_from_graph(
+        self,
+        scored: List[Dict[str, Any]],
+        already_seen: Dict[str, Any],
+        top_k: int,
+        query_embedding: np.ndarray,
+        query_temporal: np.ndarray,
+        gamma: float,
+        tree_context: Optional[str],
+        query_hyperbolic: Optional[np.ndarray],
+    ) -> List[Dict[str, Any]]:
+        """
+        Graph-based enrichment: for top semantic hits, inject their
+        parent (bottom-up context) and siblings (topical completeness).
+        Applies a small discount so graph-injected nodes rank slightly
+        below direct semantic matches at equal quality.
+        """
+        import sqlite3
+
+        if not scored:
+            return scored
+
+        # Work with top preliminary hits as seeds
+        seeds = scored[:min(top_k, len(scored))]
+        seed_ids = {s["id"] for s in seeds}
+        new_ids = set()
+
+        conn = sqlite3.connect(self.db.db_path)
+        conn.row_factory = sqlite3.Row
+
+        for seed in seeds:
+            sid = seed["id"]
+            # 1. Bottom-up: get parent(s)
+            parents = conn.execute("""
+                SELECT target_id FROM relations
+                WHERE source_id = ? AND relation_type = 'child_of'
+            """, (sid,)).fetchall()
+            for p in parents:
+                pid = p["target_id"]
+                if pid not in already_seen and pid not in new_ids:
+                    new_ids.add(pid)
+
+            # 2. Sibling expansion: get siblings (share same parent)
+            for p in parents:
+                siblings = conn.execute("""
+                    SELECT source_id FROM relations
+                    WHERE target_id = ? AND relation_type = 'child_of'
+                      AND source_id != ?
+                    LIMIT 5
+                """, (p["target_id"], sid)).fetchall()
+                for sib in siblings:
+                    if sib["source_id"] not in already_seen and sib["source_id"] not in new_ids:
+                        new_ids.add(sib["source_id"])
+
+        conn.close()
+
+        if not new_ids:
+            return scored
+
+        # Hydrate and score the new nodes
+        graph_discount = 0.90  # graph-injected nodes get 10% discount
+        for nid in new_ids:
+            node = self.db.get_node(nid)
+            if not node or node.get("is_deleted"):
+                continue
+            embs = self.db.get_embeddings(nid)
+            if not embs or embs.get("euclidean") is None:
+                continue
+            candidate = {
+                **node,
+                "euclidean_embedding": embs["euclidean"],
+                "hyperbolic_coords": embs.get("hyperbolic"),
+                "temporal_embedding": embs.get("temporal"),
+                "graph_enriched": True,
+            }
+            scores = self._compute_score(
+                query_embedding=query_embedding,
+                query_temporal=query_temporal,
+                candidate=candidate,
+                gamma=gamma,
+                tree_context=tree_context,
+                query_hyperbolic=query_hyperbolic,
+            )
+            candidate["final_score"] = scores["final_score"] * graph_discount
+            candidate["semantic_score"] = scores["semantic_score"]
+            candidate["hierarchy_score"] = scores["hierarchy_score"]
+            candidate["temporal_score"] = scores["temporal_score"]
+            candidate["precision_score"] = scores["precision_score"]
+            scored.append(candidate)
+
+        return scored
+
     def _compute_score(
         self,
         query_embedding: np.ndarray,
@@ -316,6 +420,11 @@ class RetrievalEngine:
         hyp_coords = candidate.get("hyperbolic_coords")
         if hyp_coords is None:
             return 0.5
+
+        # Dimension guard: query and candidate must match
+        if query_hyperbolic is not None and len(query_hyperbolic) != len(hyp_coords):
+            # Dimension mismatch (old 32d vs new 16d) — fall through to norm-only
+            query_hyperbolic = None
 
         # Primary: actual Poincaré distance (if query coords available)
         if query_hyperbolic is not None:

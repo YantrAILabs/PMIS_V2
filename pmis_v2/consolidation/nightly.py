@@ -38,15 +38,44 @@ class NightlyConsolidation:
         self.actions_log: List[Dict[str, Any]] = []
 
     def run(self) -> Dict[str, List[Dict[str, Any]]]:
-        """Execute all five consolidation passes. Returns summary."""
+        """
+        Execute consolidation passes in order:
+          1. COMPRESS — merge redundant anchors
+          2. PROMOTE — adopt accessed orphans
+          3. BIRTH — create contexts from orphan clusters
+          4. CELL DIVISION — split oversized contexts
+          5. PRUNE — soft-delete low-value anchors
+          6. DAILY ACTIVITY MERGE — create memories from today's activity
+          7. HGCN TRAIN — learn Poincare embeddings (includes new activity nodes)
+          8. TIME ASSIGNMENT — match activity time to tree branches + projects
+          9. REINDEX — rebuild ChromaDB ANN index
+          10. WIKI REGEN — invalidate changed wiki pages
+        """
         self.actions_log = []
+
+        # Passes 1-5: Graph maintenance
         results = {
             "compressed": self._pass_compress(),
             "promoted": self._pass_promote(),
             "birthed": self._pass_birth(),
+            "cell_divided": self._pass_cell_division(),
             "pruned": self._pass_prune(),
-            "rsgd": self._pass_rsgd(),
         }
+
+        # Pass 6: DAILY ACTIVITY MERGE
+        results["activity_merged"] = self._pass_activity_merge()
+
+        # Pass 6b: BACKFILL EMBEDDINGS — guard against batch scripts that insert
+        # into memory_nodes without an embeddings row (caught 2026-04-15: reorganize_scs.py
+        # had created 6 SCs invisible to HGCN/retrieval). Cheap safety net.
+        results["embeddings_backfilled"] = self._pass_backfill_embeddings()
+
+        # Pass 7: HGCN TRAIN (now includes new activity-derived nodes)
+        hgcn_result = self._pass_hgcn_train()
+        results["hgcn"] = [hgcn_result] if hgcn_result else []
+
+        # Pass 8: TIME ASSIGNMENT (uses trained tree)
+        results["time_assigned"] = self._pass_time_assignment()
 
         # Log all actions to database
         for action in self.actions_log:
@@ -57,9 +86,12 @@ class NightlyConsolidation:
         if total_actions > 0:
             self._refresh_all_context_stats()
 
-            # P1a: Rebuild ChromaDB ANN index if nodes were added/removed
-            if self.db.has_ann_index and self.db._chroma:
-                self.db._chroma.rebuild_from_db(self.db)
+        # Pass 9: REINDEX
+        if self.db.has_ann_index and self.db._chroma:
+            self.db._chroma.rebuild_from_db(self.db)
+
+        # Pass 10: WIKI REGEN
+        self._pass_wiki_regen()
 
         return results
 
@@ -302,6 +334,190 @@ class NightlyConsolidation:
             actions.append(action)
             self.actions_log.append(action)
 
+        return actions
+
+    # -------------------------------------------------------------------
+    # PASS 6: DAILY ACTIVITY MERGE
+    # -------------------------------------------------------------------
+
+    def _pass_activity_merge(self) -> List[Dict[str, Any]]:
+        """Create memories from today's activity tracker data."""
+        try:
+            from daily_activity_merge import DailyActivityMerger
+            merger = DailyActivityMerger(self.db, self.hp)
+            actions = merger.run()
+            self.actions_log.extend(actions)
+            return actions
+        except Exception as e:
+            import logging
+            logging.getLogger("pmis.consolidation").warning(f"Activity merge failed: {e}")
+            return []
+
+    # -------------------------------------------------------------------
+    # PASS 8: TIME ASSIGNMENT
+    # -------------------------------------------------------------------
+
+    def _pass_time_assignment(self) -> List[Dict[str, Any]]:
+        """Assign activity time to knowledge tree branches and projects."""
+        try:
+            from time_assignment import TimeAssignment
+            assigner = TimeAssignment(self.db, self.hp)
+            actions = assigner.run()
+            self.actions_log.extend(actions)
+            return actions
+        except Exception as e:
+            import logging
+            logging.getLogger("pmis.consolidation").warning(f"Time assignment failed: {e}")
+            return []
+
+    # -------------------------------------------------------------------
+    # PASS 10: WIKI REGEN
+    # -------------------------------------------------------------------
+
+    def _pass_wiki_regen(self):
+        """Invalidate wiki page cache for nodes changed in this consolidation."""
+        try:
+            import sqlite3
+            changed_ids = set()
+            for action in self.actions_log:
+                for key in ["new_context_id", "new_node_id", "node_id", "memory_node_id",
+                             "matched_ctx_id", "matched_sc_id"]:
+                    if action.get(key):
+                        changed_ids.add(action[key])
+                for key in ["orphan_ids", "source_node_ids"]:
+                    if action.get(key):
+                        changed_ids.update(action[key])
+
+            if not changed_ids:
+                return
+
+            conn = sqlite3.connect(self.db.db_path)
+            for node_id in changed_ids:
+                conn.execute("DELETE FROM wiki_page_cache WHERE node_id = ?", (node_id,))
+                # Also invalidate parents
+                parents = conn.execute(
+                    "SELECT target_id FROM relations WHERE source_id=? AND relation_type='child_of'",
+                    (node_id,)
+                ).fetchall()
+                for p in parents:
+                    conn.execute("DELETE FROM wiki_page_cache WHERE node_id = ?", (p[0],))
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            import logging
+            logging.getLogger("pmis.consolidation").warning(f"Wiki regen failed: {e}")
+
+    # -------------------------------------------------------------------
+    # PASS 6b: BACKFILL MISSING EMBEDDINGS
+    # -------------------------------------------------------------------
+
+    def _pass_backfill_embeddings(self) -> List[Dict[str, Any]]:
+        """
+        Find any non-deleted memory_node that lacks an embeddings row, generate
+        its euclidean embedding from content, and insert. Guards against batch
+        insert scripts that bypass the normal ingestion pipeline.
+        """
+        import sqlite3
+        conn = sqlite3.connect(self.db.db_path)
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute("""
+            SELECT m.id, m.content, m.level
+            FROM memory_nodes m
+            LEFT JOIN embeddings e ON e.node_id = m.id
+            WHERE m.is_deleted = 0
+              AND e.node_id IS NULL
+              AND m.content IS NOT NULL
+              AND length(m.content) > 0
+        """).fetchall()
+        if not rows:
+            conn.close()
+            return []
+
+        try:
+            from ingestion.embedder import Embedder
+            embedder = Embedder(self.hp)
+            texts = [r["content"] for r in rows]
+            vectors = embedder.batch_embed_texts(texts)
+        except Exception as e:
+            import logging
+            logging.getLogger("pmis.consolidation").warning(
+                f"Embedding backfill failed: {e}"
+            )
+            conn.close()
+            return []
+
+        actions = []
+        for r, vec in zip(rows, vectors):
+            blob = vec.astype(np.float32).tobytes()
+            conn.execute(
+                "INSERT INTO embeddings (node_id, euclidean, is_learned) VALUES (?, ?, 0)",
+                (r["id"], blob),
+            )
+            actions.append({
+                "action": "embedding_backfill",
+                "node_id": r["id"],
+                "level": r["level"],
+            })
+        conn.commit()
+        conn.close()
+        for a in actions:
+            self.actions_log.append(a)
+        return actions
+
+    # -------------------------------------------------------------------
+    # PASS 7: HGCN TRAIN (replaces RSGD)
+    # -------------------------------------------------------------------
+
+    def _pass_hgcn_train(self) -> Optional[Dict[str, Any]]:
+        """
+        Train Hyperbolic GCN on graph structure + co-retrieval + feedback.
+        Replaces RSGD. Always runs (co-retrieval data grows daily).
+        """
+        try:
+            from core.hgcn import HGCNTrainer
+            trainer = HGCNTrainer(self.db, self.hp)
+            result = trainer.train()
+
+            action = {
+                "action": "hgcn_train",
+                "nodes_trained": result.get("nodes_trained", 0),
+                "structural_edges": result.get("structural_edges", 0),
+                "co_retrieval_edges": result.get("co_retrieval_edges", 0),
+                "feedback_edges": result.get("feedback_pos_edges", 0) + result.get("feedback_neg_edges", 0),
+                "epochs": result.get("epochs_run", 0),
+                "final_loss": result.get("final_loss"),
+                "wall_time": result.get("wall_time_seconds"),
+            }
+            self.actions_log.append(action)
+            return result
+        except Exception as e:
+            import logging
+            logging.getLogger("pmis.consolidation").error(f"HGCN training failed: {e}")
+            # Fall back to RSGD if HGCN fails (geoopt not installed, etc.)
+            try:
+                return {"fallback": "rsgd", "results": self._pass_rsgd()}
+            except Exception:
+                return {"error": str(e)}
+
+    # -------------------------------------------------------------------
+    # PASS 3b: CELL DIVISION
+    # -------------------------------------------------------------------
+
+    def _pass_cell_division(self) -> List[Dict[str, Any]]:
+        """
+        Split oversized CTX/SC nodes recursively.
+        Runs after BIRTH (new contexts exist) and before PRUNE.
+        """
+        from consolidation.cell_division import CellDivision
+
+        divider = CellDivision(
+            db=self.db,
+            hyperparams=self.hp,
+            projection=self.projection,
+            generate_summary_fn=self._generate_context_summary,
+        )
+        actions = divider.run()
+        self.actions_log.extend(actions)
         return actions
 
     # -------------------------------------------------------------------

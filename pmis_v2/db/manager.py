@@ -266,6 +266,59 @@ class DBManager:
             CREATE INDEX IF NOT EXISTS idx_pwm_score ON project_work_match_log(combined_match_pct);
             CREATE INDEX IF NOT EXISTS idx_pwm_date ON project_work_match_log(matched_at);
         """)
+
+        # Migration: telemetry tables for future-scope personalization training.
+        # (Added 2026-04-15 — Track 2 prep work for personal LoRA / reranker training.)
+        # Schema is intentionally simple and append-only; queries only happen at
+        # training time, never at retrieval time, so no indexing concerns yet.
+        self._conn.executescript("""
+            -- Every retrieval becomes a training-data row. Pair (query, used vs unused
+            -- nodes) is the supervised signal for a future reranker.
+            CREATE TABLE IF NOT EXISTS retrieval_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ts TEXT DEFAULT (datetime('now')),
+                conversation_id TEXT,
+                turn_number INTEGER,
+                query_text TEXT,
+                query_embedding BLOB,
+                retrieved_node_ids TEXT,    -- JSON array
+                retrieved_scores TEXT,      -- JSON array, parallel to node_ids
+                actually_used_node_ids TEXT,-- JSON array of nodes referenced in response
+                user_feedback TEXT,         -- 'up'|'down'|null
+                response_excerpt TEXT       -- first 500 chars of response, for audit
+            );
+            CREATE INDEX IF NOT EXISTS idx_retrlog_conv ON retrieval_log(conversation_id);
+            CREATE INDEX IF NOT EXISTS idx_retrlog_ts ON retrieval_log(ts);
+
+            -- Every parent-assignment decision becomes training data for a future
+            -- "where does this memory go" classifier.
+            CREATE TABLE IF NOT EXISTS classification_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                node_id TEXT NOT NULL,
+                ts TEXT DEFAULT (datetime('now')),
+                chosen_parent_id TEXT,
+                candidate_parent_ids TEXT,  -- JSON array, top-K considered
+                candidate_scores TEXT,      -- JSON array, parallel
+                decided_by TEXT,            -- 'consolidation'|'llm'|'manual'|'rules'
+                user_corrected_to TEXT      -- if user later moves this node
+            );
+            CREATE INDEX IF NOT EXISTS idx_clslog_node ON classification_log(node_id);
+        """)
+
+        # Migration: tag content authorship on memory_nodes for future style adapter.
+        # 'user' = user-authored anchor, 'llm' = LLM-generated (consolidation/auto-context),
+        # 'consolidation' = produced by COMPRESS/BIRTH summary, 'manual' = direct entry.
+        try:
+            cols = [r[1] for r in self._conn.execute(
+                "PRAGMA table_info(memory_nodes)"
+            ).fetchall()]
+            if "authored_by" not in cols:
+                self._conn.execute(
+                    "ALTER TABLE memory_nodes ADD COLUMN authored_by TEXT DEFAULT 'unknown'"
+                )
+        except Exception:
+            pass
+
         self._conn.commit()
 
     @contextmanager
@@ -635,6 +688,179 @@ class DBManager:
                 SET response_summary = ?
                 WHERE conversation_id = ? AND turn_number = ?
             """, (response_summary[:2000], conversation_id, turn_number))
+
+    # ---------------------------------------------------------------
+    # TURN DIAGNOSTICS
+    # ---------------------------------------------------------------
+
+    # ---------------------------------------------------------------
+    # GOALS & FEEDBACK
+    # ---------------------------------------------------------------
+
+    def create_goal(self, goal_id: str, title: str, description: str = "",
+                    status: str = "active") -> str:
+        """Create a new goal. Returns goal_id."""
+        with self._connect() as conn:
+            conn.execute("""
+                INSERT INTO goals (id, title, description, status)
+                VALUES (?, ?, ?, ?)
+            """, (goal_id, title, description, status))
+        return goal_id
+
+    def update_goal(self, goal_id: str, **kwargs) -> bool:
+        """Update goal fields (title, description, status)."""
+        allowed = {"title", "description", "status"}
+        updates = {k: v for k, v in kwargs.items() if k in allowed}
+        if not updates:
+            return False
+        updates["updated_at"] = datetime.now().isoformat()
+        set_clause = ", ".join(f"{k} = ?" for k in updates)
+        values = list(updates.values()) + [goal_id]
+        with self._connect() as conn:
+            conn.execute(f"UPDATE goals SET {set_clause} WHERE id = ?", values)
+        return True
+
+    def get_goal(self, goal_id: str) -> Optional[Dict]:
+        """Get a single goal by ID."""
+        with self._connect() as conn:
+            row = conn.execute("SELECT * FROM goals WHERE id = ?", (goal_id,)).fetchone()
+            return dict(row) if row else None
+
+    def list_goals(self, status: Optional[str] = None) -> List[Dict]:
+        """List all goals, optionally filtered by status."""
+        with self._connect() as conn:
+            if status:
+                rows = conn.execute(
+                    "SELECT * FROM goals WHERE status = ? ORDER BY created_at DESC", (status,)
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM goals ORDER BY created_at DESC"
+                ).fetchall()
+            return [dict(r) for r in rows]
+
+    def link_goal_to_node(self, goal_id: str, node_id: str,
+                          link_type: str = "supports", weight: float = 0.5) -> None:
+        """Create or update a goal-node link."""
+        with self._connect() as conn:
+            conn.execute("""
+                INSERT OR REPLACE INTO goal_links (goal_id, node_id, link_type, weight)
+                VALUES (?, ?, ?, ?)
+            """, (goal_id, node_id, link_type, weight))
+
+    def unlink_goal_from_node(self, goal_id: str, node_id: str) -> None:
+        """Remove a goal-node link."""
+        with self._connect() as conn:
+            conn.execute(
+                "DELETE FROM goal_links WHERE goal_id = ? AND node_id = ?",
+                (goal_id, node_id)
+            )
+
+    def get_goals_for_node(self, node_id: str) -> List[Dict]:
+        """Get all goals linked to a node."""
+        with self._connect() as conn:
+            rows = conn.execute("""
+                SELECT g.*, gl.link_type, gl.weight
+                FROM goals g
+                JOIN goal_links gl ON gl.goal_id = g.id
+                WHERE gl.node_id = ?
+                ORDER BY gl.weight DESC
+            """, (node_id,)).fetchall()
+            return [dict(r) for r in rows]
+
+    def get_nodes_for_goal(self, goal_id: str) -> List[Dict]:
+        """Get all nodes linked to a goal with their link info."""
+        with self._connect() as conn:
+            rows = conn.execute("""
+                SELECT mn.id, mn.content, mn.level, gl.link_type, gl.weight
+                FROM memory_nodes mn
+                JOIN goal_links gl ON gl.node_id = mn.id
+                WHERE gl.goal_id = ? AND mn.is_deleted = 0
+                ORDER BY gl.weight DESC
+            """, (goal_id,)).fetchall()
+            return [dict(r) for r in rows]
+
+    def add_feedback(self, node_id: str, polarity: str, content: str = "",
+                     goal_id: Optional[str] = None, source: str = "explicit",
+                     strength: float = 1.0) -> int:
+        """Add a feedback entry. Returns feedback ID."""
+        with self._connect() as conn:
+            cursor = conn.execute("""
+                INSERT INTO feedback (node_id, goal_id, polarity, content, source, strength)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (node_id, goal_id, polarity, content, source, strength))
+            return cursor.lastrowid or 0
+
+    def get_feedback_for_node(self, node_id: str, limit: int = 20) -> List[Dict]:
+        """Get feedback entries for a node, most recent first."""
+        with self._connect() as conn:
+            rows = conn.execute("""
+                SELECT f.*, g.title as goal_title
+                FROM feedback f
+                LEFT JOIN goals g ON g.id = f.goal_id
+                WHERE f.node_id = ?
+                ORDER BY f.timestamp DESC
+                LIMIT ?
+            """, (node_id, limit)).fetchall()
+            return [dict(r) for r in rows]
+
+    def get_feedback_score(self, node_id: str) -> float:
+        """Compute net feedback score: positive*0.10 - negative*0.15, clamped."""
+        with self._connect() as conn:
+            row = conn.execute("""
+                SELECT
+                    COALESCE(SUM(CASE WHEN polarity='positive' THEN strength * 0.10 ELSE 0 END), 0)
+                    - COALESCE(SUM(CASE WHEN polarity='negative' THEN strength * 0.15 ELSE 0 END), 0)
+                    as score
+                FROM feedback
+                WHERE node_id = ?
+            """, (node_id,)).fetchone()
+            raw = row["score"] if row else 0.0
+            return max(-1.0, min(1.0, raw))
+
+    def get_feedback_summary(self, tree_id: Optional[str] = None,
+                             node_id: Optional[str] = None) -> Dict:
+        """Get feedback summary (positive/negative counts) for a tree or node."""
+        with self._connect() as conn:
+            if node_id:
+                where = "f.node_id = ?"
+                params = (node_id,)
+            elif tree_id:
+                where = """f.node_id IN (
+                    SELECT mn.id FROM memory_nodes mn
+                    WHERE mn.tree_ids LIKE ? AND mn.is_deleted = 0
+                )"""
+                params = (f"%{tree_id}%",)
+            else:
+                where = "1=1"
+                params = ()
+
+            row = conn.execute(f"""
+                SELECT
+                    COUNT(*) as total,
+                    SUM(CASE WHEN polarity='positive' THEN 1 ELSE 0 END) as positive,
+                    SUM(CASE WHEN polarity='negative' THEN 1 ELSE 0 END) as negative,
+                    SUM(CASE WHEN polarity='correction' THEN 1 ELSE 0 END) as corrections
+                FROM feedback f
+                WHERE {where}
+            """, params).fetchone()
+            return dict(row) if row else {"total": 0, "positive": 0, "negative": 0, "corrections": 0}
+
+    def log_diagnostics(self, row) -> None:
+        """
+        Log a complete diagnostic row for one turn.
+        Accepts a DiagnosticRow dataclass from core.diagnostics.
+        """
+        from core.diagnostics import DIAGNOSTIC_COLUMNS, diagnostic_row_to_tuple
+
+        placeholders = ", ".join(["?"] * len(DIAGNOSTIC_COLUMNS))
+        columns = ", ".join(DIAGNOSTIC_COLUMNS)
+
+        with self._connect() as conn:
+            conn.execute(f"""
+                INSERT OR REPLACE INTO turn_diagnostics ({columns})
+                VALUES ({placeholders})
+            """, diagnostic_row_to_tuple(row))
 
     # ---------------------------------------------------------------
     # CONSOLIDATION

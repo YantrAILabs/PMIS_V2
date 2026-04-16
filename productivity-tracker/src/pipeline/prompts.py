@@ -1,9 +1,9 @@
 """
-Prompt templates for ChatGPT Vision and text analysis.
+Prompt templates for Ollama Vision and text analysis.
 Centralized here for easy iteration and tuning.
 """
 
-# ─── Frame-level analysis (ChatGPT Vision) ─────────────────────────────
+# ─── Frame-level analysis (Ollama Vision) ─────────────────────────────
 
 FRAME_BATCH_PROMPT = """Analyze these {count} consecutive screenshots from a user's work session on macOS.
 
@@ -12,7 +12,7 @@ For EACH frame, extract:
 2. app: The application or website visible (e.g., "VS Code", "ChatGPT in Chrome", "Terminal")
 3. task: What specific task the user is performing in this frame (e.g., "Writing a Python function", "Reading API documentation", "Reviewing a pull request")
 
-Return as JSON:
+Return ONLY valid JSON with no other text:
 {{
   "frames": [
     {{"text": "...", "app": "...", "task": "..."}},
@@ -23,7 +23,7 @@ Return as JSON:
 Be concise. Focus on what's actionable, not decorative UI elements."""
 
 
-# ─── Segment-level synthesis (ChatGPT text) ─────────────────────────────
+# ─── Segment-level synthesis (Ollama text) ─────────────────────────────
 
 SEGMENT_SYNTHESIS_PROMPT = """You are analyzing a work session segment from a productivity tracker.
 
@@ -35,89 +35,22 @@ An autonomous agent was running: {agent_active}
 Frame-by-frame extractions from this segment:
 {frame_jsons}
 
-Based on this data, classify this work segment:
+Based on this data, produce:
 
-1. supercontext: The HIGH-LEVEL work objective this contributes to.
-   Examples: "Product Development", "Client Deliverable", "Internal Tooling", "Learning & Research", "Communication", "Operations"
-   
-2. context: The SPECIFIC work area within the supercontext.
-   Examples: "Frontend Development", "API Integration", "Client Communication", "Architecture Design", "Code Review"
+1. detailed_summary: 2-3 sentence summary of what was accomplished in this segment.
 
-3. anchor: The PRECISE task being performed in this segment.
-   Examples: "Building chart component for dashboard", "Debugging authentication flow", "Researching competitor pricing"
+2. full_text: Complete description of ALL work done during this segment. Include specific details like file names, functions, topics discussed, pages visited. This serves as a permanent record.
 
-4. detailed_summary: 2-3 sentence summary of what was accomplished in this segment.
+3. worker: Based on whether an autonomous agent was running:
+   - "agent" if the agent flag is true AND the work appears to be agent-generated
+   - "human" if the user is actively directing the work
 
-5. worker: Based on whether an autonomous agent was running:
-   - "agent" if the agent flag is true AND the work appears to be agent-generated (code appearing without typing, automated test runs, etc.)
-   - "human" if the user is actively directing the work (even if chatting with AI — that's human work)
+4. medium: One of: browser, terminal, ide, chat, office, other
 
-6. medium: One of: browser, terminal, ide, chat, office, other
-
-Return as JSON:
+Return ONLY valid JSON with no other text:
 {{
-  "supercontext": "...",
-  "context": "...",
-  "anchor": "...",
   "detailed_summary": "...",
+  "full_text": "...",
   "worker": "human|agent",
   "medium": "..."
-}}
-
-Be precise with the hierarchy. The supercontext should be broad enough to group multiple contexts. The anchor should be specific enough to distinguish individual tasks."""
-
-
-# ─── Hourly synthesis (for memory) ──────────────────────────────────────
-
-HOURLY_SYNTHESIS_PROMPT = """Analyze this hour of work from a productivity tracker:
-
-{segments_summary}
-
-Produce a refined hierarchical summary:
-1. Group related segments into supercontexts and contexts
-2. For each anchor, note the total time and whether it was human or agent work
-3. Identify any context that should be merged (e.g., "Debugging auth" and "Fixing auth tests" are both under "Authentication")
-
-Return as JSON:
-{{
-  "hierarchy": [
-    {{
-      "supercontext": "...",
-      "contexts": [
-        {{
-          "context": "...",
-          "anchors": [
-            {{"anchor": "...", "time_mins": ..., "worker": "human|agent"}}
-          ]
-        }}
-      ]
-    }}
-  ]
-}}"""
-
-
-# ─── Daily synthesis (for final memory) ──────────────────────────────────
-
-DAILY_SYNTHESIS_PROMPT = """Analyze a full day of work from a productivity tracker:
-
-Date: {date}
-Total tracked time: {total_mins} minutes
-
-Hourly summaries:
-{hourly_summaries}
-
-Produce the final daily memory:
-1. Merge all hourly hierarchies into a coherent day summary
-2. Consolidate duplicate or overlapping contexts
-3. Calculate final time totals per SC, context, and anchor
-4. Identify the top 3 most significant accomplishments
-5. Note any patterns (heavy context switching, long deep work sessions, etc.)
-
-Return as JSON:
-{{
-  "date": "{date}",
-  "total_tracked_mins": ...,
-  "hierarchy": [...],
-  "top_accomplishments": ["...", "...", "..."],
-  "patterns": ["...", "..."]
 }}"""

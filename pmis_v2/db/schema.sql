@@ -242,6 +242,187 @@ CREATE TABLE IF NOT EXISTS productivity_sync_log (
 );
 
 -- ═══════════════════════════════════════════════════════════
+-- GOALS & FEEDBACK — External intent + validation layer
+-- ═══════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS goals (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    description TEXT DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'active'
+        CHECK(status IN ('active', 'achieved', 'paused', 'abandoned')),
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS goal_links (
+    goal_id TEXT NOT NULL REFERENCES goals(id),
+    node_id TEXT NOT NULL REFERENCES memory_nodes(id),
+    link_type TEXT NOT NULL DEFAULT 'supports'
+        CHECK(link_type IN ('supports', 'blocks', 'neutral')),
+    weight REAL DEFAULT 0.5,
+    created_at TEXT DEFAULT (datetime('now')),
+    PRIMARY KEY (goal_id, node_id)
+);
+
+CREATE TABLE IF NOT EXISTS feedback (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    node_id TEXT NOT NULL REFERENCES memory_nodes(id),
+    goal_id TEXT REFERENCES goals(id),
+    polarity TEXT NOT NULL CHECK(polarity IN ('positive', 'negative', 'correction')),
+    content TEXT DEFAULT '',
+    source TEXT NOT NULL DEFAULT 'explicit'
+        CHECK(source IN ('explicit', 'session', 'implicit')),
+    strength REAL DEFAULT 1.0,
+    timestamp TEXT DEFAULT (datetime('now'))
+);
+
+-- ═══════════════════════════════════════════════════════════
+-- WIKI PAGE CACHE — LLM-generated prose pages
+-- ═══════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS wiki_page_cache (
+    node_id TEXT PRIMARY KEY,
+    prose_markdown TEXT,
+    context_hash TEXT,
+    generated_at TEXT DEFAULT (datetime('now')),
+    llm_model TEXT,
+    word_count INTEGER DEFAULT 0,
+    FOREIGN KEY (node_id) REFERENCES memory_nodes(id)
+);
+
+-- ═══════════════════════════════════════════════════════════
+-- ACTIVITY TIME TRACKING — Links activity segments to tree branches
+-- ═══════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS activity_time_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    segment_id TEXT,
+    memory_node_id TEXT,
+    matched_ctx_id TEXT,
+    matched_sc_id TEXT,
+    duration_seconds INTEGER,
+    date TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS node_time_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    node_id TEXT,
+    date TEXT,
+    total_duration_mins REAL,
+    segment_count INTEGER,
+    project_id TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+);
+
+-- ═══════════════════════════════════════════════════════════
+-- TURN DIAGNOSTICS — End-to-end pipeline instrumentation
+-- ═══════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS turn_diagnostics (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    conversation_id TEXT NOT NULL,
+    turn_number INTEGER NOT NULL,
+    timestamp TEXT NOT NULL,
+
+    -- 1. EMBEDDING STAGE
+    embed_model TEXT,
+    embed_dim INTEGER,
+    embed_latency_ms REAL,
+
+    -- 2. NEAREST CONTEXT STAGE
+    nearest_ctx_id TEXT,
+    nearest_ctx_name TEXT,
+    nearest_ctx_distance REAL,
+    second_ctx_distance REAL,
+    contexts_searched INTEGER,
+
+    -- 3. SURPRISE STAGE
+    raw_surprise REAL,
+    cluster_precision REAL,
+    precision_anchor_factor REAL,
+    precision_recency_factor REAL,
+    precision_consistency_factor REAL,
+    effective_surprise REAL,
+    is_orphan_territory INTEGER DEFAULT 0,
+
+    -- 4. GAMMA STAGE
+    gamma_input_surprise REAL,
+    gamma_temperature REAL,
+    gamma_bias REAL,
+    gamma_staleness_penalty REAL,
+    gamma_session_boost REAL,
+    gamma_raw REAL,
+    gamma_final REAL,
+    gamma_mode TEXT,
+    gamma_override_active INTEGER DEFAULT 0,
+
+    -- 5. TREE RESOLUTION STAGE
+    tree_resolution_method TEXT,
+    tree_id TEXT,
+    tree_name TEXT,
+    tree_root_distance REAL,
+
+    -- 6. RETRIEVAL STAGE
+    narrow_k INTEGER,
+    narrow_threshold REAL,
+    narrow_candidates_found INTEGER,
+    broad_k INTEGER,
+    broad_threshold REAL,
+    broad_candidates_found INTEGER,
+    total_candidates_scored INTEGER,
+    retrieval_latency_ms REAL,
+
+    -- 7. SCORING BREAKDOWN (top-1 result)
+    top1_node_id TEXT,
+    top1_final_score REAL,
+    top1_semantic_score REAL,
+    top1_hierarchy_score REAL,
+    top1_temporal_score REAL,
+    top1_precision_score REAL,
+    top1_node_level TEXT,
+    top1_source TEXT,
+
+    -- 8. SCORING SPREAD (across all results)
+    avg_semantic REAL,
+    avg_hierarchy REAL,
+    avg_temporal REAL,
+    avg_precision REAL,
+    std_semantic REAL,
+    std_hierarchy REAL,
+    std_temporal REAL,
+    std_precision REAL,
+    score_range REAL,
+
+    -- 9. STORAGE DECISION
+    storage_action TEXT,
+    storage_reason TEXT,
+    stored_node_id TEXT,
+    stored_as_orphan INTEGER DEFAULT 0,
+    stored_as_tentative INTEGER DEFAULT 0,
+    dedup_blocked INTEGER DEFAULT 0,
+
+    -- 10. EPISTEMIC & PREDICTIVE
+    epistemic_questions_count INTEGER DEFAULT 0,
+    top_epistemic_info_gain REAL,
+    predictive_memories_count INTEGER DEFAULT 0,
+
+    -- 11. SESSION STATE
+    session_turn_count INTEGER,
+    session_avg_gamma REAL,
+    session_precision_accumulator REAL,
+    session_is_stale INTEGER DEFAULT 0,
+
+    -- 12. POINCARÉ HEALTH
+    avg_poincare_norm REAL,
+    poincare_norm_spread REAL,
+    hierarchy_score_discriminative REAL,
+
+    UNIQUE(conversation_id, turn_number)
+);
+
+-- ═══════════════════════════════════════════════════════════
 -- INDEXES
 -- ═══════════════════════════════════════════════════════════
 
@@ -261,6 +442,20 @@ CREATE INDEX IF NOT EXISTS idx_hyp_norm ON embeddings(hyperbolic_norm);
 CREATE INDEX IF NOT EXISTS idx_turn_retrieved ON turn_retrieved_memories(turn_id);
 CREATE INDEX IF NOT EXISTS idx_turn_epistemic ON turn_epistemic_questions(turn_id);
 CREATE INDEX IF NOT EXISTS idx_turn_predictive ON turn_predictive_memories(turn_id);
+
+-- Goals & feedback indexes
+CREATE INDEX IF NOT EXISTS idx_goals_status ON goals(status);
+CREATE INDEX IF NOT EXISTS idx_goal_links_goal ON goal_links(goal_id);
+CREATE INDEX IF NOT EXISTS idx_goal_links_node ON goal_links(node_id);
+CREATE INDEX IF NOT EXISTS idx_feedback_node ON feedback(node_id);
+CREATE INDEX IF NOT EXISTS idx_feedback_goal ON feedback(goal_id);
+CREATE INDEX IF NOT EXISTS idx_feedback_polarity ON feedback(polarity);
+CREATE INDEX IF NOT EXISTS idx_feedback_timestamp ON feedback(timestamp);
+
+-- Diagnostics indexes
+CREATE INDEX IF NOT EXISTS idx_diag_conv ON turn_diagnostics(conversation_id);
+CREATE INDEX IF NOT EXISTS idx_diag_timestamp ON turn_diagnostics(timestamp);
+CREATE INDEX IF NOT EXISTS idx_diag_gamma_mode ON turn_diagnostics(gamma_mode);
 
 -- Project/productivity indexes
 CREATE INDEX IF NOT EXISTS idx_proj_status ON projects(status);

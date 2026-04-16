@@ -137,6 +137,103 @@ def cmd_session_begin(args):
 
 
 @_safe_output
+def cmd_session_continue(args):
+    """Continue an existing conversation with a follow-up message.
+    Reuses conversation_id and reconstructs session state from DB."""
+    orch = _get_orchestrator()
+    message = " ".join(args.message)
+
+    conv_id = _load_session_id()
+    if not conv_id:
+        # No session to continue — fall through to begin
+        return cmd_session_begin.__wrapped__(args)
+
+    session = orch.get_or_create_session(conv_id)
+
+    # Reconstruct session state from DB if this is a fresh process
+    if session.turn_counter == 0:
+        _reconstruct_session_state(orch.db, session, conv_id)
+
+    # Process the turn
+    result = orch.process_turn(
+        content=message,
+        conversation_id=session.conversation_id,
+        role="user",
+    )
+
+    return {
+        "memories": result.system_prompt,
+        "session": {
+            "conversation_id": session.conversation_id,
+            "turn_count": result.turn_number,
+            "is_new_session": False,
+            "is_continuation": True,
+            "needs_rating": False,
+            "should_ask_rating": result.turn_number > 0 and result.turn_number % 3 == 0,
+        },
+        "mode": result.gamma_result.mode_label if result.gamma_result else "BALANCED",
+        "gamma": result.gamma_result.gamma if result.gamma_result else 0.5,
+        "surprise": result.surprise_result.effective_surprise if result.surprise_result else 0.0,
+        "retrieved_count": len(result.retrieved_memories),
+        "stored": result.stored_node_id is not None,
+        "stored_node_id": result.stored_node_id,
+        "storage_action": result.storage_action,
+        "active_tree": result.active_tree,
+        "is_stale": result.is_stale,
+        "epistemic_questions": result.epistemic_questions or [],
+        "predictive": [
+            {"content": m.get("content", "")[:150], "depth": m.get("_prediction_depth")}
+            for m in (result.predictive_memories or [])
+        ],
+    }
+
+
+def _reconstruct_session_state(db, session, conv_id):
+    """Reconstruct session state from conversation_turns table.
+    Called when session continue is used from a fresh CLI process."""
+    import sqlite3
+
+    try:
+        conn = sqlite3.connect(db.db_path)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+
+        # Load prior turns for this conversation
+        cursor.execute("""
+            SELECT turn_number, gamma, effective_surprise, mode, node_id
+            FROM conversation_turns
+            WHERE conversation_id = ?
+            ORDER BY turn_number ASC
+        """, (conv_id,))
+
+        rows = cursor.fetchall()
+        for row in rows:
+            session.turn_counter = row["turn_number"]
+            if row["gamma"] is not None:
+                session.gamma_history.append(row["gamma"])
+            if row["effective_surprise"] is not None:
+                session.surprise_history.append(row["effective_surprise"])
+            if row["node_id"]:
+                session.last_stored_node_id = row["node_id"]
+                session.stored_node_ids.append(row["node_id"])
+
+        # Reconstruct precision accumulator from diagnostics if available
+        cursor.execute("""
+            SELECT session_precision_accumulator
+            FROM turn_diagnostics
+            WHERE conversation_id = ?
+            ORDER BY turn_number DESC LIMIT 1
+        """, (conv_id,))
+        diag_row = cursor.fetchone()
+        if diag_row and diag_row["session_precision_accumulator"]:
+            session.precision_accumulator = diag_row["session_precision_accumulator"]
+
+        conn.close()
+    except Exception:
+        pass  # Best effort — if reconstruction fails, start fresh
+
+
+@_safe_output
 def cmd_session_store(args):
     """Manual memory store (structured JSON input)."""
     orch = _get_orchestrator()
@@ -307,6 +404,79 @@ def cmd_orphans(args):
 
 
 @_safe_output
+def cmd_goal_create(args):
+    """Create a new goal."""
+    orch = _get_orchestrator()
+    import hashlib
+    title = " ".join(args.title)
+    goal_id = hashlib.sha256(title.encode()).hexdigest()[:10]
+    description = args.description or ""
+
+    orch.db.create_goal(goal_id, title, description)
+    return {"created": True, "goal_id": goal_id, "title": title}
+
+
+@_safe_output
+def cmd_goal_link(args):
+    """Link a goal to a memory node."""
+    orch = _get_orchestrator()
+    orch.db.link_goal_to_node(
+        goal_id=args.goal_id,
+        node_id=args.node_id,
+        link_type=args.link_type,
+        weight=args.weight,
+    )
+    return {"linked": True, "goal_id": args.goal_id,
+            "node_id": args.node_id, "link_type": args.link_type,
+            "weight": args.weight}
+
+
+@_safe_output
+def cmd_goal_list(args):
+    """List all goals."""
+    orch = _get_orchestrator()
+    status = args.status if hasattr(args, "status") and args.status else None
+    goals = orch.db.list_goals(status=status)
+
+    # Enrich with linked node counts
+    for g in goals:
+        nodes = orch.db.get_nodes_for_goal(g["id"])
+        g["linked_nodes"] = len(nodes)
+        fb = orch.db.get_feedback_summary(node_id=None)
+        g["feedback"] = fb
+
+    return {"goals": goals, "total": len(goals)}
+
+
+@_safe_output
+def cmd_goal_status(args):
+    """Update a goal's status."""
+    orch = _get_orchestrator()
+    orch.db.update_goal(args.goal_id, status=args.status)
+    return {"updated": True, "goal_id": args.goal_id, "status": args.status}
+
+
+@_safe_output
+def cmd_feedback(args):
+    """Add feedback to a memory node."""
+    orch = _get_orchestrator()
+    content = " ".join(args.content) if args.content else ""
+    goal_id = args.goal_id if hasattr(args, "goal_id") and args.goal_id else None
+
+    fb_id = orch.db.add_feedback(
+        node_id=args.node_id,
+        polarity=args.polarity,
+        content=content,
+        goal_id=goal_id,
+        source="explicit",
+        strength=1.0,
+    )
+    return {"recorded": True, "feedback_id": fb_id,
+            "node_id": args.node_id, "polarity": args.polarity,
+            "content": content}
+
+
+@_safe_output
 def cmd_command(args):
     """Execute a slash command."""
     orch = _get_orchestrator()
@@ -335,6 +505,9 @@ def build_parser():
     begin_p = session_sub.add_parser("begin", help="Process a conversation turn")
     begin_p.add_argument("message", nargs="+", help="User message text")
 
+    continue_p = session_sub.add_parser("continue", help="Continue existing conversation")
+    continue_p.add_argument("message", nargs="+", help="Follow-up message text")
+
     store_p = session_sub.add_parser("store", help="Store structured memory")
     store_p.add_argument("json_data", help="JSON string with memory data")
 
@@ -354,6 +527,36 @@ def build_parser():
     subparsers.add_parser("consolidate", help="Run nightly consolidation")
     subparsers.add_parser("orphans", help="List orphan anchors")
 
+    # goal subcommands
+    goal_parser = subparsers.add_parser("goal", help="Goal management")
+    goal_sub = goal_parser.add_subparsers(dest="goal_command")
+
+    goal_create_p = goal_sub.add_parser("create", help="Create a new goal")
+    goal_create_p.add_argument("title", nargs="+", help="Goal title")
+    goal_create_p.add_argument("--description", "-d", default="", help="Goal description")
+
+    goal_link_p = goal_sub.add_parser("link", help="Link goal to node")
+    goal_link_p.add_argument("goal_id", help="Goal ID")
+    goal_link_p.add_argument("node_id", help="Memory node ID")
+    goal_link_p.add_argument("link_type", choices=["supports", "blocks", "neutral"],
+                             default="supports", nargs="?")
+    goal_link_p.add_argument("weight", type=float, default=0.5, nargs="?")
+
+    goal_list_p = goal_sub.add_parser("list", help="List all goals")
+    goal_list_p.add_argument("--status", "-s", choices=["active", "achieved", "paused", "abandoned"],
+                             default=None)
+
+    goal_status_p = goal_sub.add_parser("status", help="Update goal status")
+    goal_status_p.add_argument("goal_id", help="Goal ID")
+    goal_status_p.add_argument("status", choices=["active", "achieved", "paused", "abandoned"])
+
+    # feedback command
+    fb_parser = subparsers.add_parser("feedback", help="Add feedback to a node")
+    fb_parser.add_argument("node_id", help="Memory node ID")
+    fb_parser.add_argument("polarity", choices=["positive", "negative", "correction"])
+    fb_parser.add_argument("content", nargs="*", help="Feedback note")
+    fb_parser.add_argument("--goal", dest="goal_id", default=None, help="Link to goal ID")
+
     cmd_p = subparsers.add_parser("command", help="Execute a slash command")
     cmd_p.add_argument("name", help="Command name (explore, exploit, surprise, etc.)")
 
@@ -367,6 +570,8 @@ def main():
     if args.command == "session":
         if args.session_command == "begin":
             cmd_session_begin(args)
+        elif args.session_command == "continue":
+            cmd_session_continue(args)
         elif args.session_command == "store":
             cmd_session_store(args)
         elif args.session_command == "rate":
@@ -387,6 +592,19 @@ def main():
         cmd_consolidate(args)
     elif args.command == "orphans":
         cmd_orphans(args)
+    elif args.command == "goal":
+        if args.goal_command == "create":
+            cmd_goal_create(args)
+        elif args.goal_command == "link":
+            cmd_goal_link(args)
+        elif args.goal_command == "list":
+            cmd_goal_list(args)
+        elif args.goal_command == "status":
+            cmd_goal_status(args)
+        else:
+            parser.parse_args(["goal", "--help"])
+    elif args.command == "feedback":
+        cmd_feedback(args)
     elif args.command == "command":
         cmd_command(args)
     else:

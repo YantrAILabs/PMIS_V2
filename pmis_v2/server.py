@@ -977,6 +977,150 @@ async def integrations_page(request: Request):
 
 
 # ================================================================
+# WIKI PAGES
+# ================================================================
+
+from wiki_renderer import WikiRenderer
+
+def _get_wiki():
+    return WikiRenderer(_orch.db)
+
+
+@app.get("/wiki/", response_class=HTMLResponse)
+async def wiki_index(request: Request):
+    """Wiki index — all SCs with stats."""
+    wiki = _get_wiki()
+    data = wiki.render_index()
+    return templates.TemplateResponse(request, "wiki_index.html", data)
+
+
+@app.get("/wiki/node/{node_id}", response_class=HTMLResponse)
+async def wiki_node(request: Request, node_id: str):
+    """Wiki page for any node (SC, CTX, ANC). Generates LLM prose."""
+    wiki = _get_wiki()
+    data = wiki.render_node(node_id)
+    if not data:
+        raise HTTPException(status_code=404, detail=f"Node {node_id} not found")
+
+    # Check for regenerate flag
+    regenerate = request.query_params.get("regenerate") == "1"
+    if regenerate:
+        import sqlite3
+        conn = sqlite3.connect(_orch.db.db_path)
+        conn.execute("DELETE FROM wiki_page_cache WHERE node_id=?", (node_id,))
+        conn.commit()
+        conn.close()
+
+    # Generate or retrieve cached prose
+    prose_md = wiki.generate_wiki_prose(node_id)
+    if prose_md:
+        # Convert markdown to HTML (simple conversion)
+        prose_html = _markdown_to_html(prose_md)
+        data["prose"] = prose_html
+    else:
+        data["prose"] = None
+
+    return templates.TemplateResponse(request, "wiki_node.html", data)
+
+
+def _markdown_to_html(md: str) -> str:
+    """Simple markdown to HTML conversion."""
+    import re
+    html = md
+
+    # Headers — H2 gets auto-generated id for anchor links
+    html = re.sub(r'^### (.+)$', r'<h3>\1</h3>', html, flags=re.MULTILINE)
+
+    def h2_with_id(match):
+        title = match.group(1).strip()
+        # Strip any existing <span id="..."> wrapper
+        clean = re.sub(r'<span[^>]*>([^<]*)</span>', r'\1', title)
+        slug = clean.lower().replace(' ', '-').replace('&', 'and').replace('/', '-')
+        slug = re.sub(r'[^a-z0-9-]', '', slug)
+        return f'<h2 id="{slug}">{clean}</h2>'
+
+    html = re.sub(r'^## (.+)$', h2_with_id, html, flags=re.MULTILINE)
+    html = re.sub(r'^# (.+)$', r'<h1>\1</h1>', html, flags=re.MULTILINE)
+
+    # Bold
+    html = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', html)
+
+    # Italic
+    html = re.sub(r'\*(.+?)\*', r'<em>\1</em>', html)
+
+    # Middot separators (from TOC)
+    html = html.replace('&middot;', '&middot;')
+
+    # Links [text](url)
+    html = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', r'<a href="\2">\1</a>', html)
+
+    # Paragraphs (double newline)
+    paragraphs = html.split('\n\n')
+    result = []
+    for p in paragraphs:
+        p = p.strip()
+        if not p:
+            continue
+        if p.startswith('<h') or p.startswith('<ul') or p.startswith('<ol'):
+            result.append(p)
+        else:
+            # Wrap in <p> if not already a block element
+            result.append(f'<p>{p}</p>')
+
+    return '\n'.join(result)
+
+
+@app.get("/wiki/node/{node_id}/backend", response_class=JSONResponse)
+async def wiki_node_backend(node_id: str):
+    """Backend data panel for a node (JSON)."""
+    wiki = _get_wiki()
+    data = wiki.render_backend(node_id)
+    if not data:
+        raise HTTPException(status_code=404, detail=f"Node {node_id} not found")
+    return data
+
+
+@app.get("/wiki/goals", response_class=HTMLResponse)
+async def wiki_goals(request: Request):
+    """Goals page."""
+    wiki = _get_wiki()
+    data = wiki.render_goals()
+    return templates.TemplateResponse(request, "wiki_goals.html", data)
+
+
+@app.get("/wiki/feedback", response_class=HTMLResponse)
+async def wiki_feedback(request: Request):
+    """Feedback log page."""
+    wiki = _get_wiki()
+    data = wiki.render_feedback_log()
+    return templates.TemplateResponse(request, "wiki_feedback.html", data)
+
+
+@app.get("/wiki/health", response_class=HTMLResponse)
+async def wiki_health(request: Request):
+    """Health report page."""
+    wiki = _get_wiki()
+    data = wiki.render_health()
+    return templates.TemplateResponse(request, "wiki_health.html", data)
+
+
+@app.get("/wiki/productivity", response_class=HTMLResponse)
+async def wiki_productivity(request: Request):
+    """Productivity dashboard — live activity data from tracker."""
+    wiki = _get_wiki()
+    data = wiki.render_productivity()
+    return templates.TemplateResponse(request, "wiki_productivity.html", data)
+
+
+@app.get("/wiki/diagnostics", response_class=HTMLResponse)
+async def wiki_diagnostics(request: Request):
+    """Diagnostics page."""
+    wiki = _get_wiki()
+    data = wiki.render_diagnostics()
+    return templates.TemplateResponse(request, "wiki_diagnostics.html", data)
+
+
+# ================================================================
 # MAIN
 # ================================================================
 

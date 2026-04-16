@@ -64,14 +64,15 @@ class IngestionPipeline:
         )
         query_embedding = embeddings["euclidean"]
 
-        # --- 2. FIND NEAREST CONTEXT ---
-        nearest_context = self._find_nearest_context(query_embedding)
+        # --- 2. FIND NEAREST CONTEXT (+ all context embeddings for K-nearest) ---
+        nearest_context, all_ctx_embeddings = self._find_nearest_context_k(query_embedding)
 
-        # --- 3. COMPUTE SURPRISE ---
+        # --- 3. COMPUTE SURPRISE (K-nearest) ---
         surprise_result = compute_full_surprise(
             query_embedding=query_embedding,
             nearest_context=nearest_context,
             hyperparams=self.hp,
+            all_context_embeddings=all_ctx_embeddings,
         )
         result.surprise_result = surprise_result
 
@@ -82,11 +83,30 @@ class IngestionPipeline:
         )
         result.is_stale = is_stale
 
-        # --- 5. COMPUTE GAMMA ---
+        # --- 5. COMPUTE GAMMA (with session boost) ---
+        # Session precision accumulator for multi-turn gamma boost
+        boost_alpha = self.hp.get("gamma_session_boost_alpha", 0.3)
+        boost_threshold = self.hp.get("gamma_session_boost_threshold", 0.6)
+        boost_factor = self.hp.get("gamma_session_boost_factor", 0.15)
+        boost_min_turns = self.hp.get("gamma_session_boost_min_turns", 3)
+
+        if not hasattr(session, "precision_accumulator"):
+            session.precision_accumulator = 0.0
+        session.precision_accumulator = (
+            (1 - boost_alpha) * session.precision_accumulator +
+            boost_alpha * surprise_result.cluster_precision
+        )
+
+        session_boost = 0.0
+        if (session.turn_counter >= boost_min_turns and
+                session.precision_accumulator > boost_threshold):
+            session_boost = boost_factor * session.precision_accumulator
+
         gamma_result = compute_gamma(
             effective_surprise=surprise_result.effective_surprise,
             staleness=is_stale,
             hyperparams=self.hp,
+            session_boost=session_boost,
         )
 
         # Apply gamma override if set by /memory explore or /memory exploit
@@ -138,24 +158,9 @@ class IngestionPipeline:
                     if parent_embs.get("hyperbolic") is not None:
                         parent_coords = parent_embs["hyperbolic"]
 
-                # Place in Poincare ball: use exp_map from parent if available
-                from core.poincare import place_near_parent, assign_hyperbolic_coords
-                if parent_coords is not None:
-                    embeddings["hyperbolic"] = place_near_parent(
-                        euclidean_embedding=query_embedding,
-                        parent_coords=parent_coords,
-                        level="ANC",
-                        projection_manager=self.embedder.projection,
-                        hyperparams=self.hp,
-                    )
-                else:
-                    embeddings["hyperbolic"] = assign_hyperbolic_coords(
-                        euclidean_embedding=query_embedding,
-                        level="ANC",
-                        projection_manager=self.embedder.projection,
-                        parent_coords=None,
-                        hyperparams=self.hp,
-                    )
+                # Zero vector placeholder — HGCN assigns real Poincare coords nightly
+                hyp_dim = self.hp.get("poincare_dimensions", 16)
+                embeddings["hyperbolic"] = np.zeros(hyp_dim, dtype=np.float32)
 
                 # Compute era
                 era = compute_era(now, self.hp.get("era_boundaries", {}))
@@ -218,13 +223,26 @@ class IngestionPipeline:
         return result
 
     def _find_nearest_context(self, query_embedding: np.ndarray) -> Optional[Dict[str, Any]]:
-        """Find the nearest Context node to the query."""
+        """Find the nearest Context node to the query (legacy, single-point)."""
+        nearest, _ = self._find_nearest_context_k(query_embedding)
+        return nearest
+
+    def _find_nearest_context_k(
+        self, query_embedding: np.ndarray
+    ) -> tuple:
+        """
+        Find nearest Context + collect all context embeddings for K-nearest surprise.
+        Returns (nearest_context_dict, list_of_all_context_embeddings).
+        """
+        from core.surprise import compute_raw_surprise
+
         contexts = self.db.get_nodes_by_level("CTX")
         if not contexts:
-            return None
+            return None, []
 
         best_ctx = None
         best_dist = float("inf")
+        all_embeddings = []
 
         for ctx in contexts:
             embs = self.db.get_embeddings(ctx["id"])
@@ -232,7 +250,7 @@ class IngestionPipeline:
             if ctx_emb is None:
                 continue
 
-            from core.surprise import compute_raw_surprise
+            all_embeddings.append(ctx_emb)
             dist = compute_raw_surprise(query_embedding, ctx_emb)
 
             if dist < best_dist:
@@ -245,7 +263,7 @@ class IngestionPipeline:
                     "name": ctx.get("content", "")[:100],
                 }
 
-        return best_ctx
+        return best_ctx, all_embeddings
 
     def _is_duplicate(self, embedding: np.ndarray, content: str) -> bool:
         """Quick dedup check against recent nodes."""
