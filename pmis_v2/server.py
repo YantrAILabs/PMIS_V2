@@ -27,9 +27,11 @@ from datetime import datetime, date
 from typing import Optional, List, Dict, Any
 from contextlib import asynccontextmanager
 
-# Add pmis_v2 to path
+# Add pmis_v2 to path (internal modules) + repo root (so `import pmis` works)
 PMIS_DIR = Path(__file__).parent
+REPO_ROOT = PMIS_DIR.parent
 sys.path.insert(0, str(PMIS_DIR))
+sys.path.insert(0, str(REPO_ROOT))
 
 from fastapi import FastAPI, Request, Query, Header, Depends, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
@@ -208,6 +210,24 @@ class SessionEndRequest(BaseModel):
 class CommandRequest(BaseModel):
     command: str
 
+class IngestRequest(BaseModel):
+    text: str
+    conversation_id: Optional[str] = None
+    role: str = "user"
+
+class AttachRequest(BaseModel):
+    node_id: Optional[str] = None
+    project: Optional[str] = None
+
+class RetrieveRequest(BaseModel):
+    query: str
+    mode: str = "auto"
+    k: int = 8
+
+class DeleteRequest(BaseModel):
+    node_id: Optional[str] = None
+    all: bool = False
+
 class HyperparamUpdate(BaseModel):
     updates: Dict[str, Any]
 
@@ -381,6 +401,44 @@ async def consolidate():
     """Run nightly consolidation."""
     result = _orch.handle_command("consolidate")
     return {"result": result, "completed": True}
+
+
+# ---------------- 5-verb public API (cognee-parity) ----------------
+# These mirror the `pmis` package: ingest / attach / retrieve / delete.
+# `consolidate` already exists above; these four complete the set.
+
+@app.post("/api/ingest")
+async def api_ingest(req: IngestRequest):
+    """Embed + surprise-gate a new memory. Returns node_id or null."""
+    import pmis
+    node_id = await pmis.ingest(
+        req.text,
+        conversation_id=req.conversation_id or "web",
+        role=req.role,
+    )
+    return {"node_id": node_id, "stored": node_id is not None}
+
+
+@app.post("/api/attach")
+async def api_attach(req: AttachRequest):
+    """Attach an orphan to its nearest Context."""
+    import pmis
+    return await pmis.attach(req.node_id, project=req.project)
+
+
+@app.post("/api/retrieve")
+async def api_retrieve(req: RetrieveRequest):
+    """γ-blended retrieval across semantic/hyperbolic/temporal/precision."""
+    import pmis
+    hits = await pmis.retrieve(req.query, mode=req.mode, k=req.k)
+    return {"hits": hits, "count": len(hits)}
+
+
+@app.post("/api/delete")
+async def api_delete(req: DeleteRequest):
+    """Soft-delete a node (node_id) or reset the store (all=true)."""
+    import pmis
+    return await pmis.delete(req.node_id, all=req.all)
 
 
 @app.post("/api/command")
