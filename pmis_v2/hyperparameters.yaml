@@ -56,10 +56,15 @@ prune_min_age_days: 14
 division_threshold: 25
 division_min_cluster_size: 3
 division_k_range: [2, 3]
-embedding_model: text-embedding-3-small
-embedding_dimensions: 1536
-local_embedding_model: nomic-embed-text
-local_embedding_dimensions: 768
+# Embeddings — dual config. `use_local` picks which path runs.
+# When use_local=true (default), embedder hits local Ollama with
+# `local_embedding_model` (nomic-embed-text, 768d). When false, it uses
+# OpenAI with `embedding_model`. Current active model is tracked in the
+# `system_meta` SQLite table on first use (rebuild chroma if it changes).
+embedding_model: text-embedding-3-small    # OpenAI fallback (use_local=false)
+embedding_dimensions: 1536                 # OpenAI fallback dim
+local_embedding_model: nomic-embed-text    # local via Ollama (use_local=true)
+local_embedding_dimensions: 768            # local dim — matches stored vectors
 use_local: true
 consolidation_model: claude-sonnet-4-20250514
 consolidation_model_local: qwen2.5:14b
