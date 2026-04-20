@@ -16,9 +16,42 @@
 body { font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:var(--fg); }
 
 /* NAV */
-.nav { background:var(--nav-bg); padding:12px 24px; display:flex; justify-content:space-between; align-items:center; position:sticky; top:0; z-index:10; }
-.nav .brand { color:#4ade80; font-weight:700; font-size:15px; }
+.nav { background:var(--nav-bg); padding:10px 20px; display:flex; justify-content:space-between; align-items:center; position:sticky; top:0; z-index:10; }
+.nav .brand-wrap { display:flex; flex-direction:column; gap:1px; }
+.nav .brand { color:#4ade80; font-weight:700; font-size:15px; letter-spacing:-0.2px; }
+.nav .tagline { color:#8a8d92; font-size:10.5px; letter-spacing:0.3px; }
 .nav .meta { color:#aaa; font-size:12px; }
+
+/* LAYOUT — sidebar + main, kicks in below nav */
+.layout { display:flex; align-items:flex-start; max-width:1340px; margin:0 auto; }
+.sidebar {
+  width:220px; flex-shrink:0; padding:18px 14px 40px;
+  border-right:1px solid var(--border); position:sticky; top:48px;
+  align-self:flex-start; max-height:calc(100vh - 48px); overflow-y:auto;
+}
+.sidebar .s-label {
+  font-size:10px; color:var(--fg3); text-transform:uppercase; letter-spacing:1.4px;
+  padding:14px 10px 6px;
+}
+.sidebar .s-label:first-child { padding-top:0; }
+.sidebar .s-item {
+  display:flex; align-items:center; gap:8px;
+  padding:7px 10px; margin:1px 0; border-radius:6px;
+  color:var(--fg2); font-size:13px; text-decoration:none; cursor:pointer;
+  transition:background 0.12s ease, color 0.12s ease;
+}
+.sidebar .s-item:hover { background:var(--bg2); color:var(--fg); }
+.sidebar .s-item.active { background:#ecfdf5; color:#166534; font-weight:600; }
+.sidebar .s-item .glyph { width:14px; text-align:center; color:var(--fg3); font-size:12px; }
+.sidebar .s-item.active .glyph { color:#16a34a; }
+.sidebar .s-item.ext::after { content:"↗"; color:var(--fg3); font-size:10px; margin-left:auto; }
+.sidebar .s-item.running { opacity:0.55; pointer-events:none; }
+.sidebar .s-item.action:hover { color:var(--blue); }
+.main-col { flex:1; min-width:0; }
+@media (max-width: 860px) {
+  .layout { flex-direction:column; }
+  .sidebar { width:100%; position:static; max-height:none; border-right:none; border-bottom:1px solid var(--border); padding:14px 16px; }
+}
 
 /* ALERTS */
 .alerts { padding:8px 24px; background:#fef2f2; border-bottom:1px solid #fecaca; display:none; }
@@ -75,7 +108,10 @@ body { font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:var
 <body>
 
 <div class="nav">
-  <a href="/" class="brand" style="text-decoration:none;">PMIS Health Monitor</a>
+  <a href="/" class="brand-wrap" style="text-decoration:none;">
+    <span class="brand">PMIS</span>
+    <span class="tagline">Personal OS for work that ships</span>
+  </a>
   <span style="flex:1; display:flex; gap:18px; justify-content:center; font-size:13px;">
     <a href="/" style="color:#4ade80; text-decoration:none; font-weight:600;">Monitor</a>
     <a href="/dashboard" style="color:#e0e0e0; text-decoration:none;">Dashboard</a>
@@ -90,6 +126,43 @@ body { font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:var
 </div>
 
 <div class="alerts" id="alerts-bar"></div>
+
+<div class="layout">
+
+<!-- ─── SIDEBAR ─── -->
+<aside class="sidebar">
+
+  <div class="s-label">Health Monitor</div>
+  <a class="s-item active" href="/"><span class="glyph">◉</span>Monitor</a>
+  <a class="s-item" href="/dashboard"><span class="glyph">▤</span>Dashboard</a>
+  <a class="s-item" href="/feedback"><span class="glyph">♡</span>Feedback</a>
+  <a class="s-item" href="/diagnostics"><span class="glyph">⚕</span>Diagnostics</a>
+  <a class="s-item" href="/lint"><span class="glyph">⚑</span>Lint</a>
+
+  <div class="s-label">Product</div>
+  <a class="s-item ext" href="http://localhost:8100/wiki/" target="_blank"><span class="glyph">⛬</span>Wiki</a>
+  <a class="s-item ext" href="http://localhost:8100/wiki/goals" target="_blank"><span class="glyph">◎</span>Goals</a>
+  <a class="s-item ext" href="http://localhost:8100/wiki/review" target="_blank"><span class="glyph">✓</span>Review</a>
+  <a class="s-item ext" href="http://localhost:8100/wiki/productivity" target="_blank"><span class="glyph">~</span>Productivity</a>
+  <a class="s-item ext" href="http://localhost:8100/docs" target="_blank"><span class="glyph">𝒇</span>API docs</a>
+
+  <div class="s-label">Quick Actions</div>
+  <div class="s-item action" onclick="doAction('train-hgcn', this)"><span class="glyph">⇡</span>Train HGCN</div>
+  <div class="s-item action" onclick="doAction('consolidate', this)"><span class="glyph">✦</span>Consolidate</div>
+  <div class="s-item action" onclick="doAction('cell-divide', this)"><span class="glyph">⌸</span>Cell Divide</div>
+  <div class="s-item action" onclick="doAction('reindex', this)"><span class="glyph">⟳</span>Rebuild Index</div>
+  <div class="s-item action" onclick="doAction('regen-wiki', this)"><span class="glyph">✎</span>Regen Wiki</div>
+  <div class="s-item action" onclick="doAction('activity-merge', this)"><span class="glyph">⥂</span>Activity Merge</div>
+  <div class="s-item action" onclick="doAction('assign-time', this)"><span class="glyph">⧖</span>Assign Time</div>
+
+  <div class="s-label">Repo</div>
+  <a class="s-item ext" href="https://github.com/YantrAILabs/PMIS_V2" target="_blank"><span class="glyph">⌸</span>GitHub</a>
+  <a class="s-item ext" href="https://github.com/YantrAILabs/PMIS_V2/blob/main/README.md" target="_blank"><span class="glyph">▤</span>README</a>
+
+</aside>
+
+<!-- ─── MAIN ─── -->
+<div class="main-col">
 
 <div class="grid">
   <!-- HEART -->
@@ -187,6 +260,9 @@ body { font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:var
   <h2>Timeline</h2>
   <div id="timeline-list"></div>
 </div>
+
+</div><!-- /.main-col -->
+</div><!-- /.layout -->
 
 <script>
 function renderMetrics(el, metrics) {
