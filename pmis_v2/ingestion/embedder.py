@@ -109,10 +109,14 @@ class Embedder:
         """Call Ollama's local embedding endpoint."""
         model = self.hp.get("local_embedding_model", "nomic-embed-text")
         try:
+            # 60s, not 30s: on shared-GPU setups (e.g. a chat model already
+            # loaded) Ollama may need to unload → load the embed model →
+            # run inference → swap back, which can exceed 30s on M-series
+            # laptops. 30s produced silent zero-vector fallbacks under load.
             response = httpx.post(
                 "http://localhost:11434/api/embeddings",
                 json={"model": model, "prompt": text},
-                timeout=30.0,
+                timeout=60.0,
             )
             response.raise_for_status()
             data = response.json()
