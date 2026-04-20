@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  PMIS nightly consolidation launchd agent (Phase 5, 2026-04-20).
+
+  Install:
+    cp pmis_v2/deploy/com.pmis.nightly.plist ~/Library/LaunchAgents/
+    launchctl load  ~/Library/LaunchAgents/com.pmis.nightly.plist
+    launchctl start com.pmis.nightly           # test-fire immediately
+
+  Uninstall:
+    launchctl unload ~/Library/LaunchAgents/com.pmis.nightly.plist
+    rm ~/Library/LaunchAgents/com.pmis.nightly.plist
+
+  Fires daily at 18:00 local. If the laptop is asleep at 18:00, launchd will
+  fire it on the next wake-up (StartCalendarInterval semantics). The runner
+  itself is idempotent — if server.py already caught up the day, this is a
+  fast no-op.
+
+  Edit WorkingDirectory + ProgramArguments absolute paths below if you install
+  PMIS somewhere other than ~/Desktop/memory.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.pmis.nightly</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/env</string>
+    <string>python3</string>
+    <string>/Users/rohitsingh/Desktop/memory/pmis_v2/consolidation/runner.py</string>
+    <string>--today</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/rohitsingh/Desktop/memory/pmis_v2</string>
+
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key><integer>18</integer>
+    <key>Minute</key><integer>0</integer>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <false/>
+
+  <key>StandardOutPath</key>
+  <string>/Users/rohitsingh/Desktop/memory/pmis_v2/logs/nightly_launchd.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/Users/rohitsingh/Desktop/memory/pmis_v2/logs/nightly_launchd.err.log</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin</string>
+  </dict>
+</dict>
+</plist>

@@ -1,0 +1,908 @@
+{% extends "wiki_base.html" %}
+{% block title %}Goals — Pulse Kanban{% endblock %}
+
+{% block content %}
+<style>
+  /* ─── Layout skeleton ─── */
+  .pk { margin-bottom: 32px; }
+  .pk-topbar {
+    display:flex; align-items:center; justify-content:space-between;
+    gap:12px; margin-bottom:14px; flex-wrap:wrap;
+  }
+  .pk-topbar-left { display:flex; align-items:baseline; gap:14px; }
+  .pk-meta { font-size:12px; color:var(--fg3); }
+  .pk-meta .dot { display:inline-block; width:6px; height:6px; border-radius:50%; margin:0 6px 1px 4px; vertical-align:middle; }
+  .pk-actions { display:flex; gap:8px; align-items:center; }
+
+  .pk-btn {
+    background:transparent; border:1px dashed var(--border);
+    color:var(--fg2); font-size:12px; padding:5px 12px;
+    border-radius:5px; cursor:pointer; transition:all 0.15s;
+  }
+  .pk-btn:hover { color:var(--fg); border-color:var(--accent,#8b5cf6); }
+  .pk-btn.primary {
+    background:var(--accent,#8b5cf6); color:white; border-style:solid;
+    border-color:var(--accent,#8b5cf6);
+  }
+  .pk-btn.primary:disabled { opacity:0.4; cursor:default; }
+  .pk-btn-tiny {
+    background:transparent; border:none; color:var(--fg3);
+    font-size:14px; width:22px; height:22px; border-radius:3px;
+    cursor:pointer; line-height:1;
+  }
+  .pk-btn-tiny:hover { color:#ef4444; background:rgba(255,255,255,0.06); }
+
+  .pk-save-state { font-size:11px; color:var(--fg3); margin-right:6px; }
+  .pk-save-state.dirty { color:#f59e0b; }
+  .pk-save-state.saved { color:#22c55e; }
+
+  /* ─── Column header strip ─── */
+  .pk-col-head-row {
+    display:grid;
+    grid-template-columns: 200px repeat(5, 1fr);
+    gap:8px;
+    padding:6px 0 10px;
+    border-bottom:1px solid var(--border);
+    position:sticky; top:56px; z-index:2;
+    background:var(--bg, #0a0a0f);
+  }
+  .pk-col-head {
+    font-size:10px; letter-spacing:0.8px; text-transform:uppercase;
+    color:var(--fg3); font-weight:600;
+    display:flex; align-items:center; gap:6px;
+  }
+  .pk-col-head .cnt {
+    background:var(--bg2, rgba(255,255,255,0.04));
+    border:1px solid var(--border);
+    padding:1px 6px; border-radius:9px; font-size:10px; font-weight:500;
+    color:var(--fg2);
+  }
+  .pk-col-head .hint {
+    color:var(--fg3); font-weight:400; text-transform:none; letter-spacing:0; font-size:10px;
+  }
+
+  .pk-col-swatch { width:8px; height:8px; border-radius:50%; display:inline-block; }
+  .sw-spark    { background:rgba(148,163,184,0.5); }
+  .sw-alive    { background:#22c55e; }
+  .sw-cooling  { background:#f59e0b; }
+  .sw-cold     { background:#64748b; }
+  .sw-shipped  { background:#8b5cf6; }
+
+  /* ─── Swimlane (per goal) ─── */
+  .pk-lane {
+    display:grid;
+    grid-template-columns: 200px repeat(5, 1fr);
+    gap:8px;
+    border-bottom:1px solid var(--border);
+    padding:12px 0;
+  }
+  .pk-lane:last-of-type { border-bottom:none; }
+
+  .pk-goal {
+    padding-right:8px;
+    border-right:1px solid var(--border);
+  }
+  .pk-goal-head { margin-bottom:4px; }
+  .pk-goal-status {
+    display:inline-block; font-size:9px; font-weight:700;
+    letter-spacing:0.7px; padding:2px 7px; border-radius:3px;
+    cursor:pointer; user-select:none; transition:all 0.15s;
+    border:1px solid transparent;
+  }
+  .pk-goal-status:hover { filter:brightness(1.15); }
+  .pk-goal-status.st-active {
+    background:rgba(34,197,94,0.1); color:#22c55e;
+    border-color:rgba(34,197,94,0.3);
+  }
+  .pk-goal-status.st-paused {
+    background:rgba(245,158,11,0.12); color:#f59e0b;
+    border-color:rgba(245,158,11,0.35);
+  }
+  .pk-goal-status.st-done {
+    background:rgba(139,92,246,0.12); color:#8b5cf6;
+    border-color:rgba(139,92,246,0.35);
+  }
+  .pk-goal-title {
+    font-weight:600; font-size:14px; color:var(--fg);
+    display:block; margin-bottom:4px; word-break:break-word;
+  }
+  .pk-goal-why {
+    font-size:11px; color:var(--fg3); font-style:italic;
+    line-height:1.5; margin-bottom:6px; word-break:break-word;
+  }
+  .pk-goal-counts {
+    font-size:10px; color:var(--fg3); margin-bottom:8px;
+    font-variant-numeric:tabular-nums;
+  }
+  .pk-goal-counts .alive   { color:#22c55e; font-weight:500; }
+  .pk-goal-counts .shipped { color:#8b5cf6; font-weight:500; }
+  .pk-goal-actions { display:flex; gap:6px; flex-wrap:wrap; }
+  .pk-goal-mini {
+    background:transparent; border:1px dashed var(--border);
+    color:var(--fg3); font-size:10px; padding:2px 6px;
+    border-radius:3px; cursor:pointer;
+  }
+  .pk-goal-mini:hover { color:var(--fg); border-color:var(--accent,#8b5cf6); }
+
+  /* ─── Column cell ─── */
+  .pk-cell {
+    min-height:40px;
+    padding:2px;
+    display:flex; flex-direction:column; gap:6px;
+  }
+  .pk-cell-empty {
+    color:rgba(148,163,184,0.35); font-size:10px; font-style:italic;
+    text-align:center; padding:10px 6px;
+    border:1px dashed rgba(148,163,184,0.12); border-radius:4px;
+  }
+
+  /* ─── Project card ─── */
+  .pk-card {
+    background:var(--bg2, rgba(255,255,255,0.02));
+    border:1px solid var(--border);
+    border-left:3px solid rgba(148,163,184,0.4);
+    border-radius:5px;
+    padding:8px 10px;
+    cursor:pointer;
+    transition:border-color 0.15s, background 0.15s, transform 0.12s;
+  }
+  .pk-card:hover {
+    border-color:var(--accent,#8b5cf6);
+    background:rgba(139,92,246,0.05);
+    transform:translateY(-1px);
+  }
+  .pk-card.col-spark    { border-left-color:rgba(148,163,184,0.5); }
+  .pk-card.col-alive    { border-left-color:#22c55e; background:rgba(34,197,94,0.05); }
+  .pk-card.col-cooling  { border-left-color:#f59e0b; background:rgba(245,158,11,0.04); }
+  .pk-card.col-cold     { border-left-color:#64748b; opacity:0.72; }
+  .pk-card.col-shipped  { border-left-color:#8b5cf6; opacity:0.85; }
+
+  .pk-card-title {
+    font-size:12px; font-weight:600; color:var(--fg);
+    line-height:1.35; margin-bottom:5px;
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+    overflow:hidden;
+  }
+
+  .pk-card-spark {
+    display:inline-grid; grid-template-columns:repeat(7, 6px);
+    gap:1px; align-items:end; height:14px;
+    margin-right:6px; vertical-align:middle;
+  }
+  .pk-card-spark .c {
+    display:block; width:6px; background:rgba(148,163,184,0.12);
+    border-radius:1px; min-height:1px;
+  }
+  .pk-card-spark .c.lit { background:currentColor; }
+
+  .pk-card-meta {
+    display:flex; align-items:center; justify-content:space-between;
+    font-size:10px; color:var(--fg3); gap:6px;
+  }
+  .pk-card-meta .mins { font-variant-numeric:tabular-nums; color:var(--fg2); }
+  .pk-card.col-alive   .pk-card-meta .mins { color:#22c55e; }
+  .pk-card.col-cooling .pk-card-meta .mins { color:#f59e0b; }
+
+  .pk-card-target {
+    font-size:10px; color:var(--fg3);
+    padding:1px 5px; border:1px solid var(--border);
+    border-radius:3px; white-space:nowrap;
+  }
+  .pk-card-target.soon { color:#f59e0b; border-color:rgba(245,158,11,0.4); }
+  .pk-card-target.overdue { color:#ef4444; border-color:rgba(239,68,68,0.45); background:rgba(239,68,68,0.08); }
+  .pk-card-target.now { color:#22c55e; border-color:rgba(34,197,94,0.45); }
+
+  .pk-dots {
+    display:flex; gap:3px; margin-top:5px; flex-wrap:wrap;
+  }
+  .pk-dot {
+    width:6px; height:6px; border-radius:50%;
+    background:rgba(148,163,184,0.25);
+  }
+  .pk-dot.alive { background:#22c55e; }
+  .pk-dot.dormant { background:rgba(148,163,184,0.4); }
+
+  /* ─── Drawer ─── */
+  .pk-drawer-backdrop {
+    position:fixed; inset:0; background:rgba(0,0,0,0.5);
+    display:none; z-index:40;
+  }
+  .pk-drawer-backdrop.open { display:block; }
+  .pk-drawer {
+    position:fixed; top:0; right:0; bottom:0;
+    width:min(520px, 100vw); background:var(--bg, #0a0a0f);
+    border-left:1px solid var(--border);
+    box-shadow:-8px 0 40px rgba(0,0,0,0.4);
+    transform:translateX(100%); transition:transform 0.2s ease;
+    z-index:50; overflow-y:auto; padding:20px 22px;
+  }
+  .pk-drawer.open { transform:translateX(0); }
+  .pk-drawer-head {
+    display:flex; align-items:center; justify-content:space-between;
+    gap:10px; margin-bottom:4px;
+  }
+  .pk-drawer-col {
+    display:inline-flex; align-items:center; gap:6px;
+    font-size:10px; text-transform:uppercase; letter-spacing:0.6px;
+    color:var(--fg3);
+  }
+  .pk-drawer-title {
+    width:100%; background:transparent; border:none; outline:none;
+    color:var(--fg); font-size:18px; font-weight:700; padding:6px 0;
+    border-bottom:1px solid transparent;
+  }
+  .pk-drawer-title:focus { border-bottom-color:var(--accent,#8b5cf6); }
+
+  .pk-drawer-section { margin-top:18px; }
+  .pk-drawer-section h4 {
+    font-size:10px; text-transform:uppercase; letter-spacing:0.7px;
+    color:var(--fg3); margin:0 0 6px; font-weight:600;
+  }
+
+  .pk-drawer-row { margin:6px 0; }
+  .pk-input {
+    width:100%; background:transparent; border:1px solid var(--border);
+    border-radius:4px; color:var(--fg); font-size:12px;
+    padding:6px 8px; outline:none;
+  }
+  .pk-input:focus { border-color:var(--accent,#8b5cf6); }
+
+  .pk-deliv-row {
+    display:grid; grid-template-columns:1fr auto auto; gap:6px;
+    align-items:center; padding:5px 0;
+    border-bottom:1px solid rgba(148,163,184,0.12); font-size:12px;
+  }
+  .pk-deliv-row .name { color:var(--fg); }
+  .pk-deliv-row .mins {
+    font-size:10px; color:var(--fg3); font-variant-numeric:tabular-nums;
+  }
+  .pk-deliv-row .mins.alive { color:#22c55e; }
+  .pk-deliv-row .pk-pitfall-badge {
+    background:#fecaca; color:#991b1b; border-radius:10px;
+    font-size:10px; font-weight:700; padding:1px 7px;
+    margin-right:6px; border:1px solid #fca5a5;
+    font-family:ui-monospace, monospace;
+  }
+  .pk-picker {
+    width:100%; background:var(--bg, #0a0a0f);
+    border:1px dashed var(--border); color:var(--fg3);
+    font-size:11px; padding:5px 8px; border-radius:4px; margin-top:6px;
+  }
+  .pk-picker:hover { border-color:var(--accent,#8b5cf6); color:var(--fg); }
+
+  .pk-lc-row {
+    display:grid; grid-template-columns:130px 1fr auto;
+    gap:6px; align-items:center; padding:4px 0;
+    border-bottom:1px solid rgba(148,163,184,0.10);
+  }
+  .pk-lc-row .pk-input { font-size:11px; padding:3px 6px; }
+
+  .pk-ship-btn {
+    width:100%; margin-top:8px;
+    background:rgba(139,92,246,0.1); color:#8b5cf6;
+    border:1px solid rgba(139,92,246,0.35);
+    padding:8px; border-radius:5px;
+    font-size:12px; font-weight:600; cursor:pointer;
+  }
+  .pk-ship-btn:hover { background:rgba(139,92,246,0.18); }
+  .pk-ship-btn.undo {
+    background:transparent; color:var(--fg2);
+    border-color:var(--border);
+  }
+
+  .pk-footer-hint { font-size:10px; color:var(--fg3); margin-top:22px; }
+  .pk-footer-hint code {
+    background:rgba(255,255,255,0.04); padding:1px 5px;
+    border-radius:3px; font-size:10px;
+  }
+
+  @media (max-width:1080px) {
+    .pk-col-head-row, .pk-lane {
+      grid-template-columns: 150px repeat(5, 1fr);
+    }
+  }
+</style>
+
+<div class="pk"
+     id="pk-board"
+     data-initial='{{ {"goals": pm_goals}|tojson|safe }}'>
+
+  <div class="pk-topbar">
+    <div class="pk-topbar-left">
+      <h1 style="margin:0;">Goals</h1>
+      <div class="pk-meta">
+        {{ pm_goals|length }} goal{% if pm_goals|length != 1 %}s{% endif %} ·
+        <span class="dot sw-alive"></span>{{ pm_column_counts.alive }} alive ·
+        <span class="dot sw-cooling"></span>{{ pm_column_counts.cooling }} cooling ·
+        <span class="dot sw-cold"></span>{{ pm_column_counts.cold }} cold ·
+        <span class="dot sw-shipped"></span>{{ pm_column_counts.shipped }} shipped
+      </div>
+    </div>
+    <div class="pk-actions">
+      <!-- Phase 3 toggle: Projects ⇄ Review -->
+      <div class="pk-toggle" role="tablist" aria-label="View switch"
+           style="display:inline-flex;border:1px solid var(--border);border-radius:6px;overflow:hidden;margin-right:8px;">
+        <a href="/wiki/goals" role="tab" aria-selected="true"
+           style="padding:5px 12px;font-size:12px;background:var(--accent,#8b5cf6);color:white;text-decoration:none;">Projects</a>
+        <a href="/wiki/review" role="tab" aria-selected="false"
+           style="padding:5px 12px;font-size:12px;color:var(--fg2);text-decoration:none;">
+          Review{% if review_pending_count %}
+          <span style="background:#f59e0b;color:#0a0a0f;border-radius:9px;padding:0 6px;font-size:10px;margin-left:4px;">{{ review_pending_count }}</span>
+          {% endif %}
+        </a>
+      </div>
+      <span class="pk-save-state saved" id="pk-save-state">All changes saved</span>
+      <button class="pk-btn" id="pk-add-goal">+ Goal</button>
+      <button class="pk-btn primary" id="pk-save" disabled>Save</button>
+    </div>
+  </div>
+
+  <div id="pk-lanes">
+    {% if pm_goals %}
+      {% for g in pm_goals %}
+      {% include "_pm_goal.html" %}
+      {% endfor %}
+    {% else %}
+      <div class="pk-lane" style="grid-template-columns:1fr;">
+        <div class="pk-cell-empty" style="border:none;">
+          No goals yet. Click <strong>+ Goal</strong> above to add one.
+        </div>
+      </div>
+    {% endif %}
+  </div>
+
+</div>
+
+<div class="pk-drawer-backdrop" id="pk-drawer-backdrop"></div>
+<aside class="pk-drawer" id="pk-drawer" aria-hidden="true"></aside>
+
+<script>
+(() => {
+  const $  = (s, r=document) => r.querySelector(s);
+  const $$ = (s, r=document) => Array.from(r.querySelectorAll(s));
+
+  const state = {
+    dirty: false,
+    deliverables: [],
+    openCardEl: null,
+  };
+
+  const saveState = $('#pk-save-state');
+  const saveBtn   = $('#pk-save');
+  const lanes     = $('#pk-lanes');
+  const drawer    = $('#pk-drawer');
+  const backdrop  = $('#pk-drawer-backdrop');
+
+  function markDirty() {
+    state.dirty = true;
+    saveBtn.disabled = false;
+    saveState.textContent = 'Unsaved changes';
+    saveState.className = 'pk-save-state dirty';
+  }
+  function markSaved() {
+    state.dirty = false;
+    saveBtn.disabled = true;
+    saveState.textContent = 'All changes saved';
+    saveState.className = 'pk-save-state saved';
+  }
+
+  // ─── Deliverable catalog ────────────────────────────
+  fetch('/api/pm/deliverables').then(r => r.json()).then(j => {
+    state.deliverables = j.deliverables || [];
+  }).catch(console.error);
+
+  function randId(prefix) {
+    const n = Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+    return `${prefix}-${n}`;
+  }
+
+  // ─── Collect state back into JSON for save ──────────
+  function collectGoalState(goalEl) {
+    const staged = JSON.parse(goalEl.dataset.goalJson || '{}');
+    return staged;
+  }
+
+  function collectState() {
+    return $$('.pk-lane[data-goal-id]', lanes).map(goalEl => {
+      const cached = JSON.parse(goalEl.dataset.goalJson || '{}');
+      // Override title/why/status from the visible editable fields
+      const title = $('.pk-goal-title', goalEl)?.textContent?.trim() || cached.title || '';
+      return {
+        id: goalEl.dataset.goalId,
+        title,
+        why: cached.why || '',
+        status: cached.status || 'active',
+        projects: cached.projects || [],
+      };
+    });
+  }
+
+  saveBtn.addEventListener('click', async () => {
+    saveBtn.disabled = true;
+    saveState.textContent = 'Saving…';
+    saveState.className = 'pk-save-state';
+    try {
+      const r = await fetch('/api/pm/goals', {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({goals: collectState()}),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      location.reload();
+    } catch (err) {
+      saveBtn.disabled = false;
+      saveState.textContent = `Save failed: ${err.message}`;
+      saveState.className = 'pk-save-state dirty';
+    }
+  });
+
+  // ─── Goal-level edits (inline) ──────────────────────
+  lanes.addEventListener('click', (e) => {
+    const card = e.target.closest('.pk-card');
+    if (card) { openDrawer(card); return; }
+
+    if (e.target.matches('[data-act="del-goal"]')) {
+      if (!confirm('Delete this goal and all its projects?')) return;
+      e.target.closest('.pk-lane').remove();
+      markDirty();
+    }
+    if (e.target.matches('[data-act="add-project"]')) {
+      const goalEl = e.target.closest('.pk-lane');
+      addProjectToGoal(goalEl);
+    }
+    if (e.target.matches('[data-act="cycle-status"]')) {
+      cycleGoalStatus(e.target);
+    }
+  });
+
+  function cycleGoalStatus(pill) {
+    const order = ['active', 'paused', 'done'];
+    const goalEl = pill.closest('.pk-lane');
+    const cached = JSON.parse(goalEl.dataset.goalJson || '{}');
+    const cur = cached.status || 'active';
+    const next = order[(order.indexOf(cur) + 1) % order.length];
+    cached.status = next;
+    goalEl.dataset.goalJson = JSON.stringify(cached);
+    pill.className = `pk-goal-status st-${next}`;
+    pill.setAttribute('data-act', 'cycle-status');
+    pill.textContent = next.toUpperCase();
+    markDirty();
+  }
+
+  // Inline editable goal title + why
+  lanes.addEventListener('input', (e) => {
+    if (e.target.matches('.pk-goal-title, .pk-goal-why')) {
+      const goalEl = e.target.closest('.pk-lane');
+      const cached = JSON.parse(goalEl.dataset.goalJson || '{}');
+      if (e.target.matches('.pk-goal-title')) cached.title = e.target.textContent.trim();
+      if (e.target.matches('.pk-goal-why'))   cached.why   = e.target.textContent.trim();
+      goalEl.dataset.goalJson = JSON.stringify(cached);
+      markDirty();
+    }
+  });
+
+  $('#pk-add-goal').addEventListener('click', () => {
+    const gid = randId('G');
+    const empty = {id: gid, title: 'New goal', why: '', status: 'active', projects: []};
+    lanes.insertAdjacentHTML('beforeend', laneTemplate(empty));
+    markDirty();
+  });
+
+  // ─── Drawer ─────────────────────────────────────────
+  function closeDrawer() {
+    drawer.classList.remove('open');
+    backdrop.classList.remove('open');
+    state.openCardEl = null;
+  }
+  backdrop.addEventListener('click', closeDrawer);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDrawer(); });
+
+  function openDrawer(cardEl) {
+    state.openCardEl = cardEl;
+    const goalEl = cardEl.closest('.pk-lane');
+    const cached = JSON.parse(goalEl.dataset.goalJson || '{}');
+    const pid = cardEl.dataset.projectId;
+    const project = (cached.projects || []).find(p => p.id === pid);
+    if (!project) return;
+    renderDrawer(project, cached, goalEl);
+    drawer.classList.add('open');
+    backdrop.classList.add('open');
+  }
+
+  function renderDrawer(project, cachedGoal, goalEl) {
+    const col = project._col || project.column || 'spark';
+    const delivMarkup = (project.deliverables || []).map(d => `
+      <div class="pk-deliv-row" data-deliv-id="${d.id}">
+        <span class="name">${escapeHtml(d.name || d.id)}</span>
+        ${d.pitfall_count > 0 ? `<span class="pk-pitfall-badge" title="${d.pitfall_count} pitfall${d.pitfall_count > 1 ? 's' : ''} logged against linked anchors">⚠ ${d.pitfall_count}</span>` : ''}
+        <span class="mins ${d.alive ? 'alive' : ''}">${d.mins_7d ? d.mins_7d + 'm' : '—'}</span>
+        <button class="pk-btn-tiny" data-act="drawer-del-deliv">×</button>
+      </div>
+    `).join('');
+
+    const lcMarkup = (project.lifecycle || []).map((ev, i) => `
+      <div class="pk-lc-row" data-lc-idx="${i}">
+        <input class="pk-input pk-lc-date" type="date" value="${ev.date || ''}" />
+        <input class="pk-input pk-lc-event" value="${escapeAttr(ev.event || '')}" placeholder="Moment" />
+        <button class="pk-btn-tiny" data-act="drawer-del-lc">×</button>
+      </div>
+    `).join('');
+
+    const usedIds = (project.deliverables || []).map(d => d.id);
+    const pickerOpts = ['<option value="">+ Link deliverable…</option>']
+      .concat(state.deliverables
+        .filter(d => !usedIds.includes(d.id))
+        .map(d => `<option value="${d.id}">${escapeAttr(d.id)} — ${escapeAttr(d.name)}</option>`))
+      .join('');
+
+    const isShipped = (project.status === 'shipped') || col === 'shipped';
+
+    drawer.innerHTML = `
+      <div class="pk-drawer-head">
+        <span class="pk-drawer-col">
+          <span class="pk-col-swatch sw-${col}"></span> ${col.toUpperCase()}
+        </span>
+        <button class="pk-btn" id="pk-drawer-close">Close</button>
+      </div>
+      <input class="pk-drawer-title" value="${escapeAttr(project.title || '')}" />
+      <div style="font-size:11px;color:var(--fg3);margin-top:2px;">
+        Under goal: <strong style="color:var(--fg2);">${escapeHtml(cachedGoal.title || '')}</strong>
+      </div>
+
+      <div class="pk-drawer-section">
+        <h4>Pulse</h4>
+        <div style="font-size:12px;color:var(--fg2);">
+          ${project.pulse_mins_7d || 0} min in last 7 days ·
+          ${project.days_since_pulse == null ? 'never tracked' : project.days_since_pulse + 'd since last pulse'}
+        </div>
+      </div>
+
+      <div class="pk-drawer-section">
+        <h4>Target week</h4>
+        <input class="pk-input" id="pk-drawer-target" placeholder="e.g. 2026-W20"
+               value="${escapeAttr(project.target_week || '')}" />
+      </div>
+
+      <div class="pk-drawer-section">
+        <h4>Deliverables · sourced from work tracker</h4>
+        <div id="pk-drawer-delivs">${delivMarkup || '<div style="font-size:11px;color:var(--fg3);font-style:italic;">None linked yet.</div>'}</div>
+        <select class="pk-picker" id="pk-drawer-picker">${pickerOpts}</select>
+        <div class="pk-deliv-create" style="display:flex;gap:6px;margin-top:8px;">
+          <input class="pk-input" id="pk-drawer-new-deliv"
+                 placeholder="+ Create new deliverable (type name, press Enter)"
+                 style="flex:1;font-size:11px;" />
+          <button class="pk-btn" id="pk-drawer-new-deliv-btn"
+                  style="font-size:11px;padding:4px 10px;">Create</button>
+        </div>
+        <div id="pk-drawer-new-deliv-msg"
+             style="font-size:10px;color:var(--fg3);margin-top:4px;min-height:12px;"></div>
+      </div>
+
+      <div class="pk-drawer-section">
+        <h4>Match patterns · how pulse is detected</h4>
+        <input class="pk-input" id="pk-drawer-patterns"
+               placeholder="comma-separated: dashboard, pmis"
+               value="${escapeAttr((project.match_patterns || []).join(', '))}" />
+      </div>
+
+      <div class="pk-drawer-section">
+        <h4>Lifecycle · inception → completion</h4>
+        <div id="pk-drawer-lc">${lcMarkup}</div>
+        <button class="pk-btn" id="pk-drawer-add-lc" style="margin-top:6px;font-size:11px;">+ Moment</button>
+      </div>
+
+      <div class="pk-drawer-section">
+        <button class="pk-ship-btn ${isShipped ? 'undo' : ''}" id="pk-drawer-ship">
+          ${isShipped ? '↩ Unship' : '✓ Mark Shipped'}
+        </button>
+        <button class="pk-btn" id="pk-drawer-delete"
+                style="width:100%;margin-top:6px;color:#ef4444;border-color:rgba(239,68,68,0.4);">
+          Delete project
+        </button>
+      </div>
+    `;
+
+    // Wire up drawer events
+    $('#pk-drawer-close').addEventListener('click', closeDrawer);
+    $('#pk-drawer-delete').addEventListener('click', () => {
+      if (!confirm('Delete this project?')) return;
+      cachedGoal.projects = cachedGoal.projects.filter(p => p.id !== project.id);
+      goalEl.dataset.goalJson = JSON.stringify(cachedGoal);
+      closeDrawer(); markDirty();
+      // Trigger save + reload so the card moves out
+    });
+
+    $('#pk-drawer-ship').addEventListener('click', () => {
+      if (project.status === 'shipped') {
+        project.status = 'active';
+      } else {
+        project.status = 'shipped';
+        const today = new Date().toISOString().slice(0,10);
+        project.lifecycle = project.lifecycle || [];
+        project.lifecycle.push({date: today, event: 'Shipped'});
+      }
+      persistDrawer(project, cachedGoal, goalEl);
+      renderDrawer(project, cachedGoal, goalEl);
+    });
+
+    $('#pk-drawer-target').addEventListener('input', (e) => {
+      project.target_week = e.target.value;
+      persistDrawer(project, cachedGoal, goalEl);
+    });
+    $('#pk-drawer-patterns').addEventListener('input', (e) => {
+      project.match_patterns = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
+      persistDrawer(project, cachedGoal, goalEl);
+    });
+    $('.pk-drawer-title').addEventListener('input', (e) => {
+      project.title = e.target.value;
+      persistDrawer(project, cachedGoal, goalEl);
+    });
+
+    $('#pk-drawer-picker').addEventListener('change', (e) => {
+      const id = e.target.value;
+      if (!id) return;
+      const meta = state.deliverables.find(d => d.id === id);
+      if (!meta) return;
+      linkDeliverable(project, meta);
+      persistDrawer(project, cachedGoal, goalEl);
+      renderDrawer(project, cachedGoal, goalEl);
+    });
+
+    // Create new deliverable inline
+    const newInput = $('#pk-drawer-new-deliv');
+    const newBtn   = $('#pk-drawer-new-deliv-btn');
+    const newMsg   = $('#pk-drawer-new-deliv-msg');
+
+    const submitNew = async () => {
+      const name = (newInput.value || '').trim();
+      if (!name) { newInput.focus(); return; }
+      newBtn.disabled = true;
+      newMsg.textContent = 'Creating…'; newMsg.style.color = 'var(--fg3)';
+      try {
+        const r = await fetch('/api/pm/deliverables', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({name}),
+        });
+        if (!r.ok) {
+          const err = await r.json().catch(() => ({detail: `HTTP ${r.status}`}));
+          throw new Error(err.detail || `HTTP ${r.status}`);
+        }
+        const meta = await r.json();
+        // Cache locally so picker excludes it on next render
+        const existing = state.deliverables.find(d => d.id === meta.id);
+        if (!existing) state.deliverables.push(meta);
+        linkDeliverable(project, meta);
+        persistDrawer(project, cachedGoal, goalEl);
+        newInput.value = '';
+        newMsg.textContent = meta.already_existed
+          ? `Linked existing ${meta.id} (same name found)`
+          : `Created ${meta.id} and linked`;
+        newMsg.style.color = '#22c55e';
+        renderDrawer(project, cachedGoal, goalEl);
+      } catch (err) {
+        newMsg.textContent = `Create failed: ${err.message}`;
+        newMsg.style.color = '#ef4444';
+        newBtn.disabled = false;
+      }
+    };
+
+    newBtn.addEventListener('click', submitNew);
+    newInput.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') { ev.preventDefault(); submitNew(); }
+    });
+
+    drawer.addEventListener('click', drawerDelegated);
+    drawer.addEventListener('input', drawerLifecycleEdit);
+  }
+
+  function drawerDelegated(e) {
+    const card = state.openCardEl;
+    if (!card) return;
+    const goalEl = card.closest('.pk-lane');
+    const cached = JSON.parse(goalEl.dataset.goalJson || '{}');
+    const project = cached.projects.find(p => p.id === card.dataset.projectId);
+
+    if (e.target.matches('[data-act="drawer-del-deliv"]')) {
+      const row = e.target.closest('.pk-deliv-row');
+      const did = row.dataset.delivId;
+      project.deliverables = (project.deliverables || []).filter(d => d.id !== did);
+      project.deliverable_ids = (project.deliverable_ids || []).filter(x => x !== did);
+      persistDrawer(project, cached, goalEl);
+      renderDrawer(project, cached, goalEl);
+    }
+    if (e.target.matches('[data-act="drawer-del-lc"]')) {
+      const row = e.target.closest('.pk-lc-row');
+      const idx = parseInt(row.dataset.lcIdx, 10);
+      project.lifecycle = (project.lifecycle || []).filter((_, i) => i !== idx);
+      persistDrawer(project, cached, goalEl);
+      renderDrawer(project, cached, goalEl);
+    }
+    if (e.target.matches('#pk-drawer-add-lc')) {
+      project.lifecycle = project.lifecycle || [];
+      project.lifecycle.push({date: new Date().toISOString().slice(0,10), event: ''});
+      persistDrawer(project, cached, goalEl);
+      renderDrawer(project, cached, goalEl);
+    }
+  }
+
+  function drawerLifecycleEdit(e) {
+    if (!e.target.matches('.pk-lc-date, .pk-lc-event')) return;
+    const card = state.openCardEl;
+    if (!card) return;
+    const goalEl = card.closest('.pk-lane');
+    const cached = JSON.parse(goalEl.dataset.goalJson || '{}');
+    const project = cached.projects.find(p => p.id === card.dataset.projectId);
+    const row = e.target.closest('.pk-lc-row');
+    const idx = parseInt(row.dataset.lcIdx, 10);
+    project.lifecycle[idx] = project.lifecycle[idx] || {date: '', event: ''};
+    if (e.target.matches('.pk-lc-date'))  project.lifecycle[idx].date  = e.target.value;
+    if (e.target.matches('.pk-lc-event')) project.lifecycle[idx].event = e.target.value;
+    persistDrawer(project, cached, goalEl);
+  }
+
+  function persistDrawer(project, cachedGoal, goalEl) {
+    // Update project inside cachedGoal by id
+    cachedGoal.projects = (cachedGoal.projects || []).map(p => p.id === project.id ? project : p);
+    goalEl.dataset.goalJson = JSON.stringify(cachedGoal);
+    markDirty();
+  }
+
+  function linkDeliverable(project, meta) {
+    project.deliverables   = project.deliverables   || [];
+    project.deliverable_ids = project.deliverable_ids || [];
+    if (project.deliverable_ids.includes(meta.id)) return;
+    project.deliverables.push({
+      id: meta.id,
+      name: meta.name,
+      supercontext: meta.supercontext,
+      mins_7d: 0, alive: false, known: true,
+    });
+    project.deliverable_ids.push(meta.id);
+  }
+
+  // ─── Adding a project ───────────────────────────────
+  function addProjectToGoal(goalEl) {
+    const cached = JSON.parse(goalEl.dataset.goalJson || '{}');
+    const pid = randId('P');
+    const today = new Date().toISOString().slice(0,10);
+    const project = {
+      id: pid, title: 'New project', status: 'active',
+      target_week: '',
+      match_patterns: [],
+      deliverable_ids: [],
+      deliverables: [],
+      lifecycle: [{date: today, event: 'Inception'}],
+      pulse_mins_7d: 0,
+      days_since_pulse: null,
+      column: 'spark',
+    };
+    cached.projects = (cached.projects || []).concat([project]);
+    goalEl.dataset.goalJson = JSON.stringify(cached);
+    // Re-render the lane cells
+    rerenderLane(goalEl, cached);
+    markDirty();
+    // Open drawer immediately so user can fill it in
+    const newCard = goalEl.querySelector(`.pk-card[data-project-id="${pid}"]`);
+    if (newCard) openDrawer(newCard);
+  }
+
+  function rerenderLane(goalEl, cached) {
+    // Replace all column cells with rebuilt content from `cached.projects`
+    const cells = $$('.pk-cell', goalEl);
+    const byCol = {spark:[], alive:[], cooling:[], cold:[], shipped:[]};
+    (cached.projects || []).forEach(p => {
+      const col = p.column || 'spark';
+      (byCol[col] || byCol.spark).push(p);
+    });
+    const order = ['spark','alive','cooling','cold','shipped'];
+    cells.forEach((cell, i) => {
+      const col = order[i];
+      const list = byCol[col] || [];
+      cell.innerHTML = list.length
+        ? list.map(p => cardTemplate(p)).join('')
+        : `<div class="pk-cell-empty">—</div>`;
+    });
+    updateGoalCounts(goalEl, cached);
+  }
+
+  function cardTemplate(p) {
+    const spark = (p.pulse_spark || Array(7).fill(0));
+    const peak = Math.max(...spark, 1);
+    const cells = spark.map(v => {
+      const h = Math.max(1, Math.round((v / peak) * 12));
+      const lit = v > 0 ? 'lit' : '';
+      return `<span class="c ${lit}" style="height:${h}px"></span>`;
+    }).join('');
+    const target = targetBadge(p.target_week);
+    const dots = (p.deliverables || []).map(d =>
+      `<span class="pk-dot ${d.alive ? 'alive' : 'dormant'}" title="${escapeAttr(d.name || d.id)}"></span>`
+    ).join('');
+    return `
+      <div class="pk-card col-${p.column}" data-project-id="${p.id}">
+        <div class="pk-card-title">${escapeHtml(p.title || '')}</div>
+        <div class="pk-card-meta">
+          <span><span class="pk-card-spark">${cells}</span><span class="mins">${p.pulse_mins_7d || 0}m</span></span>
+          ${target}
+        </div>
+        ${dots ? `<div class="pk-dots">${dots}</div>` : ''}
+      </div>`;
+  }
+
+  function targetBadge(tw) {
+    if (!tw) return '';
+    // Expect format 2026-Wxx; compute weeks from now.
+    const m = /^(\d{4})-W(\d{1,2})$/.exec(tw);
+    if (!m) return `<span class="pk-card-target">${escapeHtml(tw)}</span>`;
+    const year = +m[1], week = +m[2];
+    const tgt = weekDate(year, week);
+    const now = new Date();
+    const diffDays = Math.round((tgt - now) / 86400000);
+    const diffWks = Math.round(diffDays / 7);
+    let cls = '', text;
+    if (diffDays < -3)      { cls = 'overdue'; text = `${Math.abs(diffWks)}w late`; }
+    else if (diffDays < 4)  { cls = 'now';     text = 'this week'; }
+    else if (diffDays < 14) { cls = 'soon';    text = `${diffWks}w`; }
+    else                    { text = `${diffWks}w`; }
+    return `<span class="pk-card-target ${cls}" title="target ${escapeAttr(tw)}">${text}</span>`;
+  }
+
+  function weekDate(year, week) {
+    // ISO week: Jan 4th is always in week 1
+    const jan4 = new Date(Date.UTC(year, 0, 4));
+    const day = jan4.getUTCDay() || 7;
+    const start = new Date(jan4); start.setUTCDate(jan4.getUTCDate() - day + 1);
+    const d = new Date(start); d.setUTCDate(start.getUTCDate() + (week - 1) * 7);
+    return d;
+  }
+
+  function laneTemplate(g) {
+    const status = g.status || 'active';
+    return `
+      <div class="pk-lane" data-goal-id="${g.id}" data-goal-json='${escapeAttr(JSON.stringify(g))}'>
+        <div class="pk-goal">
+          <div class="pk-goal-head">
+            <span class="pk-goal-status st-${status}" data-act="cycle-status" title="Click to cycle status">${status.toUpperCase()}</span>
+          </div>
+          <div class="pk-goal-title" contenteditable="true">${escapeHtml(g.title)}</div>
+          <div class="pk-goal-why" contenteditable="true" data-placeholder="Why this matters…">${escapeHtml(g.why || '')}</div>
+          <div class="pk-goal-counts">0 projects</div>
+          <div class="pk-goal-actions">
+            <button class="pk-goal-mini" data-act="add-project">+ Project</button>
+            <button class="pk-goal-mini" data-act="del-goal">Delete goal</button>
+          </div>
+        </div>
+        <div class="pk-cell"><div class="pk-cell-empty">—</div></div>
+        <div class="pk-cell"><div class="pk-cell-empty">—</div></div>
+        <div class="pk-cell"><div class="pk-cell-empty">—</div></div>
+        <div class="pk-cell"><div class="pk-cell-empty">—</div></div>
+        <div class="pk-cell"><div class="pk-cell-empty">—</div></div>
+      </div>`;
+  }
+
+  function updateGoalCounts(goalEl, cached) {
+    const counts = {alive:0, shipped:0};
+    (cached.projects || []).forEach(p => {
+      const c = p.column || 'spark';
+      if (counts[c] != null) counts[c]++;
+    });
+    const total = (cached.projects || []).length;
+    const countsEl = goalEl.querySelector('.pk-goal-counts');
+    if (!countsEl) return;
+    const parts = [`${total} project${total !== 1 ? 's' : ''}`];
+    if (counts.alive)   parts.push(`<span class="alive">${counts.alive} alive</span>`);
+    if (counts.shipped) parts.push(`<span class="shipped">${counts.shipped} shipped</span>`);
+    countsEl.innerHTML = parts.join(' · ');
+  }
+
+  // ─── Utilities ──────────────────────────────────────
+  function escapeHtml(s) {
+    return (s || '').toString()
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+  function escapeAttr(s) {
+    return escapeHtml(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+})();
+</script>
+{% endblock %}

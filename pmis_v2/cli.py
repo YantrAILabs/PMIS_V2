@@ -389,10 +389,17 @@ def cmd_stats(args):
 
 @_safe_output
 def cmd_consolidate(args):
-    """Run nightly consolidation."""
-    orch = _get_orchestrator()
-    result_text = orch.handle_command("consolidate")
-    return {"result": result_text, "completed": True}
+    """Run nightly consolidation via the idempotent runner.
+
+    The runner:
+      - catches up every missed full day since last_consolidation_date
+      - consolidates today only if past 18:00 local OR --today flag
+      - holds a PID lock so it never double-runs
+    """
+    from consolidation.runner import run_idempotent
+    force_today = getattr(args, "today", False) or "--today" in (getattr(args, "_raw_argv", []) or [])
+    result = run_idempotent(include_today=True if force_today else None)
+    return {"result": result, "completed": True}
 
 
 @_safe_output
@@ -524,7 +531,9 @@ def build_parser():
     subparsers.add_parser("status", help="System status")
     subparsers.add_parser("browse", help="List all super contexts")
     subparsers.add_parser("stats", help="System statistics")
-    subparsers.add_parser("consolidate", help="Run nightly consolidation")
+    consolidate_p = subparsers.add_parser("consolidate", help="Run nightly consolidation")
+    consolidate_p.add_argument("--today", action="store_true",
+                               help="Force-consolidate today even before the 18:00 cutoff")
     subparsers.add_parser("orphans", help="List orphan anchors")
 
     # goal subcommands

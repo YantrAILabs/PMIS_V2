@@ -1,0 +1,77 @@
+{# Partial: one goal swimlane (row). Cards are routed into one of five
+   pulse-derived columns (spark · alive · cooling · cold · shipped). #}
+{% set buckets = {'spark': [], 'alive': [], 'cooling': [], 'cold': [], 'shipped': []} %}
+{% for p in g.projects %}
+  {% set _ = buckets[p.column].append(p) if p.column in buckets else buckets['spark'].append(p) %}
+{% endfor %}
+
+<div class="pk-lane"
+     data-goal-id="{{ g.id }}"
+     data-goal-json='{{ g|tojson|safe|replace("'", "&#39;") }}'>
+
+  {% set alive_count = buckets['alive']|length %}
+  {% set shipped_count = buckets['shipped']|length %}
+  {% set total_count = g.projects|length %}
+  <div class="pk-goal">
+    <div class="pk-goal-head">
+      <span class="pk-goal-status st-{{ g.status or 'active' }}"
+            data-act="cycle-status"
+            title="Click to cycle status">
+        {{ (g.status or 'active')|upper }}
+      </span>
+    </div>
+    <div class="pk-goal-title" contenteditable="true"
+         spellcheck="false">{{ g.title }}</div>
+    <div class="pk-goal-why" contenteditable="true"
+         spellcheck="false"
+         data-placeholder="Why this matters…">{{ g.why or '' }}</div>
+    <div class="pk-goal-counts">
+      {{ total_count }} project{% if total_count != 1 %}s{% endif %}
+      {% if alive_count %} · <span class="alive">{{ alive_count }} alive</span>{% endif %}
+      {% if shipped_count %} · <span class="shipped">{{ shipped_count }} shipped</span>{% endif %}
+    </div>
+    <div class="pk-goal-actions">
+      <button class="pk-goal-mini" data-act="add-project">+ Project</button>
+      <button class="pk-goal-mini" data-act="del-goal">Delete</button>
+    </div>
+  </div>
+
+  {% for col in ['spark', 'alive', 'cooling', 'cold', 'shipped'] %}
+  <div class="pk-cell" data-col="{{ col }}">
+    {% if buckets[col] %}
+      {% for p in buckets[col] %}
+      <div class="pk-card col-{{ p.column }}" data-project-id="{{ p.id }}">
+        <div class="pk-card-title">{{ p.title }}</div>
+        <div class="pk-card-meta">
+          <span>
+            <span class="pk-card-spark">
+              {% set peak = p.pulse_spark_peak if p.pulse_spark_peak and p.pulse_spark_peak > 0 else 1 %}
+              {% for v in p.pulse_spark %}
+                {% set h = ((v / peak) * 12)|round|int if v > 0 else 1 %}
+                <span class="c {% if v > 0 %}lit{% endif %}" style="height:{{ h if h > 0 else 1 }}px"></span>
+              {% endfor %}
+            </span>
+            <span class="mins">{{ p.pulse_mins_7d|round|int }}m</span>
+          </span>
+          {% if p.target_week %}
+          <span class="pk-card-target" title="target {{ p.target_week }}" data-target-week="{{ p.target_week }}">
+            {{ p.target_week }}
+          </span>
+          {% endif %}
+        </div>
+        {% if p.deliverables %}
+        <div class="pk-dots">
+          {% for d in p.deliverables %}
+          <span class="pk-dot {% if d.alive %}alive{% else %}dormant{% endif %}"
+                title="{{ d.name }}{% if d.mins_7d %} · {{ d.mins_7d|round|int }}m this wk{% endif %}"></span>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="pk-cell-empty">—</div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>

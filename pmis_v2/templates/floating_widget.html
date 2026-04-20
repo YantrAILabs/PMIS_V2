@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>PMIS</title>
+<style>
+html, body {
+  margin: 0; padding: 0;
+  background: #ffffff;
+  overflow: hidden;
+  font-family: -apple-system, 'SF Pro Display', 'Inter', system-ui, sans-serif;
+  color: #1a1a1a;
+  width: 100%; height: 100%;
+  font-size: 13px; line-height: 1.45;
+}
+* { box-sizing: border-box; }
+:root {
+  --bg: #ffffff; --bg2: #f7f8fa; --bg3: #eef1f5;
+  --fg: #1a1a1a; --fg2: #4a4a4a; --fg3: #8a8f98;
+  --border: #e5e7eb;
+  --accent: #2563eb;
+  --danger: #dc2626;
+  --warn: #ea580c;
+  --ok: #16a34a;
+}
+
+/* Root + header */
+.root { width: 100%; height: 100%; padding: 14px 16px 12px; overflow-y: auto; }
+.root::-webkit-scrollbar { width: 6px; }
+.root::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: 3px; }
+
+.header {
+  display: flex; align-items: center; gap: 8px;
+  padding-bottom: 10px; margin-bottom: 8px; border-bottom: 1px solid var(--border);
+}
+.header .logo {
+  width: 26px; height: 18px; background: #1a1a2e; border-radius: 16px;
+  display: flex; align-items: center; justify-content: center;
+}
+.header .logo svg { width: 16px; height: 10px; fill: none; stroke: #e0e0e0; stroke-width: 2.5; }
+.header .logo.active svg { stroke: #4ade80; }
+.header .logo.drifted svg { stroke: #ea580c; }
+.header .logo.active { background: #0f3b20; }
+.header .logo.drifted { background: #3b1f0f; }
+.header .title { font-size: 13px; font-weight: 700; letter-spacing: -0.01em; }
+.header .spacer { flex: 1; }
+.header .tracker-pill {
+  display: flex; align-items: center; gap: 5px;
+  padding: 3px 8px; border-radius: 10px;
+  background: var(--bg2); border: 1px solid var(--border);
+  font-size: 10px; font-family: ui-monospace, 'SF Mono', monospace;
+  color: var(--fg3); cursor: pointer; user-select: none;
+  transition: all 0.15s;
+}
+.header .tracker-pill.on { background: #ecfdf5; border-color: #a7f3d0; color: #047857; }
+.header .tracker-pill.off { background: #fef2f2; border-color: #fecaca; color: #b91c1c; }
+.header .tracker-pill:hover { filter: brightness(0.97); }
+.header .tracker-pill .dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--fg3);
+}
+.header .tracker-pill.on .dot { background: #10b981; animation: pulse 2.4s infinite; }
+.header .tracker-pill.off .dot { background: var(--danger); }
+@keyframes pulse { 50% { opacity: 0.45; } }
+
+/* Section scaffolding */
+.section { margin-top: 12px; }
+.section-label {
+  font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--fg3); margin-bottom: 6px; display: flex; align-items: baseline; gap: 6px;
+}
+.section-label .hint { font-weight: 400; letter-spacing: 0.02em; color: var(--fg3); text-transform: none; }
+
+/* ── Direction 3: colored ribbon rows ── */
+.row {
+  display: flex; align-items: stretch; gap: 0;
+  margin-bottom: 4px; border-radius: 6px; background: var(--bg);
+  cursor: pointer; overflow: hidden;
+  transition: background 0.12s, transform 0.05s;
+}
+.row:hover { background: var(--bg2); }
+.row:active { transform: scale(0.997); }
+.row .ribbon {
+  width: 3px; flex: 0 0 3px; align-self: stretch;
+  background: var(--bg3);  /* default; overridden inline per project */
+  border-radius: 2px;
+}
+.row .body {
+  flex: 1; min-width: 0;
+  padding: 6px 10px 6px 10px;
+  display: flex; justify-content: space-between; align-items: center; gap: 8px;
+}
+.row .name {
+  flex: 1; min-width: 0;
+  color: var(--fg); font-size: 12.5px; font-weight: 500;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.row .meta {
+  flex: 0 0 auto;
+  font-family: ui-monospace, 'SF Mono', monospace;
+  font-size: 10.5px; color: var(--fg3);
+}
+.row .meta.warn { color: var(--warn); font-weight: 600; }
+.row .meta.urgent { color: var(--danger); font-weight: 700; }
+.row .sub {
+  color: var(--fg3); font-size: 10.5px;
+  margin-top: 1px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.row-stack { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+
+/* Empty state */
+.empty {
+  color: var(--fg3); font-size: 11.5px; padding: 4px 0 6px 10px; font-style: italic;
+}
+
+/* Session panel */
+.session-card {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 10px 12px; margin-top: 4px;
+}
+.session-card .headline {
+  display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  font-size: 12px; color: var(--fg2); margin-bottom: 6px;
+}
+.session-card .headline .status-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--fg3); margin-right: 4px; display: inline-block;
+}
+.session-card .headline.active .status-dot { background: var(--ok); animation: pulse 2.4s infinite; }
+.session-card .headline.drifted .status-dot { background: var(--warn); animation: pulse 1.2s infinite; }
+.session-card .bound-name {
+  font-size: 13px; color: var(--fg); font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.session-card .age { font-family: ui-monospace, monospace; color: var(--fg3); font-size: 10.5px; }
+.session-card .age.stale { color: var(--danger); font-weight: 700; }
+
+.row-btns { display: flex; gap: 6px; margin-top: 8px; }
+.btn {
+  padding: 6px 10px; border: none; border-radius: 5px;
+  font-size: 11.5px; font-weight: 600; cursor: pointer; font-family: inherit;
+}
+.btn.primary { background: var(--accent); color: #fff; }
+.btn.primary:hover { background: #1d4ed8; }
+.btn.danger { background: var(--danger); color: #fff; }
+.btn.danger:hover { background: #b91c1c; }
+.btn.ghost { background: #fff; color: var(--fg2); border: 1px solid var(--border); }
+.btn.ghost:hover { background: var(--bg2); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-row { display: flex; gap: 6px; }
+.btn-row .btn { flex: 1; }
+
+/* Picker select */
+.picker-wrap { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+.picker-wrap select {
+  padding: 6px 8px; border: 1px solid var(--border); border-radius: 5px;
+  font-size: 12px; background: #fff; color: var(--fg); font-family: inherit;
+}
+
+.stale-banner {
+  background: #fef2f2; border: 1px solid #fecaca; border-radius: 5px;
+  padding: 6px 9px; margin-bottom: 8px; font-size: 10.5px; color: #991b1b;
+  line-height: 1.35;
+}
+.drift-banner {
+  background: #fff7ed; border: 1px solid #fed7aa; border-radius: 5px;
+  padding: 6px 9px; margin: 6px 0; font-size: 11px; color: #9a3412;
+}
+
+.add-row {
+  display: flex; gap: 6px; margin-top: 4px;
+}
+.add-row .btn { flex: 1; }
+
+.add-form {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 10px 12px; margin-top: 4px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.add-form .add-title { font-size: 11px; font-weight: 700; color: var(--fg2); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px; }
+.add-form input, .add-form select, .add-form textarea {
+  padding: 5px 8px; border: 1px solid var(--border); border-radius: 4px;
+  font-size: 12px; font-family: inherit; background: #fff; color: var(--fg);
+  width: 100%;
+}
+.add-form textarea { resize: vertical; min-height: 40px; }
+.add-form .form-row { display: flex; gap: 6px; }
+.add-form .form-row > * { flex: 1; }
+.add-form .feedback { font-size: 10.5px; color: var(--fg3); }
+.add-form .feedback.ok { color: var(--ok); }
+.add-form .feedback.err { color: var(--danger); }
+
+/* Footer */
+.footer {
+  margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--border);
+  display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  font-size: 10px; color: var(--fg3);
+}
+.footer a { color: var(--accent); text-decoration: none; cursor: pointer; }
+.footer .counts { font-family: ui-monospace, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+</style>
+</head>
+<body>
+<div class="root">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="logo" id="logo">
+      <svg viewBox="0 0 64 24"><path d="M 12 12 C 12 4, 24 4, 32 12 C 40 20, 52 20, 52 12 C 52 4, 40 4, 32 12 C 24 20, 12 20, 12 12 Z"/></svg>
+    </div>
+    <div class="title">PMIS</div>
+    <div class="spacer"></div>
+    <div class="tracker-pill" id="tracker-pill" title="Toggle productivity tracker" onclick="toggleTracker()">
+      <span class="dot"></span><span id="tracker-label">tracker</span>
+    </div>
+  </div>
+
+  <!-- RESUME -->
+  <div class="section">
+    <div class="section-label">Resume <span class="hint" id="resume-hint"></span></div>
+    <div id="resume-list"><div class="empty">Loading…</div></div>
+  </div>
+
+  <!-- DEADLINES -->
+  <div class="section">
+    <div class="section-label">Upcoming</div>
+    <div id="deadlines-list"><div class="empty">Loading…</div></div>
+  </div>
+
+  <!-- SESSION -->
+  <div class="section">
+    <div class="section-label">Session</div>
+    <div id="session-body"><div class="empty">Loading…</div></div>
+  </div>
+
+  <!-- QUICK ADD (text prompt) -->
+  <div class="section">
+    <div class="section-label">Quick add <span class="hint">type what you're doing</span></div>
+    <div class="add-form quick-prompt">
+      <input id="qa-prompt"
+             placeholder="e.g. Draft Q2 outreach deck for Yantra"
+             onkeydown="if(event.key==='Enter') submitQuickAdd()" />
+      <div class="form-row">
+        <button class="btn primary" onclick="submitQuickAdd()">Add</button>
+        <button class="btn ghost" onclick="document.getElementById('qa-prompt').value=''; document.getElementById('qa-feedback').innerHTML=''">Clear</button>
+      </div>
+      <div id="qa-feedback" class="feedback"></div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span class="counts" id="footer-counts">Training: —</span>
+    <span>
+      <a onclick="openWiki('/wiki/goals')">Goals</a> ·
+      <a onclick="openWiki('/wiki/')">Wiki</a>
+    </span>
+  </div>
+</div>
+
+<script>
+const API = 'http://localhost:8100';
+const FA = {
+  current: null,           // /api/work/current
+  deliverables: [],        // /api/work/deliverables
+  recent: [],              // /api/work/recent-work
+  deadlines: [],           // /api/pm/deadlines
+  tracker: null,           // /api/tracker/status
+  training: {},            // /api/training/counts
+  pollMs: 20000,
+};
+
+// ── Project color palette (Notion-Calendar ribbons) ──
+const COLOR_PALETTE = [
+  '#2563eb', '#0891b2', '#0d9488', '#16a34a',
+  '#ca8a04', '#ea580c', '#dc2626', '#9333ea',
+];
+function projectColor(projectId) {
+  if (!projectId) return '#8a8f98';  // grey for unassigned
+  let h = 0;
+  for (let i = 0; i < projectId.length; i++) h = ((h << 5) - h) + projectId.charCodeAt(i) | 0;
+  return COLOR_PALETTE[Math.abs(h) % COLOR_PALETTE.length];
+}
+
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function openWiki(path) { window.open(API + path, '_blank'); }
+
+function fmtTime(iso) {
+  if (!iso) return '—';
+  try {
+    const d = new Date(iso.includes('T') ? iso : iso.replace(' ', 'T') + 'Z');
+    return d.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+  } catch { return iso; }
+}
+function sessionAge(iso) {
+  if (!iso) return { label: '—', stale: false };
+  try {
+    const start = new Date(iso.includes('T') ? iso : iso.replace(' ', 'T') + 'Z');
+    const mins = Math.max(0, Math.floor((Date.now() - start.getTime()) / 60000));
+    const h = Math.floor(mins / 60), m = mins % 60;
+    return { label: h > 0 ? `${h}h ${m}m` : `${m}m`, stale: mins >= 120 };
+  } catch { return { label: '—', stale: false }; }
+}
+
+function fmtDeadline(days) {
+  if (days == null) return '—';
+  if (days < 0) return `${Math.abs(days)}d overdue`;
+  if (days === 0) return 'today';
+  if (days === 1) return 'tomorrow';
+  return `in ${days}d`;
+}
+function deadlineClass(days) {
+  if (days == null) return '';
+  if (days < 0 || days <= 3) return 'urgent';
+  if (days <= 7) return 'warn';
+  return '';
+}
+
+function fmtMins(totalMins) {
+  if (!totalMins && totalMins !== 0) return '';
+  const m = Math.round(totalMins);
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60), r = m % 60;
+  return r ? `${h}h ${r}m` : `${h}h`;
+}
+
+// ── Fetch everything in parallel ──
+async function refresh() {
+  try {
+    const [cur, delivRes, recent, deadlines, tracker, training] = await Promise.all([
+      fetch(API + '/api/work/current').then(r => r.json()).catch(() => null),
+      FA.deliverables.length ? null :
+        fetch(API + '/api/work/deliverables').then(r => r.json()).catch(() => ({deliverables:[]})),
+      fetch(API + '/api/work/recent-work?limit=3').then(r => r.json()).catch(() => ({items:[]})),
+      fetch(API + '/api/pm/deadlines?limit=3').then(r => r.json()).catch(() => ({deadlines:[]})),
+      fetch(API + '/api/tracker/status').then(r => r.json()).catch(() => null),
+      fetch(API + '/api/training/counts').then(r => r.json()).catch(() => ({})),
+    ]);
+    FA.current = cur;
+    if (delivRes && delivRes.deliverables) FA.deliverables = delivRes.deliverables;
+    FA.recent = (recent && recent.items) || [];
+    FA.deadlines = (deadlines && deadlines.deadlines) || [];
+    FA.tracker = tracker;
+    FA.training = training || {};
+  } catch (e) { console.warn(e); }
+  render();
+}
+
+function render() {
+  renderHeader();
+  renderResume();
+  renderDeadlines();
+  renderSession();
+  renderFooter();
+}
+
+function renderHeader() {
+  const st = FA.current || {};
+  const logo = document.getElementById('logo');
+  logo.classList.remove('active', 'drifted');
+  if (st.active) {
+    logo.classList.add('active');
+    if (st.drift && st.drift.drifted) logo.classList.add('drifted');
+  }
+  const pill = document.getElementById('tracker-pill');
+  const lbl  = document.getElementById('tracker-label');
+  pill.classList.remove('on', 'off');
+  if (FA.tracker == null) {
+    lbl.textContent = 'tracker —';
+  } else if (FA.tracker.running) {
+    pill.classList.add('on'); lbl.textContent = 'tracker on';
+  } else {
+    pill.classList.add('off'); lbl.textContent = 'tracker off';
+  }
+}
+
+function renderResume() {
+  const list = document.getElementById('resume-list');
+  const hint = document.getElementById('resume-hint');
+  const items = FA.recent || [];
+  hint.textContent = items.length ? `last 2h · top ${items.length}` : '';
+  if (!items.length) {
+    list.innerHTML = `<div class="empty">No tracked work in the last 2 hours.</div>`;
+    return;
+  }
+  list.innerHTML = items.map(it => {
+    const color = projectColor(it.project_id);
+    const platforms = (it.platforms || []).slice(0, 2).join(', ');
+    const title = escapeHtml(it.title || '(untitled)');
+    const mins = fmtMins(it.total_minutes);
+    return `
+      <div class="row" onclick="onResumeClick('${escapeHtml(it.deliverable_id)}','${escapeHtml(it.project_id)}')">
+        <div class="ribbon" style="background:${color}"></div>
+        <div class="body">
+          <div class="row-stack">
+            <div class="name">${title}</div>
+            ${platforms ? `<div class="sub">${escapeHtml(platforms)}</div>` : ''}
+          </div>
+          <div class="meta">${mins}</div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function renderDeadlines() {
+  const list = document.getElementById('deadlines-list');
+  const items = FA.deadlines || [];
+  if (!items.length) {
+    list.innerHTML = `<div class="empty">No deadlines set. Add a due date in Goals.</div>`;
+    return;
+  }
+  list.innerHTML = items.map(it => {
+    const color = projectColor(it.project_id);
+    const tag = fmtDeadline(it.days_until);
+    const cls = deadlineClass(it.days_until);
+    return `
+      <div class="row" onclick="startOnDeliverable('${escapeHtml(it.id)}')">
+        <div class="ribbon" style="background:${color}"></div>
+        <div class="body">
+          <div class="row-stack">
+            <div class="name">${escapeHtml(it.name)}</div>
+            <div class="sub">${escapeHtml(it.project_name || '—')}</div>
+          </div>
+          <div class="meta ${cls}">${tag}</div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function renderSession() {
+  const body = document.getElementById('session-body');
+  const st = FA.current || {};
+  if (!st.active) {
+    body.innerHTML = sessionIdleMarkup();
+    return;
+  }
+  const s = st.session || {};
+  const bd = st.bound_deliverable || {};
+  const drift = st.drift || {};
+  const seg = st.latest_segment || {};
+  const age = sessionAge(s.started_at);
+  const staleBanner = age.stale
+    ? `<div class="stale-banner">⚠ Open for ${age.label}. End and restart if you stepped away.</div>` : '';
+  const driftBlock = (drift.drifted)
+    ? `<div class="drift-banner">⚠ Drifted — similarity ${Math.round((drift.similarity||0)*100)}%. Stay or switch?</div>` : '';
+
+  if (s.deliverable_id) {
+    const color = projectColor(s.project_id);
+    body.innerHTML = `
+      ${staleBanner}
+      <div class="session-card">
+        <div class="headline active ${drift.drifted?'drifted':''}">
+          <span><span class="status-dot"></span>Recording · ${escapeHtml(seg.platform || '—')}</span>
+          <span class="age ${age.stale?'stale':''}">${age.label}</span>
+        </div>
+        <div class="row" style="cursor:default">
+          <div class="ribbon" style="background:${color}"></div>
+          <div class="body">
+            <div class="row-stack">
+              <div class="name">${escapeHtml(bd.name || s.deliverable_id)}</div>
+              <div class="sub">${escapeHtml(bd.project_name || '—')}</div>
+            </div>
+          </div>
+        </div>
+        ${driftBlock}
+        <div class="row-btns">
+          <button class="btn ghost" onclick="showPicker()">Switch</button>
+          <button class="btn danger" onclick="endSession()">End</button>
+        </div>
+      </div>
+    `;
+  } else {
+    // Observing — suggestions list
+    const sugs = st.suggestions || [];
+    const sugMarkup = sugs.length
+      ? sugs.map(sg => {
+          const color = projectColor(sg.project_id);
+          const pats = (sg.matched_patterns||[]).slice(0,3).join(', ');
+          return `
+            <div class="row" onclick="confirmPick('${escapeHtml(sg.deliverable_id)}')">
+              <div class="ribbon" style="background:${color}"></div>
+              <div class="body">
+                <div class="row-stack">
+                  <div class="name">${escapeHtml(sg.deliverable_name)}</div>
+                  ${pats ? `<div class="sub">${escapeHtml(sg.source)} · ${escapeHtml(pats)}</div>` : ''}
+                </div>
+                <div class="meta">${Math.round((sg.score||0)*100)}%</div>
+              </div>
+            </div>`;
+        }).join('')
+      : `<div class="empty">${escapeHtml(st.suggest_reason || 'waiting for segment data…')}</div>`;
+    body.innerHTML = `
+      ${staleBanner}
+      <div class="session-card">
+        <div class="headline active">
+          <span><span class="status-dot"></span>Observing</span>
+          <span class="age ${age.stale?'stale':''}">${age.label}</span>
+        </div>
+        ${sugMarkup}
+        <div class="row-btns">
+          <button class="btn ghost" onclick="showPicker()">Pick manually</button>
+          <button class="btn danger" onclick="endSession()">End</button>
+        </div>
+      </div>
+    `;
+  }
+}
+
+function sessionIdleMarkup() {
+  const opts = FA.deliverables.map(d =>
+    `<option value="${escapeHtml(d.deliverable_id)}">${escapeHtml(d.project_name||'—')} · ${escapeHtml(d.name)}</option>`
+  ).join('');
+  return `
+    <div class="picker-wrap">
+      <select id="session-pick">
+        <option value="">— Observe (AI suggests in 30 s) —</option>
+        ${opts}
+      </select>
+      <button class="btn primary" onclick="startSession()">Start session</button>
+    </div>
+  `;
+}
+
+function showPicker() {
+  const body = document.getElementById('session-body');
+  const opts = FA.deliverables.map(d =>
+    `<option value="${escapeHtml(d.deliverable_id)}">${escapeHtml(d.project_name||'—')} · ${escapeHtml(d.name)}</option>`
+  ).join('');
+  body.innerHTML = `
+    <div class="picker-wrap">
+      <select id="session-pick"><option value="">—</option>${opts}</select>
+      <div class="row-btns">
+        <button class="btn primary" onclick="confirmPicked()">Bind</button>
+        <button class="btn ghost" onclick="refresh()">Cancel</button>
+      </div>
+    </div>
+  `;
+}
+
+function renderFooter() {
+  const parts = Object.entries(FA.training || {}).map(([k,v]) => `${k}:${v}`).join(' · ') || '—';
+  document.getElementById('footer-counts').textContent = 'Training: ' + parts;
+}
+
+// ── Actions ──
+async function startSession() {
+  const sel = document.getElementById('session-pick');
+  const did = sel ? sel.value : '';
+  const body = did ? { deliverable_id: did } : {};
+  await fetch(API+'/api/work/start', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+  refresh();
+}
+async function confirmPick(did) {
+  if (!did) return;
+  await fetch(API+'/api/work/confirm', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({deliverable_id: did, auto_assigned: 1})});
+  refresh();
+}
+async function confirmPicked() {
+  const sel = document.getElementById('session-pick');
+  if (!sel || !sel.value) return;
+  await confirmPick(sel.value);
+}
+async function endSession() {
+  await fetch(API+'/api/work/end', {method:'POST'});
+  refresh();
+}
+async function startOnDeliverable(did) {
+  if (!did) return;
+  // If there's already an active session, confirm-bind instead of start
+  if (FA.current && FA.current.active) {
+    await confirmPick(did);
+  } else {
+    await fetch(API+'/api/work/start', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({deliverable_id: did})});
+    refresh();
+  }
+}
+function onResumeClick(did, pid) {
+  if (did) startOnDeliverable(did);
+}
+async function toggleTracker() {
+  const r = await fetch(API+'/api/tracker/toggle', {method:'POST', headers:{'Content-Type':'application/json'}, body: '{}'}).then(x=>x.json()).catch(()=>null);
+  refresh();
+}
+
+// ── Text-prompt quick-add ──
+async function submitQuickAdd() {
+  const input = document.getElementById('qa-prompt');
+  const feedback = document.getElementById('qa-feedback');
+  const text = (input.value || '').trim();
+  if (!text) { feedback.textContent = 'Type something first.'; feedback.className='feedback err'; return; }
+  feedback.textContent = 'Analyzing…'; feedback.className = 'feedback';
+  try {
+    const r = await fetch(API + '/api/pm/quick-add', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ text }),
+    }).then(x => x.json());
+    if (r.detail) { feedback.textContent = 'Error: ' + r.detail; feedback.className='feedback err'; return; }
+
+    const score = Math.round((r.matched_score || 0) * 100);
+    if (r.mode === 'linked') {
+      feedback.innerHTML =
+        `✓ Added under <b>${escapeHtml(r.project_title)}</b> ` +
+        `<span class="feedback">(sim ${score}%)</span>`;
+    } else {
+      feedback.innerHTML =
+        `✓ Created new project <b>${escapeHtml(r.project_title)}</b> ` +
+        `<span class="feedback">(best existing match only ${score}%)</span>`;
+    }
+    feedback.className = 'feedback ok';
+    input.value = '';
+    FA.deliverables = [];  // force refetch next poll
+    setTimeout(() => { refresh(); }, 400);
+  } catch (e) {
+    feedback.textContent = 'Failed: ' + (e && e.message || e);
+    feedback.className = 'feedback err';
+  }
+}
+
+// Legacy manual forms kept for fallback / advanced add — not surfaced by default
+async function openAddForm(kind) {
+  const host = document.getElementById('quickadd-body');
+  if (kind === 'project') {
+    host.innerHTML = `
+      <div class="add-form">
+        <div class="add-title">New project</div>
+        <input id="qa-proj-title" placeholder="Project title (e.g. Yantra Sales Pipeline)" />
+        <input id="qa-proj-patterns" placeholder="Keywords, comma-separated (optional)" />
+        <div class="form-row">
+          <button class="btn primary" onclick="submitProject()">Create</button>
+          <button class="btn ghost" onclick="resetQuickAdd()">Cancel</button>
+        </div>
+        <div id="qa-proj-feedback" class="feedback"></div>
+      </div>`;
+    setTimeout(() => { document.getElementById('qa-proj-title')?.focus(); }, 50);
+    return;
+  }
+  if (kind === 'deliverable') {
+    // Fetch project list freshly so new ones show up
+    let projects = [];
+    try {
+      const r = await fetch(API + '/api/pm/projects').then(x => x.json());
+      projects = r.projects || [];
+    } catch {}
+    const projOpts = projects.map(p =>
+      `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name || p.id)}</option>`
+    ).join('');
+    host.innerHTML = `
+      <div class="add-form">
+        <div class="add-title">New deliverable</div>
+        <select id="qa-del-project">
+          <option value="">— Choose project —</option>
+          ${projOpts}
+        </select>
+        <input id="qa-del-name" placeholder="Deliverable name (e.g. Q2 outreach campaign)" />
+        <input id="qa-del-deadline" type="date" />
+        <textarea id="qa-del-desc" placeholder="Expected contexts / scope (optional)"></textarea>
+        <div class="form-row">
+          <button class="btn primary" onclick="submitDeliverable()">Create</button>
+          <button class="btn ghost" onclick="resetQuickAdd()">Cancel</button>
+        </div>
+        <div id="qa-del-feedback" class="feedback"></div>
+      </div>`;
+    setTimeout(() => { document.getElementById('qa-del-project')?.focus(); }, 50);
+    return;
+  }
+  resetQuickAdd();
+}
+
+function resetQuickAdd() {
+  document.getElementById('quickadd-body').innerHTML = `
+    <div class="add-row">
+      <button class="btn ghost" onclick="openAddForm('project')">+ Project</button>
+      <button class="btn ghost" onclick="openAddForm('deliverable')">+ Deliverable</button>
+    </div>`;
+}
+
+async function submitProject() {
+  const title = document.getElementById('qa-proj-title').value.trim();
+  const rawPats = document.getElementById('qa-proj-patterns').value.trim();
+  const feedback = document.getElementById('qa-proj-feedback');
+  if (!title) { feedback.textContent = 'Title required'; feedback.className = 'feedback err'; return; }
+  const patterns = rawPats ? rawPats.split(',').map(s => s.trim()).filter(Boolean) : [];
+  feedback.textContent = 'Creating…'; feedback.className = 'feedback';
+  try {
+    const r = await fetch(API + '/api/pm/projects', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ title, match_patterns: patterns }),
+    }).then(x => x.json());
+    if (r.detail) {
+      feedback.textContent = 'Error: ' + r.detail; feedback.className = 'feedback err'; return;
+    }
+    feedback.textContent = `Created ${r.id}. Syncing…`; feedback.className = 'feedback ok';
+    // Force deliverables cache to refetch next poll
+    FA.deliverables = [];
+    setTimeout(() => { resetQuickAdd(); refresh(); }, 700);
+  } catch (e) {
+    feedback.textContent = 'Failed: ' + (e && e.message || e); feedback.className = 'feedback err';
+  }
+}
+
+async function submitDeliverable() {
+  const project_id = document.getElementById('qa-del-project').value;
+  const name = document.getElementById('qa-del-name').value.trim();
+  const deadline = document.getElementById('qa-del-deadline').value;
+  const desc = document.getElementById('qa-del-desc').value.trim();
+  const feedback = document.getElementById('qa-del-feedback');
+  if (!name) { feedback.textContent = 'Name required'; feedback.className = 'feedback err'; return; }
+  if (!project_id) { feedback.textContent = 'Pick a project'; feedback.className = 'feedback err'; return; }
+  feedback.textContent = 'Creating…'; feedback.className = 'feedback';
+  try {
+    const r = await fetch(API + '/api/pm/deliverables', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ name, project_id, deadline, description: desc }),
+    }).then(x => x.json());
+    if (r.detail) {
+      feedback.textContent = 'Error: ' + r.detail; feedback.className = 'feedback err'; return;
+    }
+    const already = r.already_existed ? ' (already existed)' : '';
+    feedback.textContent = `Created ${r.id}${already}. Embedding…`; feedback.className = 'feedback ok';
+    FA.deliverables = [];  // force refetch
+    setTimeout(() => { resetQuickAdd(); refresh(); }, 700);
+  } catch (e) {
+    feedback.textContent = 'Failed: ' + (e && e.message || e); feedback.className = 'feedback err';
+  }
+}
+
+// Native host can call this to refresh when popover opens
+window.faReload = () => refresh();
+
+// Boot
+refresh();
+setInterval(refresh, FA.pollMs);
+</script>
+</body>
+</html>

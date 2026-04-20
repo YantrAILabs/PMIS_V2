@@ -359,6 +359,28 @@ class HGCNTrainer:
         except Exception as e:
             logger.warning(f"Feedback edges failed: {e}")
 
+        # 1d. Build match feedback edges from Goals-page thumbs up/down.
+        # Rides the same w_fb loss weight as node-level feedback — one more
+        # edge source, no new loss term needed.
+        try:
+            from core.co_retrieval import build_match_feedback_edges
+            mfb_pos_np, mfb_neg_np, _ = build_match_feedback_edges(
+                self.db.db_path, id_to_idx,
+                max_age_days=self.hp.get("match_feedback_max_age_days", 90),
+            )
+            if len(mfb_pos_np) > 0:
+                fb_pos_np = np.concatenate([fb_pos_np, mfb_pos_np], axis=0) \
+                    if len(fb_pos_np) > 0 else mfb_pos_np
+            if len(mfb_neg_np) > 0:
+                fb_neg_np = np.concatenate([fb_neg_np, mfb_neg_np], axis=0) \
+                    if len(fb_neg_np) > 0 else mfb_neg_np
+            logger.info(
+                f"Match feedback: {len(mfb_pos_np)} positive, "
+                f"{len(mfb_neg_np)} negative edges"
+            )
+        except Exception as e:
+            logger.warning(f"Match feedback edges failed: {e}")
+
         # 2. Create model
         input_dim = features.shape[1]
         hidden_dim = self.hp.get("hgcn_hidden_dim", 128)

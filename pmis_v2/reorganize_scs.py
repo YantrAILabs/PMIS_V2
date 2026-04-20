@@ -116,13 +116,49 @@ def create_sc(conn, name, description, dry_run=False):
 
 
 def soft_delete_sc(conn, sc_id, dry_run=False):
-    """Soft-delete an SC if it has no remaining children."""
+    """Soft-delete an SC if it has no remaining children.
+
+    Also drops any `trees` row whose root is this SC, so downstream queries
+    (tree lists, dashboards) don't continue to surface dead trees. Any nodes
+    that still reference the dead tree_id in their JSON `tree_ids` field are
+    rewritten to drop it — prevents orphan references that would need a later
+    reparent pass.
+    """
     children = get_children_ids(conn, sc_id)
     if children:
         return False, len(children)
 
-    if not dry_run:
-        conn.execute("UPDATE memory_nodes SET is_deleted=1 WHERE id=?", (sc_id,))
+    if dry_run:
+        return True, 0
+
+    conn.execute("UPDATE memory_nodes SET is_deleted=1 WHERE id=?", (sc_id,))
+
+    # Drop any trees rooted at this SC and scrub their ids from all nodes
+    dead_tree_ids = [
+        r[0] for r in conn.execute(
+            "SELECT tree_id FROM trees WHERE root_node_id=?", (sc_id,)
+        ).fetchall()
+    ]
+    for dt in dead_tree_ids:
+        for nid, tids_json in conn.execute(
+            "SELECT id, tree_ids FROM memory_nodes WHERE is_deleted=0 AND instr(tree_ids, ?) > 0",
+            (dt,),
+        ).fetchall():
+            try:
+                tids = json.loads(tids_json or "[]")
+            except Exception:
+                continue
+            if dt in tids:
+                tids = [t for t in tids if t != dt]
+                conn.execute(
+                    "UPDATE memory_nodes SET tree_ids=? WHERE id=?",
+                    (json.dumps(tids), nid),
+                )
+    if dead_tree_ids:
+        conn.execute(
+            f"DELETE FROM trees WHERE tree_id IN ({','.join(['?'] * len(dead_tree_ids))})",
+            dead_tree_ids,
+        )
 
     return True, 0
 

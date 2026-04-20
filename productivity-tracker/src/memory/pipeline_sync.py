@@ -200,13 +200,29 @@ class ProductivityPipelineSync:
             self.db.update_node_productivity_time(nid, duration_mins, human_mins, ai_mins)
 
         # Step 4: Project matching
+        # First check segment_override_bindings — Phase 1 hard-bind from
+        # a user-confirmed work_session short-circuits the semantic matcher.
         match_result = {"combined_match_pct": 0, "project_id": "", "deliverable_id": ""}
+        override = None
         try:
-            from src.memory.project_matcher import ProjectMatcher
-            matcher = ProjectMatcher(self.db, self.chroma, self.embedder)
-            match_result = matcher.match_segment(segment, sc_id, ctx_id, anc_id)
-        except Exception as match_err:
-            logger.debug(f"Project matching skipped: {match_err}")
+            override = self.db.get_segment_override(segment_id) if segment_id else None
+        except Exception:
+            override = None
+
+        if override and override.get("deliverable_id"):
+            match_result = {
+                "combined_match_pct": 1.0,
+                "project_id": override.get("project_id", ""),
+                "deliverable_id": override.get("deliverable_id", ""),
+                "match_method": f"session_override:{override.get('source','session')}",
+            }
+        else:
+            try:
+                from src.memory.project_matcher import ProjectMatcher
+                matcher = ProjectMatcher(self.db, self.chroma, self.embedder)
+                match_result = matcher.match_segment(segment, sc_id, ctx_id, anc_id)
+            except Exception as match_err:
+                logger.debug(f"Project matching skipped: {match_err}")
 
         match_score = match_result.get("combined_match_pct", 0)
         is_productive = 1 if match_score >= 0.5 else (0 if match_score == 0 else -1)

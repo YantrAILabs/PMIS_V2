@@ -87,6 +87,12 @@ class DailyActivityMerger:
             # Create ANC node
             node_id = self._create_anchor(summary, matched_ctx_id, matched_sc_id, target_date)
 
+            # Determine if this cluster was produced during a user-tagged
+            # work session. If so, stash the project_id on each time-log row
+            # so the project matcher can inherit it without re-doing the
+            # time-overlap check.
+            tagged_project_id = self._find_tagged_project_for_cluster(cluster)
+
             # Record time data (Step 6f)
             total_duration = sum(s.get("duration_secs", 10) for s in cluster)
             for seg in cluster:
@@ -97,6 +103,8 @@ class DailyActivityMerger:
                     matched_sc_id=matched_sc_id,
                     duration=seg.get("duration_secs", 10),
                     target_date=target_date,
+                    project_id=tagged_project_id or "",
+                    match_source="session_tag" if tagged_project_id else "",
                 )
 
             self.actions.append({
@@ -108,22 +116,44 @@ class DailyActivityMerger:
                 "matched_sc_id": matched_sc_id,
                 "node_id": node_id,
                 "total_duration_secs": total_duration,
+                "tagged_project_id": tagged_project_id or "",
             })
 
         return self.actions
 
     def _read_segments(self, target_date: str) -> List[Dict]:
-        """Read today's context_1 segments from tracker DB."""
+        """Read today's context_1 segments from tracker DB.
+
+        Skips segments that have already been consolidated for this date
+        (either by a prior nightly run or by Phase 4's manual per-project
+        consolidation). This is the zero-duplication guarantee — idempotency
+        plus mutual exclusion with manual runs.
+
+        Also pulls `timestamp_start` so we can later match segments against
+        user-tagged work_sessions (see `_find_tagged_project_for_cluster`).
+        """
+        # 1. All segments from tracker
         conn = sqlite3.connect(TRACKER_DB)
         conn.row_factory = sqlite3.Row
         rows = conn.execute("""
             SELECT id, detailed_summary, window_name, platform,
                    target_segment_length_secs, worker,
-                   human_frame_count, ai_frame_count
+                   human_frame_count, ai_frame_count,
+                   timestamp_start
             FROM context_1
             WHERE DATE(timestamp_start) = ?
         """, (target_date,)).fetchall()
         conn.close()
+
+        # 2. Already-consolidated segment IDs for this date (from PMIS DB)
+        pconn = sqlite3.connect(self.db.db_path)
+        already = {
+            r[0] for r in pconn.execute(
+                "SELECT DISTINCT segment_id FROM activity_time_log WHERE date = ?",
+                (target_date,),
+            ).fetchall()
+        }
+        pconn.close()
 
         return [{
             "id": r["id"],
@@ -132,7 +162,56 @@ class DailyActivityMerger:
             "platform": r["platform"] or "",
             "duration_secs": r["target_segment_length_secs"] or 10,
             "worker": r["worker"] or "human",
-        } for r in rows if r["detailed_summary"]]
+            "timestamp_start": r["timestamp_start"] or "",
+        } for r in rows if r["detailed_summary"] and r["id"] not in already]
+
+    def _find_tagged_project_for_cluster(
+        self, cluster: List[Dict]
+    ) -> Optional[str]:
+        """
+        If the majority of a cluster's segments fall inside a user-tagged
+        work_session (i.e. `work_sessions.project_id != ''`), return that
+        project_id. Returns None if no tagged overlap — downstream matcher
+        will run semantic matching for those anchors.
+
+        Majority (>=50%) is required so a single stray segment in a tagged
+        window doesn't hijack the whole cluster.
+        """
+        if not cluster:
+            return None
+
+        conn = sqlite3.connect(self.db.db_path)
+        conn.row_factory = sqlite3.Row
+        tagged_sessions = conn.execute("""
+            SELECT started_at, ended_at, project_id FROM work_sessions
+            WHERE project_id != '' AND project_id IS NOT NULL
+        """).fetchall()
+        conn.close()
+
+        if not tagged_sessions:
+            return None
+
+        project_votes: Dict[str, int] = {}
+        for seg in cluster:
+            ts = seg.get("timestamp_start") or ""
+            if not ts:
+                continue
+            for s in tagged_sessions:
+                start = s["started_at"] or ""
+                end = s["ended_at"] or "9999-12-31"
+                if start <= ts <= end:
+                    project_votes[s["project_id"]] = (
+                        project_votes.get(s["project_id"], 0) + 1
+                    )
+                    break  # one session per segment
+
+        if not project_votes:
+            return None
+
+        winner = max(project_votes.items(), key=lambda kv: kv[1])
+        if winner[1] * 2 >= len(cluster):
+            return winner[0]
+        return None
 
     def _cluster_segments(self, segments: List[Dict]) -> List[List[Dict]]:
         """Cluster segments by summary text similarity."""
@@ -314,14 +393,22 @@ class DailyActivityMerger:
         return node.id
 
     def _log_activity_time(self, segment_id, memory_node_id, matched_ctx_id,
-                           matched_sc_id, duration, target_date):
-        """Record segment → node mapping in activity_time_log."""
+                           matched_sc_id, duration, target_date,
+                           project_id: str = "", match_source: str = ""):
+        """Record segment → node mapping in activity_time_log.
+
+        `project_id` and `match_source` are populated when the segment fell
+        inside a user-tagged work_session — lets the project matcher skip
+        semantic matching for these rows.
+        """
         conn = sqlite3.connect(self.db.db_path)
         conn.execute("""
             INSERT INTO activity_time_log
-            (segment_id, memory_node_id, matched_ctx_id, matched_sc_id, duration_seconds, date)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, (segment_id, memory_node_id, matched_ctx_id, matched_sc_id, duration, target_date))
+            (segment_id, memory_node_id, matched_ctx_id, matched_sc_id,
+             duration_seconds, date, project_id, match_source)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (segment_id, memory_node_id, matched_ctx_id, matched_sc_id,
+              duration, target_date, project_id, match_source))
         conn.commit()
         conn.close()
 

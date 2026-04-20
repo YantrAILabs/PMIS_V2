@@ -1,0 +1,45 @@
+{% extends "health_wiki_base.html" %}
+{% block title %}Lint — PMIS Health Monitor{% endblock %}
+
+{% block content %}
+<h1>Health Report</h1>
+<div class="meta-bar">
+  <span class="tag {% if orphan_count > 0 %}stale{% endif %}">{{ orphan_count }} orphans</span>
+  <span class="tag {% if stale_count > 0 %}stale{% endif %}">{{ stale_count }} stale</span>
+  <span class="tag {% if oversized_count > 0 %}stale{% endif %}">{{ oversized_count }} oversized</span>
+  <span class="tag">{{ unvalidated_count }} unvalidated</span>
+</div>
+
+{% if orphans %}
+<h2>Orphan Nodes (no parent)</h2>
+{% for o in orphans %}
+<div class="card"><h3><a href="/wiki/node/{{ o.id }}">{{ o.content[:80] }}</a></h3><div class="sub">Created: {{ o.created_at[:10] if o.created_at else 'unknown' }}</div></div>
+{% endfor %}
+{% endif %}
+
+{% if stale %}
+<h2>Stale Contexts (>14 days no access)</h2>
+{% for s in stale %}
+<div class="card"><h3><a href="/wiki/node/{{ s.id }}">{{ s.content[:80] }}</a></h3><div class="sub">Last accessed: {{ s.last_accessed[:10] if s.last_accessed else 'never' }}</div></div>
+{% endfor %}
+{% endif %}
+
+{% if oversized %}
+<h2>Oversized Nodes (>25 children)</h2>
+{% for o in oversized %}
+<div class="card"><h3><a href="/wiki/node/{{ o.target_id }}">{{ o.content[:80] }}</a></h3><div class="sub">{{ o.children }} children — needs cell division</div></div>
+{% endfor %}
+{% endif %}
+
+{% if unvalidated %}
+<h2>Unvalidated (accessed 3+x, no feedback)</h2>
+{% for u in unvalidated %}
+<div class="card"><h3><a href="/wiki/node/{{ u.id }}">{{ u.content[:80] }}</a></h3><div class="sub">Accessed {{ u.access_count }}x — consider adding feedback</div></div>
+{% endfor %}
+{% endif %}
+
+{% if not orphans and not stale and not oversized and not unvalidated %}
+<p style="color:var(--green); margin-top:20px;">All clear — no issues found.</p>
+{% endif %}
+
+{% endblock %}

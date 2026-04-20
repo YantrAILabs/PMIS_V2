@@ -56,6 +56,7 @@ memory_system/versions/
 !memory_system/platform/portal/*.html
 !productivity-tracker/daemon/monitor_ui/*.html
 !productivity-tracker/src/ui/dashboard/*.html
+!pmis_v2/templates/*.html
 
 # Research papers and personal docs
 *_research*.md

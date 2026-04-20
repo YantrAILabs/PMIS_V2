@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}PMIS Health Monitor{% endblock %}</title>
+<style>
+:root {
+  --bg: #ffffff; --bg2: #f8f9fa; --bg3: #e9ecef;
+  --fg: #1a1a1a; --fg2: #4a4a4a; --fg3: #888888;
+  --border: #dee2e6;
+  --green: #16a34a; --blue: #2563eb; --purple: #7c3aed;
+  --orange: #ea580c; --red: #dc2626; --teal: #0d9488; --yellow: #ca8a04;
+  --link: #2563eb;
+  --nav-bg: #1a1a2e; --nav-fg: #e0e0e0; --nav-brand: #4ade80;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:var(--fg); line-height:1.7; }
+
+.wiki-nav { background:var(--nav-bg); border-bottom:1px solid var(--border); padding:12px 24px; display:flex; align-items:center; gap:16px; position:sticky; top:0; z-index:10; }
+.wiki-nav a { color:var(--nav-fg); text-decoration:none; font-size:13px; }
+.wiki-nav a:hover { color:#fff; }
+.wiki-nav .brand { color:var(--nav-brand); font-weight:700; font-size:15px; }
+
+.wiki-content { max-width:900px; margin:0 auto; padding:32px 24px; }
+
+h1 { font-size:28px; font-weight:700; margin-bottom:8px; color:var(--fg); }
+h2 { font-size:20px; font-weight:600; margin:32px 0 12px; color:var(--fg); border-bottom:1px solid var(--border); padding-bottom:8px; }
+h3 { font-size:16px; font-weight:600; margin:20px 0 8px; color:var(--fg2); }
+p { margin-bottom:12px; color:var(--fg2); }
+a { color:var(--link); text-decoration:none; }
+a:hover { text-decoration:underline; }
+
+.breadcrumb { font-size:12px; color:var(--fg3); margin-bottom:16px; }
+.breadcrumb a { color:var(--fg3); }
+.breadcrumb a:hover { color:var(--link); }
+
+.meta-bar { display:flex; gap:8px; flex-wrap:wrap; margin:12px 0 24px; font-size:12px; color:var(--fg2); }
+.meta-bar .tag { background:var(--bg2); border:1px solid var(--border); border-radius:4px; padding:3px 10px; color:var(--fg2); font-weight:500; }
+.meta-bar .tag.goal { background:#dcfce7; border-color:#86efac; color:var(--green); font-weight:600; }
+.meta-bar .tag.stale { background:#fff7ed; border-color:#fed7aa; color:var(--orange); font-weight:600; }
+
+.card { background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:16px; margin-bottom:12px; box-shadow:0 1px 3px rgba(0,0,0,0.06); }
+.card:hover { border-color:var(--blue); box-shadow:0 2px 8px rgba(37,99,235,0.08); }
+.card h3 { margin:0 0 4px; font-size:14px; color:var(--fg); }
+.card .sub { font-size:12px; color:var(--fg3); }
+
+.backend-toggle { display:inline-block; margin-top:24px; padding:8px 16px; background:var(--bg2); border:1px solid var(--border); border-radius:6px; color:var(--fg2); font-size:12px; cursor:pointer; font-weight:500; }
+.backend-toggle:hover { border-color:var(--blue); color:var(--blue); background:var(--bg3); }
+.backend-panel { display:none; margin-top:16px; background:var(--bg2); border:1px solid var(--border); border-radius:8px; padding:20px; }
+.backend-panel.open { display:block; }
+
+.pv-bar { margin:12px 0; }
+.pv-bar .pv-row { display:flex; align-items:center; gap:8px; margin:4px 0; font-size:12px; }
+.pv-bar .pv-label { width:80px; color:var(--fg2); text-align:right; font-weight:500; }
+.pv-bar .pv-track { flex:1; height:10px; background:var(--bg3); border-radius:5px; overflow:hidden; }
+.pv-bar .pv-fill { height:100%; border-radius:5px; }
+.pv-bar .pv-val { width:40px; font-family:monospace; color:var(--fg); font-weight:600; }
+
+.fb-entry { display:flex; align-items:flex-start; gap:8px; margin:6px 0; font-size:13px; }
+.fb-icon { font-size:16px; }
+.fb-text { color:var(--fg); }
+.fb-date { color:var(--fg3); font-size:11px; }
+
+table { width:100%; border-collapse:collapse; margin:12px 0; font-size:13px; }
+th { text-align:left; padding:10px 12px; border-bottom:2px solid var(--border); color:var(--fg2); font-size:11px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600; background:var(--bg2); }
+td { padding:10px 12px; border-bottom:1px solid var(--bg3); color:var(--fg); }
+tr:hover td { background:#f0f4ff; }
+</style>
+</head>
+<body>
+
+<nav class="wiki-nav">
+  <a href="/" class="brand">PMIS Health Monitor</a>
+  <a href="/">Monitor</a>
+  <a href="/dashboard">Dashboard</a>
+  <a href="/feedback">Feedback</a>
+  <a href="/diagnostics">Diagnostics</a>
+  <a href="/lint">Lint</a>
+</nav>
+
+<div class="wiki-content">
+{% block content %}{% endblock %}
+</div>
+
+<script>
+function toggleBackend(id) {
+  const panel = document.getElementById(id);
+  panel.classList.toggle('open');
+}
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

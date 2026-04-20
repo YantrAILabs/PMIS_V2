@@ -322,7 +322,7 @@ def collect_skeleton() -> Dict:
 
     total = sum(counts.values())
     edges = _safe_one(conn, "SELECT COUNT(*) as c FROM relations")
-    trees = _safe_one(conn, "SELECT COUNT(*) as c FROM trees")
+    trees = _safe_one(conn, "SELECT COUNT(*) as c FROM trees t LEFT JOIN memory_nodes n ON n.id=t.root_node_id WHERE t.root_node_id IS NULL OR n.is_deleted=0")
     orphans = _safe_one(conn, "SELECT COUNT(*) as c FROM memory_nodes WHERE is_orphan=1 AND is_deleted=0")
     deleted = _safe_one(conn, "SELECT COUNT(*) as c FROM memory_nodes WHERE is_deleted=1")
     conn.close()
@@ -430,6 +430,46 @@ def collect_timeline() -> List[Dict]:
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request):
     return templates.TemplateResponse(request, "health_dashboard.html", {})
+
+
+# ───────────────────────────────────────────────────────────
+# Shifted pages (moved from port 8100): dashboard, feedback,
+# diagnostics, lint (was /wiki/health). Nav exposes them as tabs.
+# ───────────────────────────────────────────────────────────
+
+_wiki_instance = None
+
+def _wiki():
+    global _wiki_instance
+    if _wiki_instance is None:
+        os.chdir(str(PMIS_DIR))
+        from db.manager import DBManager
+        from wiki_renderer import WikiRenderer
+        _wiki_instance = WikiRenderer(DBManager(str(PMIS_DIR / "data" / "memory.db")))
+    return _wiki_instance
+
+
+@app.get("/dashboard", response_class=HTMLResponse)
+async def page_dashboard(request: Request):
+    return templates.TemplateResponse(request, "dashboard.html", {"title": "PMIS V2 Dashboard"})
+
+
+@app.get("/feedback", response_class=HTMLResponse)
+async def page_feedback(request: Request):
+    data = _wiki().render_feedback_log()
+    return templates.TemplateResponse(request, "wiki_feedback.html", data)
+
+
+@app.get("/diagnostics", response_class=HTMLResponse)
+async def page_diagnostics(request: Request):
+    data = _wiki().render_diagnostics()
+    return templates.TemplateResponse(request, "wiki_diagnostics.html", data)
+
+
+@app.get("/lint", response_class=HTMLResponse)
+async def page_lint(request: Request):
+    data = _wiki().render_health()
+    return templates.TemplateResponse(request, "wiki_health.html", data)
 
 
 @app.get("/api/health")

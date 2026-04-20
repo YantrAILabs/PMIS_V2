@@ -136,6 +136,81 @@ def build_feedback_edges(
     return pos, neg, strengths
 
 
+def build_match_feedback_edges(
+    db_path: str,
+    id_to_idx: Dict[str, int],
+    max_age_days: int = 90,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Build HGCN feedback edges from project_work_match_log thumbs.
+
+    A thumbs-up (is_correct=1) on a match row means: "this work anchor really
+    does belong with this deliverable anchor." So we emit a positive edge
+    (segment_id, target_node_id) that pulls them together in Poincaré space
+    during HGCN training. A thumbs-down (is_correct=0) emits a negative edge
+    that pushes them apart.
+
+    Target preference: anchor_node_id > context_node_id > sc_node_id — use the
+    finest-grain label the matcher stored.
+
+    Rows older than max_age_days are excluded so stale labels don't drown out
+    recent user intent (the tree has likely reshaped since then anyway).
+
+    Returns:
+        positive_edges: (E_pos, 2) int array — pairs to pull closer
+        negative_edges: (E_neg, 2) int array — pairs to push apart
+        strengths:      (E_pos + E_neg,) float — combined_match_pct, for
+                        future per-edge weighting (current HGCN loss uses
+                        unweighted mean, matching the existing feedback path)
+    """
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT segment_id, anchor_node_id, context_node_id, sc_node_id,
+               combined_match_pct, is_correct
+        FROM project_work_match_log
+        WHERE is_correct IN (0, 1)
+          AND julianday('now') - julianday(matched_at) <= ?
+    """, (max_age_days,))
+
+    pos_edges: List[List[int]] = []
+    neg_edges: List[List[int]] = []
+    pos_strengths: List[float] = []
+    neg_strengths: List[float] = []
+
+    for row in cursor.fetchall():
+        src = row["segment_id"]
+        if not src or src not in id_to_idx:
+            continue
+        tgt = (row["anchor_node_id"]
+               or row["context_node_id"]
+               or row["sc_node_id"])
+        if not tgt or tgt not in id_to_idx:
+            continue
+        if src == tgt:
+            continue
+
+        s_idx = id_to_idx[src]
+        t_idx = id_to_idx[tgt]
+        strength = max(float(row["combined_match_pct"] or 0.0), 0.1)
+
+        if row["is_correct"] == 1:
+            pos_edges.append([s_idx, t_idx])
+            pos_strengths.append(strength)
+        else:
+            neg_edges.append([s_idx, t_idx])
+            neg_strengths.append(strength)
+
+    conn.close()
+
+    pos = np.array(pos_edges, dtype=np.int64) if pos_edges else np.zeros((0, 2), dtype=np.int64)
+    neg = np.array(neg_edges, dtype=np.int64) if neg_edges else np.zeros((0, 2), dtype=np.int64)
+    strengths = np.array(pos_strengths + neg_strengths, dtype=np.float32)
+    return pos, neg, strengths
+
+
 def sample_co_retrieval_negatives(
     co_edges: np.ndarray,
     n_nodes: int,

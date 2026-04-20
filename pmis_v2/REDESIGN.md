@@ -322,9 +322,9 @@ contradiction_style: inline    # "However, X suggests..."
 
 **Goals (`/wiki/goals`):** All goals with linked nodes, progress, feedback summary.
 
-**Health (`/wiki/health`):** Lint report — orphans, contradictions, stale contexts, unvalidated nodes.
+**Lint (`8200/lint`):** Lint report — orphans, contradictions, stale contexts, unvalidated nodes. _Moved from 8100/wiki/health._
 
-**Diagnostics (`/wiki/diagnostics`):** Turn diagnostic trends, gamma distribution, score spreads.
+**Diagnostics (`8200/diagnostics`):** Turn diagnostic trends, gamma distribution, score spreads. _Moved from 8100/wiki/diagnostics._
 
 ### Backend Panel (Per Page, On Click)
 
@@ -390,10 +390,14 @@ All rendered as clickable cross-references woven into prose — not separate lin
 /wiki/anc/<id>            → ANC prose page
 /wiki/anc/<id>/backend    → ANC backend panel
 /wiki/goals               → Goals page
-/wiki/feedback            → Feedback log
-/wiki/health              → Lint/health report
 /wiki/log                 → Chronological event log
-/wiki/diagnostics         → Turn diagnostics trends
+
+# Ops UI (port 8200 — health_dashboard.py)
+/                         → Monitor (7-organ health)
+/dashboard                → Main dashboard (stats + conversations + hyperparams)
+/feedback                 → Feedback log
+/diagnostics              → Turn diagnostics trends
+/lint                     → Lint report (orphans/stale/oversized/unvalidated)
 ```
 
 **Files:** `server.py`, `wiki_renderer.py` (new), `wiki_schema.yaml` (new), `templates/wiki_*.html` (new), `db/schema.sql` (wiki_page_cache table)
