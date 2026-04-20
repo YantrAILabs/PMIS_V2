@@ -1,0 +1,293 @@
+{% extends "wiki_base.html" %}
+{% block title %}{{ node.content.split('.')[0] }} — PMIS Wiki{% endblock %}
+
+{% block content %}
+
+<!-- Breadcrumb -->
+<div class="breadcrumb">
+  <a href="/wiki/">Wiki</a>
+  {% for p in parents|reverse %}
+  &rsaquo; <a href="/wiki/node/{{ p.target_id }}">{{ p.content[:40] }}</a>
+  {% endfor %}
+  &rsaquo; {{ node.level }}
+</div>
+
+<!-- Phase 3 value badge -->
+{% if value_v3 %}
+<div class="v3-badge {% if value_v3.redflag %}redflag{% endif %}" onclick="document.getElementById('v3-details').classList.toggle('open')" title="Click for breakdown">
+  <span class="v3-label">Value</span>
+  <span class="v3-score">{{ "%.2f"|format(value_v3.score) }}</span>
+  {% if value_v3.redflag %}<span class="v3-flag">⚠ pitfall</span>{% endif %}
+  <span class="v3-chev">›</span>
+</div>
+<div id="v3-details" class="v3-details">
+  <div class="v3-row"><span class="v3-k">Goal (0.4×)</span>
+    <div class="v3-bar"><div class="v3-fill g" style="width:{{ (value_v3.G * 100)|int }}%"></div></div>
+    <span class="v3-v">{{ "%.2f"|format(value_v3.G) }}</span></div>
+  <div class="v3-row"><span class="v3-k">Feedback (0.3×)</span>
+    <div class="v3-bar"><div class="v3-fill f {% if value_v3.F < 0 %}neg{% endif %}" style="width:{{ ((value_v3.F|abs) * 100)|int }}%"></div></div>
+    <span class="v3-v">{{ "%+.2f"|format(value_v3.F) }}</span></div>
+  <div class="v3-row"><span class="v3-k">Usage (0.2×)</span>
+    <div class="v3-bar"><div class="v3-fill u" style="width:{{ (value_v3.U * 100)|int }}%"></div></div>
+    <span class="v3-v">{{ "%.2f"|format(value_v3.U) }}</span></div>
+  <div class="v3-row"><span class="v3-k">Recency (0.1×)</span>
+    <div class="v3-bar"><div class="v3-fill r" style="width:{{ (value_v3.R * 100)|int }}%"></div></div>
+    <span class="v3-v">{{ "%.2f"|format(value_v3.R) }}</span></div>
+  <div class="v3-meta">Computed: {{ value_v3.computed_at[:19] if value_v3.computed_at else 'pending' }}</div>
+</div>
+<style>
+.v3-badge { display:inline-flex; align-items:center; gap:8px; padding:6px 12px; background:var(--bg2); border:1px solid var(--border); border-radius:20px; margin:8px 0; cursor:pointer; font-size:12px; user-select:none; }
+.v3-badge:hover { border-color:var(--blue); background:var(--bg3); }
+.v3-badge.redflag { background:#fef2f2; border-color:#fecaca; color:#991b1b; }
+.v3-label { color:var(--fg3); font-weight:600; text-transform:uppercase; letter-spacing:0.5px; font-size:10px; }
+.v3-score { color:var(--fg); font-weight:700; font-family:monospace; font-size:13px; }
+.v3-flag { color:#dc2626; font-weight:600; font-size:11px; }
+.v3-chev { color:var(--fg3); margin-left:4px; }
+.v3-details { display:none; margin:8px 0 16px; padding:12px 16px; background:var(--bg2); border:1px solid var(--border); border-radius:8px; }
+.v3-details.open { display:block; }
+.v3-row { display:flex; align-items:center; gap:8px; margin:4px 0; font-size:12px; }
+.v3-k { width:110px; color:var(--fg2); font-weight:500; }
+.v3-bar { flex:1; height:8px; background:var(--bg3); border-radius:4px; overflow:hidden; }
+.v3-fill { height:100%; border-radius:4px; }
+.v3-fill.g { background:var(--green); }
+.v3-fill.f { background:var(--blue); }
+.v3-fill.f.neg { background:var(--red); }
+.v3-fill.u { background:var(--purple); }
+.v3-fill.r { background:var(--orange); }
+.v3-v { width:42px; text-align:right; font-family:monospace; color:var(--fg); font-weight:600; font-size:11px; }
+.v3-meta { font-size:10px; color:var(--fg3); margin-top:6px; font-family:monospace; }
+</style>
+{% endif %}
+
+<!-- TABLE OF CONTENTS (for SC/CTX pages with children) -->
+{% if children and level == 'SC' %}
+<div style="margin:16px 0 24px; padding:12px 16px; background:var(--bg2); border:1px solid var(--border); border-radius:8px;">
+  <div style="font-size:11px; color:var(--fg3); text-transform:uppercase; letter-spacing:1px; margin-bottom:8px;">Contents</div>
+  <div style="display:flex; flex-wrap:wrap; gap:4px 12px;">
+    {% for child in children %}
+    {% set slug = child.content_preview.split('.')[0].lower().replace(' ', '-').replace('&', 'and').replace('/', '-') %}
+    <a href="#{{ slug }}" style="font-size:13px; color:var(--link); text-decoration:none; padding:2px 0;">{{ child.content_preview.split('.')[0] }}</a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- PROSE SECTION (LLM-generated, main content) -->
+{% if prose %}
+<div class="wiki-prose" style="margin-bottom:32px;">
+  {{ prose | safe }}
+</div>
+
+<div style="display:flex; gap:8px; margin:16px 0; align-items:center;">
+  <a href="/wiki/node/{{ node.id }}?regenerate=1" class="backend-toggle" style="font-size:11px;">Regenerate Page</a>
+  <button class="backend-toggle" style="font-size:11px; cursor:pointer; background:none; border:1px solid var(--border); padding:6px 10px; border-radius:4px;" onclick="wfbFeedback('{{ node.id }}','positive')">&#128077; Helpful</button>
+  <button class="backend-toggle" style="font-size:11px; cursor:pointer; background:none; border:1px solid var(--border); padding:6px 10px; border-radius:4px;" onclick="wfbFeedback('{{ node.id }}','negative')">&#128078; Not helpful</button>
+  <button class="backend-toggle" style="font-size:11px; cursor:pointer; background:none; border:1px solid var(--border); padding:6px 10px; border-radius:4px;" onclick="wfbToggleEdit()">&#9998; Edit content</button>
+  {% if node.is_user_edited %}<span class="tag" style="background:#fef9c3; color:#854d0e; border-color:#fde68a;">user-edited</span>{% endif %}
+</div>
+
+<div id="wfb-edit-panel" style="display:none; background:var(--bg2); border:1px solid var(--border); border-radius:8px; padding:14px; margin:12px 0;">
+  <div style="font-size:11px; color:var(--fg3); margin-bottom:6px;">Full-content replace. Sets is_user_edited=1, protects from auto-regen.</div>
+  <textarea id="wfb-patch-text" style="width:100%; min-height:140px; background:var(--bg3); border:1px solid var(--border); border-radius:4px; padding:10px; font-family:inherit; font-size:13px; resize:vertical;">{{ node.content }}</textarea>
+  <div style="display:flex; gap:8px; margin-top:10px;">
+    <button class="backend-toggle" style="font-size:11px; cursor:pointer; background:#166534; color:#4ade80; border:1px solid #166534; padding:6px 12px; border-radius:4px;" onclick="wfbSavePatch('{{ node.id }}')">Save patch</button>
+    <button class="backend-toggle" style="font-size:11px; cursor:pointer; background:none; border:1px solid var(--border); padding:6px 12px; border-radius:4px;" onclick="wfbToggleEdit()">Cancel</button>
+  </div>
+</div>
+<div id="wfb-toast" style="position:fixed; bottom:20px; right:20px; background:var(--bg2); border:1px solid var(--border); border-radius:6px; padding:10px 16px; font-size:12px; display:none; z-index:999;"></div>
+
+<script>
+function wfbToggleEdit() {
+  const p = document.getElementById('wfb-edit-panel');
+  p.style.display = p.style.display === 'none' ? 'block' : 'none';
+}
+function wfbToast(msg, isErr) {
+  const t = document.getElementById('wfb-toast');
+  t.textContent = msg;
+  t.style.borderColor = isErr ? '#7f1d1d' : '#166534';
+  t.style.color = isErr ? '#f87171' : '#4ade80';
+  t.style.display = 'block';
+  setTimeout(() => { t.style.display = 'none'; }, 2500);
+}
+async function wfbFeedback(nid, polarity) {
+  try {
+    const res = await fetch('/api/wiki/feedback', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({node_id: nid, polarity: polarity})
+    });
+    const data = await res.json();
+    if (data.ok) {
+      wfbToast('Feedback recorded: ' + polarity);
+    } else {
+      wfbToast(data.detail || data.error || 'failed', true);
+    }
+  } catch(e) { wfbToast('network error: ' + e.message, true); }
+}
+async function wfbSavePatch(nid) {
+  const txt = document.getElementById('wfb-patch-text').value;
+  if (!txt.trim()) { wfbToast('content cannot be empty', true); return; }
+  try {
+    const res = await fetch('/api/wiki/content-patch', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({node_id: nid, new_content: txt})
+    });
+    const data = await res.json();
+    if (data.ok) {
+      wfbToast(data.changed ? 'Saved. Reloading...' : 'No change');
+      if (data.changed) setTimeout(() => location.reload(), 700);
+    } else {
+      wfbToast(data.detail || 'failed', true);
+    }
+  } catch(e) { wfbToast('network error: ' + e.message, true); }
+}
+</script>
+{% else %}
+<!-- Fallback: structured view when no prose available -->
+<h1>{{ node.content.split('.')[0] }}</h1>
+
+<div class="meta-bar">
+  <span class="tag">{{ node.level }}</span>
+  {% if node.access_count %}<span class="tag">Accessed {{ node.access_count }}x</span>{% endif %}
+  {% if node.last_accessed %}<span class="tag">Last: {{ node.last_accessed[:10] }}</span>{% endif %}
+  {% for g in goals %}
+  <span class="tag goal">{{ g.title[:40] }}</span>
+  {% endfor %}
+</div>
+
+{% if node.content|length > 120 %}
+<p>{{ node.content }}</p>
+{% endif %}
+
+{% if children %}
+<h2>Sub-topics ({{ children|length }})</h2>
+{% for child in children %}
+<div class="card {% if child.is_pitfall %}card-pitfall{% endif %}">
+  <h3>
+    <a href="/wiki/node/{{ child.id }}">{{ child.content_preview }}</a>
+    {% if child.value_score is defined and child.value_score > 0 %}
+    <span class="mini-badge {% if child.is_pitfall %}redflag{% endif %}" title="value_score">
+      {{ "%.2f"|format(child.value_score) }}
+    </span>
+    {% endif %}
+  </h3>
+  <div class="sub">
+    {{ child.level }} &middot; Accessed {{ child.access_count or 0 }}x
+    {% if child.is_pitfall %}&middot; <strong style="color:#dc2626;">⚠ Pitfall</strong>{% endif %}
+  </div>
+</div>
+{% endfor %}
+{% endif %}
+{% endif %}
+
+<!-- Phase 5: Known Pitfalls block -->
+{% if pitfalls %}
+<div class="pitfalls-section">
+  <h2>⚠ Known Pitfalls</h2>
+  <p style="font-size:12px;color:var(--fg3);margin-bottom:12px;">
+    Negative feedback has been logged against these items. Surface here, don't filter out.
+  </p>
+  {% for p in pitfalls %}
+  <div class="pitfall-card">
+    <div class="pitfall-body">
+      <a href="/wiki/node/{{ p.id }}">{{ p.content[:200] }}</a>
+    </div>
+    <div class="pitfall-meta">
+      {{ p.level }} &middot; feedback {{ "%+.2f"|format(p.value_feedback) }}
+      &middot; value {{ "%.2f"|format(p.value_score) }}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+<style>
+.pitfalls-section { margin:24px 0; padding:16px 20px; background:#fef2f2; border:1px solid #fecaca; border-radius:10px; }
+.pitfalls-section h2 { color:#991b1b; border-bottom:1px solid #fecaca; }
+.pitfall-card { background:#fff; border:1px solid #fee2e2; border-radius:6px; padding:10px 12px; margin:6px 0; }
+.pitfall-body a { color:var(--fg); font-size:13px; text-decoration:none; }
+.pitfall-body a:hover { color:#991b1b; }
+.pitfall-meta { font-size:11px; color:#991b1b; margin-top:4px; font-family:monospace; }
+.card-pitfall { background:#fef2f2; border-color:#fecaca; }
+.mini-badge { display:inline-block; padding:1px 6px; border-radius:10px; background:var(--bg2); color:var(--fg2); font-family:monospace; font-size:10px; font-weight:600; margin-left:6px; vertical-align:middle; }
+.mini-badge.redflag { background:#fecaca; color:#991b1b; }
+</style>
+{% endif %}
+
+<!-- Feedback (always visible if exists) -->
+{% if feedback %}
+<h2 style="margin-top:32px;">Feedback</h2>
+{% for fb in feedback %}
+<div class="fb-entry">
+  <span class="fb-icon">{% if fb.polarity == 'positive' %}&#128077;{% elif fb.polarity == 'negative' %}&#128078;{% else %}&#128221;{% endif %}</span>
+  <div>
+    <div class="fb-text">{{ fb.content }}</div>
+    <div class="fb-date">{{ fb.timestamp[:16] if fb.timestamp else '' }}{% if fb.goal_title %} &middot; Goal: {{ fb.goal_title }}{% endif %}</div>
+  </div>
+</div>
+{% endfor %}
+{% endif %}
+
+<!-- BACKEND DATA (hidden by default) -->
+<div class="backend-toggle" onclick="toggleBackend('backend')">&#128202; View Backend Data</div>
+
+<div class="backend-panel" id="backend">
+  <h3>Page Value: {{ "%.3f"|format(page_value.value) }} / 1.000</h3>
+  <div class="pv-bar">
+    {% for comp, score in page_value.components.items() %}
+    <div class="pv-row">
+      <span class="pv-label">{{ comp }}</span>
+      <div class="pv-track">
+        <div class="pv-fill" style="width:{{ (score * 100)|int }}%; background:{% if comp == 'goal' %}var(--green){% elif comp == 'feedback' %}var(--blue){% elif comp == 'usage' %}var(--purple){% elif comp == 'recency' %}var(--orange){% elif comp == 'linkage' %}var(--teal){% else %}var(--fg3){% endif %};"></div>
+      </div>
+      <span class="pv-val">{{ "%.2f"|format(score) }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  <p style="font-size:11px; color:var(--fg3); margin-top:8px;">
+    Active: {{ page_value.active_count }}/6 &middot;
+    Weights: {% for k,v in page_value.weights.items() %}{{ k }}={{ "%.2f"|format(v) }} {% endfor %}
+  </p>
+
+  <h3 style="margin-top:16px;">Geometry</h3>
+  <p style="font-size:12px; color:var(--fg2);">
+    Poincar&eacute; norm: {{ "%.4f"|format(hyperbolic_norm) }} &middot;
+    Feedback score: {{ "%.3f"|format(feedback_score) }} &middot;
+    ID: {{ node.id[:10] }} &middot;
+    Tree: {{ tree_id or 'none' }}
+  </p>
+
+  {% if children %}
+  <h3 style="margin-top:16px;">Tree Structure ({{ children|length }} children)</h3>
+  <div style="max-height:300px; overflow-y:auto;">
+    {% for child in children %}
+    <div style="font-size:12px; padding:4px 0; border-bottom:1px solid var(--bg3);">
+      <a href="/wiki/node/{{ child.id }}">{{ child.content_preview[:60] }}</a>
+      <span style="color:var(--fg3);">{{ child.level }} &middot; {{ child.access_count or 0 }}x{% if child.feedback_score != 0 %} &middot; fb={{ "%.2f"|format(child.feedback_score) }}{% endif %}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if co_retrieved %}
+  <h3 style="margin-top:16px;">Co-retrieved With</h3>
+  {% for co in co_retrieved %}
+  <div style="font-size:12px; padding:2px 0;">
+    <a href="/wiki/node/{{ co.co_node_id }}">{{ co.co_content[:50] }}</a> ({{ co.co_count }}x)
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  {% if access_history %}
+  <h3 style="margin-top:16px;">Recent Access</h3>
+  <table>
+  <tr><th>Time</th><th>Query</th><th>&gamma;</th></tr>
+  {% for acc in access_history[:5] %}
+  <tr>
+    <td>{{ acc.accessed_at[:16] if acc.accessed_at else '' }}</td>
+    <td>{{ (acc.query_text or '')[:40] }}</td>
+    <td>{{ "%.2f"|format(acc.gamma_at_access or 0) }}</td>
+  </tr>
+  {% endfor %}
+  </table>
+  {% endif %}
+</div>
+
+{% endblock %}

@@ -1,0 +1,146 @@
+{% extends "wiki_base.html" %}
+{% block title %}Review — Project Matches{% endblock %}
+
+{% block content %}
+<style>
+  .rv { margin-bottom: 32px; }
+  .rv-topbar {
+    display:flex; align-items:center; justify-content:space-between;
+    gap:12px; margin-bottom:14px; flex-wrap:wrap;
+  }
+  .rv-topbar-left { display:flex; align-items:baseline; gap:14px; }
+  .rv-meta { font-size:12px; color:var(--fg3); }
+  .rv-btn {
+    background:transparent; border:1px dashed var(--border);
+    color:var(--fg2); font-size:12px; padding:5px 12px;
+    border-radius:5px; cursor:pointer; transition:all 0.15s;
+    text-decoration:none; display:inline-block;
+  }
+  .rv-btn:hover { color:var(--fg); border-color:var(--accent,#8b5cf6); }
+
+  .rv-card {
+    border:1px solid var(--border); border-radius:8px;
+    padding:14px 16px; margin-bottom:12px;
+    background:var(--bg2, rgba(255,255,255,0.02));
+  }
+  .rv-card-head {
+    display:flex; justify-content:space-between; gap:12px;
+    margin-bottom:8px; font-size:11px; color:var(--fg3);
+  }
+  .rv-card-body {
+    font-size:13px; color:var(--fg); line-height:1.45; margin-bottom:10px;
+  }
+  .rv-candidates {
+    display:flex; flex-direction:column; gap:6px; margin-bottom:10px;
+  }
+  .rv-candidate {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:8px 10px; border:1px solid var(--border); border-radius:5px;
+    font-size:12px; background:var(--bg, #0a0a0f);
+  }
+  .rv-cand-left { display:flex; flex-direction:column; gap:2px; }
+  .rv-cand-title { color:var(--fg); font-weight:500; }
+  .rv-cand-sub { color:var(--fg3); font-size:11px; }
+  .rv-cand-score {
+    font-family:monospace; font-size:11px; color:var(--fg2);
+    background:rgba(139,92,246,0.1); padding:2px 6px; border-radius:3px;
+  }
+  .rv-actions { display:flex; gap:8px; justify-content:flex-end; }
+  .rv-action-btn {
+    background:transparent; border:1px solid var(--border);
+    color:var(--fg2); font-size:11px; padding:4px 10px;
+    border-radius:4px; cursor:pointer;
+  }
+  .rv-action-btn.confirm:hover { border-color:#22c55e; color:#22c55e; }
+  .rv-action-btn.reject:hover  { border-color:#ef4444; color:#ef4444; }
+  .rv-empty {
+    text-align:center; padding:40px 20px; color:var(--fg3);
+    border:1px dashed var(--border); border-radius:8px;
+  }
+</style>
+
+<div class="rv">
+  <div class="rv-topbar">
+    <div class="rv-topbar-left">
+      <h1 style="margin:0;">Review</h1>
+      <div class="rv-meta">
+        {{ pending|length }} pending match{% if pending|length != 1 %}es{% endif %} · auto-confirmed: {{ auto_confirmed_today }} today
+      </div>
+    </div>
+    <div class="pk-actions" style="display:flex;gap:8px;align-items:center;">
+      <!-- Same toggle as Goals, with Review selected -->
+      <div class="pk-toggle" role="tablist" aria-label="View switch"
+           style="display:inline-flex;border:1px solid var(--border);border-radius:6px;overflow:hidden;">
+        <a href="/wiki/goals" role="tab" aria-selected="false"
+           style="padding:5px 12px;font-size:12px;color:var(--fg2);text-decoration:none;">Projects</a>
+        <a href="/wiki/review" role="tab" aria-selected="true"
+           style="padding:5px 12px;font-size:12px;background:var(--accent,#8b5cf6);color:white;text-decoration:none;">
+          Review{% if pending|length %}
+          <span style="background:#f59e0b;color:#0a0a0f;border-radius:9px;padding:0 6px;font-size:10px;margin-left:4px;">{{ pending|length }}</span>
+          {% endif %}
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div id="rv-list">
+    {% if pending %}
+      {% for item in pending %}
+      <div class="rv-card" data-anchor-id="{{ item.anchor_id }}">
+        <div class="rv-card-head">
+          <span>{{ item.when }} · anchor {{ item.anchor_id[:8] }}</span>
+          <span>top score: {{ "%.0f"|format(item.top_score * 100) }}%</span>
+        </div>
+        <div class="rv-card-body">{{ item.content }}</div>
+        <div class="rv-candidates">
+          {% for c in item.candidates %}
+          <div class="rv-candidate" data-match-id="{{ c.match_id }}">
+            <div class="rv-cand-left">
+              <span class="rv-cand-title">{{ c.project_name or c.project_id }}</span>
+              <span class="rv-cand-sub">{{ c.deliverable_name or '' }}</span>
+            </div>
+            <div style="display:flex;gap:6px;align-items:center;">
+              <span class="rv-cand-score">{{ "%.0f"|format(c.combined * 100) }}%</span>
+              <button class="rv-action-btn confirm"
+                      onclick="rvConfirm('{{ item.anchor_id }}', '{{ c.match_id }}')">Confirm</button>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="rv-actions">
+          <button class="rv-action-btn reject" onclick="rvReject('{{ item.anchor_id }}')">Reject all</button>
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="rv-empty">
+        No pending matches. All of today's untagged activity was either auto-confirmed (score ≥ {{ "%.0f"|format(tau_high * 100) }}%) or below the review threshold ({{ "%.0f"|format(tau_low * 100) }}%).
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+async function rvConfirm(anchorId, matchId) {
+  const resp = await fetch(`/api/review/${encodeURIComponent(anchorId)}/confirm`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ match_id: matchId }),
+  });
+  if (resp.ok) {
+    document.querySelector(`.rv-card[data-anchor-id="${anchorId}"]`)?.remove();
+  } else {
+    alert('Confirm failed');
+  }
+}
+
+async function rvReject(anchorId) {
+  const resp = await fetch(`/api/review/${encodeURIComponent(anchorId)}/reject`, { method: 'POST' });
+  if (resp.ok) {
+    document.querySelector(`.rv-card[data-anchor-id="${anchorId}"]`)?.remove();
+  } else {
+    alert('Reject failed');
+  }
+}
+</script>
+{% endblock %}

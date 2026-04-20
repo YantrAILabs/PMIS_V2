@@ -21,15 +21,16 @@ segmentation:
   # Minimum segment length (avoid micro-segments)
   min_segment_secs: 15              # Segments shorter than this get merged with next
 
-chatgpt:
-  # Vision analysis
-  vision_model: "gpt-4o-mini"
-  vision_detail: "low"              # "low" for initial pass, "high" if text is small
-  
-  # Context classification  
-  text_model: "gpt-4o-mini"
-  max_tokens: 500
-  temperature: 0.1                  # Low temp for consistent classification
+ollama:
+  # Vision analysis (local — replaces GPT-4o-mini)
+  vision_model: "qwen2.5vl:3b"
+  vision_fallback: "qwen2.5vl:7b"   # Falls back to 7b if 3b fails
+
+  # Text classification (local — replaces GPT-4o-mini)
+  text_model: "qwen2.5:3b"
+
+  base_url: "http://localhost:11434"
+  timeout: 60
 
 memory:
   # Hourly aggregation
@@ -46,7 +47,9 @@ memory:
   daily_rollup_hour: 23             # 11 PM
 
   # Embedding model (for tracker's own ChromaDB)
-  embedding_model: "text-embedding-3-small"
+  # Provider: "ollama" (local nomic-embed-text, 768d) | "openai" (text-embedding-3-small, 1536d)
+  embedding_provider: "ollama"
+  embedding_model: "nomic-embed-text"
 
   # Matching threshold
   semantic_match_threshold: 0.8

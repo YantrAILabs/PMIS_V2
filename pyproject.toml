@@ -1,0 +1,64 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pmis"
+version = "0.1.0"
+description = "Personal Memory Intelligence System — surprise-minimizing memory with hyperbolic hierarchy and outcome-driven weight evolution."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [{ name = "PMIS contributors" }]
+keywords = [
+    "memory",
+    "knowledge-graph",
+    "llm",
+    "hyperbolic-embeddings",
+    "free-energy-principle",
+    "claude-code",
+    "mcp",
+    "personal-knowledge-management",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "numpy>=1.24.0",
+    "pyyaml>=6.0",
+    "openai>=1.0.0",
+    "httpx>=0.25.0",
+    "fastapi>=0.100.0",
+    "uvicorn>=0.20.0",
+    "jinja2>=3.1.0",
+]
+
+[project.optional-dependencies]
+ann = ["chromadb>=0.4.0"]
+ml = ["scikit-learn>=1.3.0", "scipy>=1.11.0"]
+all = ["chromadb>=0.4.0", "scikit-learn>=1.3.0", "scipy>=1.11.0"]
+
+[project.scripts]
+pmis = "pmis.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/yourorg/pmis"
+Documentation = "https://github.com/yourorg/pmis#readme"
+Issues = "https://github.com/yourorg/pmis/issues"
+Source = "https://github.com/yourorg/pmis"
+
+[tool.setuptools.packages.find]
+include = ["pmis*", "pmis_v2*"]
+exclude = ["tests*", "archives*", "productivity-tracker*", "memory_system*"]
+
+[tool.setuptools.package-data]
+pmis_v2 = ["hyperparameters.yaml", "templates/*.html", "db/schema.sql"]

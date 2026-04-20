@@ -13,7 +13,7 @@ import os
 from pathlib import Path
 
 import chromadb
-from openai import OpenAI
+import httpx
 
 logger = logging.getLogger("tracker.pmis")
 
@@ -42,21 +42,48 @@ class PMISIntegration:
         self.merge_threshold = pmis_config.get("merge_threshold", 0.75)
         self.merge_levels = pmis_config.get("merge_levels", ["SC", "context"])
 
-        # Own OpenAI client for embeddings (not shared with tracker's ChromaDBStore)
-        self._openai = OpenAI()
-        self._embedding_model = config.get("memory", {}).get(
-            "embedding_model", "text-embedding-3-small"
-        )
+        # Embedding provider — Ollama by default, OpenAI optional
+        mem_cfg = config.get("memory", {}) if config else {}
+        self._embedding_provider = mem_cfg.get("embedding_provider", "ollama").lower()
+        if self._embedding_provider == "openai":
+            from openai import OpenAI  # lazy
+            self._openai = OpenAI()
+            self._embedding_model = mem_cfg.get("embedding_model", "text-embedding-3-small")
+        else:
+            self._openai = None
+            self._embedding_model = mem_cfg.get("embedding_model", "nomic-embed-text")
 
-        logger.info(f"PMIS central memory: {central_path} / {self._collection_name}")
+        ollama_cfg = config.get("ollama", {}) if config else {}
+        self._ollama_url = ollama_cfg.get("base_url", "http://localhost:11434")
+        self._ollama_timeout = float(ollama_cfg.get("timeout", 60))
+
+        logger.info(
+            "PMIS central memory: %s / %s (embed=%s/%s)",
+            central_path, self._collection_name,
+            self._embedding_provider, self._embedding_model,
+        )
 
     def embed_text(self, text: str) -> list[float]:
-        """Generate embedding via OpenAI."""
-        response = self._openai.embeddings.create(
-            model=self._embedding_model,
-            input=text,
+        """Generate embedding via the configured provider."""
+        if self._embedding_provider == "openai":
+            response = self._openai.embeddings.create(
+                model=self._embedding_model,
+                input=text,
+            )
+            return response.data[0].embedding
+        # Ollama
+        r = httpx.post(
+            f"{self._ollama_url}/api/embeddings",
+            json={"model": self._embedding_model, "prompt": text},
+            timeout=self._ollama_timeout,
         )
-        return response.data[0].embedding
+        r.raise_for_status()
+        emb = r.json().get("embedding")
+        if not emb:
+            raise RuntimeError(
+                f"Ollama returned no embedding for {self._embedding_model!r}"
+            )
+        return emb
 
     def find_central_match(self, text: str) -> dict | None:
         """

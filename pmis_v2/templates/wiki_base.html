@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}PMIS Wiki{% endblock %}</title>
+<style>
+:root {
+  --bg: #ffffff; --bg2: #f8f9fa; --bg3: #e9ecef;
+  --fg: #1a1a1a; --fg2: #4a4a4a; --fg3: #888888;
+  --border: #dee2e6;
+  --green: #16a34a; --blue: #2563eb; --purple: #7c3aed;
+  --orange: #ea580c; --red: #dc2626; --teal: #0d9488; --yellow: #ca8a04;
+  --link: #2563eb;
+  --nav-bg: #1a1a2e; --nav-fg: #e0e0e0; --nav-brand: #4ade80;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:var(--fg); line-height:1.7; }
+
+/* NAV — kept dark for contrast */
+.wiki-nav { background:var(--nav-bg); border-bottom:1px solid var(--border); padding:12px 24px; display:flex; align-items:center; gap:16px; position:sticky; top:0; z-index:10; }
+.wiki-nav a { color:var(--nav-fg); text-decoration:none; font-size:13px; }
+.wiki-nav a:hover { color:#fff; }
+.wiki-nav .brand { color:var(--nav-brand); font-weight:700; font-size:15px; }
+
+/* CONTENT */
+.wiki-content { max-width:900px; margin:0 auto; padding:32px 24px; }
+
+/* TYPOGRAPHY */
+h1 { font-size:28px; font-weight:700; margin-bottom:8px; color:var(--fg); }
+h2 { font-size:20px; font-weight:600; margin:32px 0 12px; color:var(--fg); border-bottom:1px solid var(--border); padding-bottom:8px; }
+h3 { font-size:16px; font-weight:600; margin:20px 0 8px; color:var(--fg2); }
+p { margin-bottom:12px; color:var(--fg2); }
+a { color:var(--link); text-decoration:none; }
+a:hover { text-decoration:underline; }
+
+/* BREADCRUMB */
+.breadcrumb { font-size:12px; color:var(--fg3); margin-bottom:16px; }
+.breadcrumb a { color:var(--fg3); }
+.breadcrumb a:hover { color:var(--link); }
+
+/* METADATA BAR */
+.meta-bar { display:flex; gap:8px; flex-wrap:wrap; margin:12px 0 24px; font-size:12px; color:var(--fg2); }
+.meta-bar .tag { background:var(--bg2); border:1px solid var(--border); border-radius:4px; padding:3px 10px; color:var(--fg2); font-weight:500; }
+.meta-bar .tag.goal { background:#dcfce7; border-color:#86efac; color:var(--green); font-weight:600; }
+.meta-bar .tag.stale { background:#fff7ed; border-color:#fed7aa; color:var(--orange); font-weight:600; }
+
+/* CARDS */
+.card { background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:16px; margin-bottom:12px; box-shadow:0 1px 3px rgba(0,0,0,0.06); }
+.card:hover { border-color:var(--blue); box-shadow:0 2px 8px rgba(37,99,235,0.08); }
+.card h3 { margin:0 0 4px; font-size:14px; color:var(--fg); }
+.card .sub { font-size:12px; color:var(--fg3); }
+
+/* BACKEND PANEL */
+.backend-toggle { display:inline-block; margin-top:24px; padding:8px 16px; background:var(--bg2); border:1px solid var(--border); border-radius:6px; color:var(--fg2); font-size:12px; cursor:pointer; font-weight:500; }
+.backend-toggle:hover { border-color:var(--blue); color:var(--blue); background:var(--bg3); }
+.backend-panel { display:none; margin-top:16px; background:var(--bg2); border:1px solid var(--border); border-radius:8px; padding:20px; }
+.backend-panel.open { display:block; }
+
+/* PAGE VALUE BAR */
+.pv-bar { margin:12px 0; }
+.pv-bar .pv-row { display:flex; align-items:center; gap:8px; margin:4px 0; font-size:12px; }
+.pv-bar .pv-label { width:80px; color:var(--fg2); text-align:right; font-weight:500; }
+.pv-bar .pv-track { flex:1; height:10px; background:var(--bg3); border-radius:5px; overflow:hidden; }
+.pv-bar .pv-fill { height:100%; border-radius:5px; }
+.pv-bar .pv-val { width:40px; font-family:monospace; color:var(--fg); font-weight:600; }
+
+/* FEEDBACK */
+.fb-entry { display:flex; align-items:flex-start; gap:8px; margin:6px 0; font-size:13px; }
+.fb-icon { font-size:16px; }
+.fb-text { color:var(--fg); }
+.fb-date { color:var(--fg3); font-size:11px; }
+
+/* TABLE */
+table { width:100%; border-collapse:collapse; margin:12px 0; font-size:13px; }
+th { text-align:left; padding:10px 12px; border-bottom:2px solid var(--border); color:var(--fg2); font-size:11px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600; background:var(--bg2); }
+td { padding:10px 12px; border-bottom:1px solid var(--bg3); color:var(--fg); }
+tr:hover td { background:#f0f4ff; }
+
+/* ── INFINITE-LOOP WORK SESSION WIDGET ─────────────────────── */
+.wsw { position:fixed; right:24px; bottom:24px; z-index:1000; font-family:'Inter',system-ui,sans-serif; }
+.wsw-loop { width:64px; height:40px; cursor:pointer; display:flex; align-items:center; justify-content:center;
+            background:#1a1a2e; border-radius:32px; box-shadow:0 4px 16px rgba(0,0,0,0.18);
+            transition:all 0.2s; border:2px solid transparent; }
+.wsw-loop:hover { transform:scale(1.05); box-shadow:0 6px 20px rgba(0,0,0,0.25); }
+.wsw-loop.active { border-color:#4ade80; background:#0f3b20; animation:wsw-pulse 2.4s ease-in-out infinite; }
+.wsw-loop.drifted { border-color:#ea580c; background:#3b1f0f; animation:wsw-pulse 1.2s ease-in-out infinite; }
+@keyframes wsw-pulse { 0%,100% { box-shadow:0 4px 16px rgba(74,222,128,0.3); }
+                       50% { box-shadow:0 4px 24px rgba(74,222,128,0.7); } }
+.wsw-loop svg { width:32px; height:20px; stroke-width:2.5; fill:none; stroke:#e0e0e0; }
+.wsw-loop.active svg { stroke:#4ade80; }
+.wsw-loop.drifted svg { stroke:#ea580c; }
+
+.wsw-panel { position:absolute; right:0; bottom:52px; width:340px; max-height:520px; overflow-y:auto;
+             background:#fff; border:1px solid var(--border); border-radius:12px;
+             box-shadow:0 12px 32px rgba(0,0,0,0.18); padding:16px; display:none; }
+.wsw-panel.open { display:block; }
+.wsw-panel h4 { font-size:13px; font-weight:700; color:var(--fg); margin-bottom:4px; text-transform:uppercase; letter-spacing:0.5px; }
+.wsw-panel .wsw-sub { font-size:11px; color:var(--fg3); margin-bottom:12px; }
+.wsw-panel .wsw-section { margin-top:12px; padding-top:12px; border-top:1px solid var(--bg3); }
+.wsw-panel .wsw-section:first-of-type { margin-top:0; padding-top:0; border-top:none; }
+
+.wsw-bound { background:#dcfce7; border:1px solid #86efac; border-radius:6px; padding:8px 10px; margin-bottom:8px; font-size:12px; }
+.wsw-bound .lbl { color:var(--fg3); font-size:10px; text-transform:uppercase; letter-spacing:0.5px; }
+.wsw-bound .name { color:var(--fg); font-weight:600; }
+
+.wsw-drift { background:#fff7ed; border:1px solid #fed7aa; border-radius:6px; padding:8px 10px; margin-bottom:8px; font-size:12px; color:var(--fg); }
+
+.wsw-suggest { background:#eff6ff; border:1px solid #bfdbfe; border-radius:6px; padding:8px 10px; margin-bottom:6px; font-size:12px; cursor:pointer; display:flex; justify-content:space-between; align-items:center; }
+.wsw-suggest:hover { background:#dbeafe; }
+.wsw-suggest .score { color:var(--blue); font-weight:600; font-family:monospace; font-size:11px; }
+
+.wsw-picker { display:flex; flex-direction:column; gap:6px; }
+.wsw-picker select { padding:6px 8px; border:1px solid var(--border); border-radius:4px; font-size:12px; background:#fff; color:var(--fg); }
+.wsw-btn { padding:8px 12px; border:none; border-radius:4px; font-size:12px; font-weight:600; cursor:pointer; }
+.wsw-btn.primary { background:var(--blue); color:#fff; }
+.wsw-btn.primary:hover { background:#1d4ed8; }
+.wsw-btn.danger { background:#dc2626; color:#fff; }
+.wsw-btn.danger:hover { background:#b91c1c; }
+.wsw-btn.ghost { background:#fff; color:var(--fg2); border:1px solid var(--border); }
+.wsw-btn.ghost:hover { background:var(--bg2); }
+.wsw-btn:disabled { opacity:0.5; cursor:not-allowed; }
+
+.wsw-row { display:flex; gap:6px; margin-top:8px; }
+.wsw-row .wsw-btn { flex:1; }
+
+.wsw-latest { font-size:11px; color:var(--fg3); margin-top:10px; padding:8px; background:var(--bg2); border-radius:4px; }
+.wsw-latest strong { color:var(--fg2); }
+
+/* Brief (Phase 2) */
+.wsw-brief-toggle { margin-top:10px; padding:6px 10px; background:var(--bg2); border:1px solid var(--border); border-radius:4px;
+                    font-size:11px; color:var(--fg2); cursor:pointer; font-weight:600; width:100%; text-align:left; }
+.wsw-brief-toggle:hover { background:var(--bg3); color:var(--fg); }
+.wsw-brief-toggle .chev { float:right; transition:transform 0.2s; }
+.wsw-brief-toggle.open .chev { transform:rotate(90deg); }
+.wsw-brief { display:none; margin-top:8px; }
+.wsw-brief.open { display:block; }
+.wsw-brief h5 { font-size:11px; font-weight:700; color:var(--fg2); margin:10px 0 4px; text-transform:uppercase; letter-spacing:0.5px; }
+.wsw-brief .bucket-empty { font-size:11px; color:var(--fg3); font-style:italic; padding:4px 0; }
+.wsw-brief-item { padding:6px 8px; border-radius:4px; margin-bottom:4px; font-size:11px; line-height:1.45; cursor:pointer; }
+.wsw-brief-item.claude { background:#f0f9ff; border:1px solid #bae6fd; color:var(--fg); }
+.wsw-brief-item.claude:hover { background:#e0f2fe; }
+.wsw-brief-item.similar { background:#faf5ff; border:1px solid #e9d5ff; color:var(--fg); }
+.wsw-brief-item.similar:hover { background:#f3e8ff; }
+.wsw-brief-item .meta { color:var(--fg3); font-size:10px; margin-top:2px; font-family:monospace; }
+
+/* Problem-statement preview modal (Phase 3.5) */
+.wsw-ps-modal { position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:2000; display:none; align-items:center; justify-content:center; padding:32px; }
+.wsw-ps-modal.open { display:flex; }
+.wsw-ps-box { background:#fff; border-radius:12px; max-width:720px; width:100%; max-height:85vh; display:flex; flex-direction:column; box-shadow:0 20px 60px rgba(0,0,0,0.3); }
+.wsw-ps-head { padding:16px 20px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; }
+.wsw-ps-head h3 { font-size:14px; color:var(--fg); margin:0; }
+.wsw-ps-head .mode-chip { display:inline-block; padding:2px 8px; border-radius:10px; font-size:10px; font-weight:600; margin-left:8px; }
+.wsw-ps-head .mode-chip.llm { background:#dbeafe; color:#1d4ed8; }
+.wsw-ps-head .mode-chip.template { background:#fef3c7; color:#92400e; }
+.wsw-ps-body { padding:20px; overflow-y:auto; font-family:ui-monospace,monospace; font-size:12px; line-height:1.6; white-space:pre-wrap; color:var(--fg); }
+.wsw-ps-foot { padding:12px 20px; border-top:1px solid var(--border); display:flex; gap:8px; justify-content:flex-end; }
+
+/* Harness section (Phase 4) */
+.wsw-harness-item { background:#f0fdf4; border:1px solid #bbf7d0; border-radius:6px; padding:8px 10px; margin-bottom:6px; font-size:12px; }
+.wsw-harness-title { font-weight:600; color:var(--fg); margin-bottom:2px; }
+.wsw-harness-meta { font-size:10px; color:var(--fg3); font-family:monospace; }
+.wsw-harness-meta .mode-chip { padding:1px 6px; border-radius:8px; font-size:9px; font-weight:600; margin-right:4px; }
+.wsw-harness-meta .mode-chip.llm { background:#dbeafe; color:#1d4ed8; }
+.wsw-harness-meta .mode-chip.template { background:#fef3c7; color:#92400e; }
+.wsw-cand-item { background:#f5f3ff; border:1px solid #ddd6fe; border-radius:6px; padding:6px 10px; margin:4px 0; font-size:11px; }
+.wsw-cand-title { color:var(--fg); font-weight:600; margin-bottom:2px; }
+.wsw-cand-meta { color:var(--fg3); font-family:monospace; font-size:10px; }
+
+/* Training footer */
+.wsw-training-foot { margin-top:14px; padding-top:10px; border-top:1px dashed var(--border);
+                      display:flex; justify-content:space-between; align-items:center; gap:8px; }
+.wsw-training-info { display:flex; flex-direction:column; gap:2px; min-width:0; }
+.wsw-training-label { font-size:9px; color:var(--fg3); text-transform:uppercase; letter-spacing:0.5px; font-weight:600; }
+.wsw-training-counts { font-size:10px; font-family:monospace; color:var(--fg2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+/* Harness run history */
+.wsw-runs-toggle { display:inline-block; margin-left:6px; font-size:10px; color:var(--fg3); cursor:pointer; user-select:none; }
+.wsw-runs-toggle:hover { color:var(--blue); }
+.wsw-runs-list { margin-top:4px; padding:6px 8px; background:#fff; border:1px dashed var(--border); border-radius:4px; font-size:10px; font-family:monospace; color:var(--fg2); display:none; }
+.wsw-runs-list.open { display:block; }
+.wsw-runs-list .run-row { padding:2px 0; }
+.wsw-runs-list .run-thumb-up { color:var(--green); font-weight:700; }
+.wsw-runs-list .run-thumb-down { color:var(--red); font-weight:700; }
+</style>
+</head>
+<body>
+
+<nav class="wiki-nav">
+  <a href="/wiki/" class="brand">PMIS Wiki</a>
+  <a href="/wiki/goals">Goals</a>
+  <a href="/wiki/productivity">Productivity</a>
+</nav>
+
+<div class="wiki-content">
+{% block content %}{% endblock %}
+</div>
+
+<!-- INFINITE-LOOP WORK SESSION WIDGET (Phase 1) -->
+<div class="wsw" id="wsw">
+  <div class="wsw-loop" id="wsw-loop" onclick="wswToggle()" title="Work session">
+    <svg viewBox="0 0 64 24" xmlns="http://www.w3.org/2000/svg">
+      <!-- lemniscate (infinity) -->
+      <path d="M 12 12 C 12 4, 24 4, 32 12 C 40 20, 52 20, 52 12 C 52 4, 40 4, 32 12 C 24 20, 12 20, 12 12 Z"/>
+    </svg>
+  </div>
+  <div class="wsw-panel" id="wsw-panel"></div>
+</div>
+
+<!-- Phase 3.5 — Problem statement preview modal -->
+<div class="wsw-ps-modal" id="wsw-ps-modal" onclick="wswPsClose(event)">
+  <div class="wsw-ps-box" onclick="event.stopPropagation()">
+    <div class="wsw-ps-head">
+      <h3 id="wsw-ps-title">Problem statement <span id="wsw-ps-mode" class="mode-chip"></span></h3>
+      <button class="wsw-btn ghost" onclick="wswPsClose()">Close</button>
+    </div>
+    <div class="wsw-ps-body" id="wsw-ps-body">Loading…</div>
+    <div class="wsw-ps-foot">
+      <button class="wsw-btn ghost" onclick="wswPsCopy()">Copy</button>
+      <button class="wsw-btn ghost" onclick="wswPsRegen(false)">Template mode</button>
+      <button class="wsw-btn primary" onclick="wswPsRegen(true)">Regenerate (LLM)</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleBackend(id) {
+  const panel = document.getElementById(id);
+  panel.classList.toggle('open');
+}
+
+/* ─── WORK SESSION WIDGET ──────────────────────────────────── */
+const WSW = {
+  state: null,           // latest /api/work/current response
+  deliverables: [],      // catalog for picker
+  pollMs: 30000,
+  pollTimer: null,
+  panelOpen: false,
+  brief: null,           // cached /api/work/brief response for bound deliverable
+  briefDeliverableId: null,
+  briefOpen: false,
+  harnesses: [],         // cached /api/harness list for bound deliverable
+  harnessDeliverableId: null,
+  harnessBuilding: false,
+};
+
+async function wswFetchState() {
+  try {
+    const [s, d, t] = await Promise.all([
+      fetch('/api/work/current').then(r => r.json()),
+      WSW.deliverables.length ? null : fetch('/api/work/deliverables').then(r => r.json()),
+      fetch('/api/training/counts').then(r => r.json()).catch(() => ({})),
+    ]);
+    WSW.state = s;
+    if (d && d.deliverables) WSW.deliverables = d.deliverables;
+    WSW.trainingCounts = t || {};
+    wswRender();
+  } catch (e) { console.warn('wsw fetch failed', e); }
+}
+
+function wswRender() {
+  const loop = document.getElementById('wsw-loop');
+  const panel = document.getElementById('wsw-panel');
+  if (!loop || !panel || !WSW.state) return;
+
+  loop.classList.remove('active', 'drifted');
+  if (WSW.state.active) {
+    loop.classList.add('active');
+    if (WSW.state.drift && WSW.state.drift.drifted) loop.classList.add('drifted');
+  }
+
+  if (!WSW.panelOpen) return;
+
+  let main = '';
+  if (!WSW.state.active) {
+    main = wswPanelIdle();
+  } else if (WSW.state.session.deliverable_id) {
+    main = wswPanelBound();
+  } else {
+    main = wswPanelObserving();
+  }
+  panel.innerHTML = main + wswTrainingFooter();
+}
+
+function wswTrainingFooter() {
+  const c = WSW.trainingCounts || {};
+  const total = Object.values(c).reduce((a, b) => a + (b || 0), 0);
+  const parts = Object.entries(c).map(([k, v]) => `${k}:${v}`).join(' · ') || 'none';
+  return `
+    <div class="wsw-training-foot">
+      <div class="wsw-training-info">
+        <span class="wsw-training-label">Training corpus</span>
+        <span class="wsw-training-counts">${escapeHtml(parts)}</span>
+      </div>
+      <button class="wsw-btn ghost" style="padding:4px 8px;font-size:10px;"
+              onclick="wswTrainingExport()" ${total === 0 ? 'disabled' : ''}>Export</button>
+    </div>
+  `;
+}
+
+async function wswTrainingExport() {
+  const r = await fetch('/api/training/export', { method: 'POST' }).then(x => x.json());
+  const msg = `Exported ${r.total_events || 0} events → ${Object.values(r.files || {}).flat().length} files`;
+  alert(msg);
+  wswFetchState();
+}
+
+function wswPanelIdle() {
+  const opts = WSW.deliverables.map(d =>
+    `<option value="${d.deliverable_id}">${escapeHtml(d.project_name || '—')} · ${escapeHtml(d.name)}</option>`
+  ).join('');
+  return `
+    <h4>Start work session</h4>
+    <div class="wsw-sub">Pick a deliverable to hard-bind, or start unbound and let AI suggest.</div>
+    <div class="wsw-picker">
+      <select id="wsw-pick">
+        <option value="">— Observe (AI will suggest after 5 min) —</option>
+        ${opts}
+      </select>
+      <button class="wsw-btn primary" onclick="wswStart()">Start session</button>
+    </div>
+  `;
+}
+
+function wswPanelBound() {
+  const s = WSW.state.session;
+  const bd = WSW.state.bound_deliverable || {};
+  const drift = WSW.state.drift || {};
+  const seg = WSW.state.latest_segment;
+
+  // Lazy-fetch the brief when session binds to a new deliverable
+  if (s.deliverable_id && WSW.briefDeliverableId !== s.deliverable_id) {
+    WSW.briefDeliverableId = s.deliverable_id;
+    WSW.brief = null;
+    wswFetchBrief(s.deliverable_id);
+  }
+
+  let driftBlock = '';
+  if (drift.drifted) {
+    driftBlock = `
+      <div class="wsw-drift">
+        <strong>Still working on this?</strong><br/>
+        Latest segment drifted — similarity ${(drift.similarity*100).toFixed(0)}%
+        (threshold ${(drift.drift_threshold*100).toFixed(0)}%).
+        <div class="wsw-row">
+          <button class="wsw-btn ghost" onclick="wswFetchState()">Stay on it</button>
+          <button class="wsw-btn primary" onclick="wswShowPicker()">Switch</button>
+        </div>
+      </div>`;
+  }
+
+  // Also lazy-fetch harness list on bind
+  if (s.deliverable_id && WSW.harnessDeliverableId !== s.deliverable_id) {
+    WSW.harnessDeliverableId = s.deliverable_id;
+    WSW.harnesses = [];
+    wswFetchHarnesses(s.deliverable_id);
+  }
+
+  return `
+    <h4>Active session</h4>
+    <div class="wsw-sub">Started ${fmtTime(s.started_at)}</div>
+    <div class="wsw-bound">
+      <div class="lbl">Bound to</div>
+      <div class="name">${escapeHtml(bd.project_name || '—')} · ${escapeHtml(bd.name || s.deliverable_id)}</div>
+    </div>
+    ${driftBlock}
+    ${wswBriefBlock()}
+    ${wswHarnessBlock()}
+    ${wswSegmentBlock(seg)}
+    <div class="wsw-row">
+      <button class="wsw-btn ghost" onclick="wswShowPicker()">Switch</button>
+      <button class="wsw-btn danger" onclick="wswEnd()">End session</button>
+    </div>
+  `;
+}
+
+async function wswFetchHarnesses(deliverable_id) {
+  try {
+    const [list, cands] = await Promise.all([
+      fetch(`/api/harness?deliverable_id=${encodeURIComponent(deliverable_id)}`).then(x => x.json()),
+      fetch(`/api/harness/candidates?deliverable_id=${encodeURIComponent(deliverable_id)}`).then(x => x.json()),
+    ]);
+    WSW.harnesses = list.harnesses || [];
+    WSW.harnessCandidates = cands.candidates || [];
+    if (WSW.panelOpen) wswRender();
+  } catch (e) { console.warn('harness fetch failed', e); }
+}
+
+function wswHarnessBlock() {
+  const list = WSW.harnesses || [];
+  const candidates = WSW.harnessCandidates || [];
+  const building = WSW.harnessBuilding;
+
+  let candsBlock = '';
+  if (candidates.length) {
+    candsBlock = `
+      <div class="wsw-sub" style="margin-top:8px;font-weight:600;color:var(--fg2);">
+        Pattern-mined candidates
+      </div>
+      ${candidates.slice(0,3).map(c => `
+        <div class="wsw-cand-item" title="${escapeHtml(c.pattern_signature)}">
+          <div class="wsw-cand-title">${escapeHtml(c.suggested_title || '—')}</div>
+          <div class="wsw-cand-meta">
+            ${c.reps}× · ${c.total_minutes} min · ${c.distinct_days}d · value ${(c.avg_value_score*100).toFixed(0)}%
+          </div>
+        </div>
+      `).join('')}
+    `;
+  }
+
+  let body = '';
+  if (list.length === 0) {
+    body = `<div class="wsw-sub">No harnesses yet. Build one to let Claude draft a plan.</div>`;
+  } else {
+    body = list.map(h => {
+      const thumbs = (h.thumbs_up || 0) + (h.thumbs_down || 0);
+      const rate = thumbs ? `${Math.round((h.success_rate || 0) * 100)}%` : '—';
+      const runs = wswParseRuns(h.post_run_signals);
+      const hasRuns = runs.length > 0;
+      const runsRow = hasRuns ? `
+        <span class="wsw-runs-toggle" onclick="document.getElementById('runs-${h.id}').classList.toggle('open')">
+          ▸ ${runs.length} recent run${runs.length > 1 ? 's' : ''}
+        </span>` : '';
+      const runsList = hasRuns ? `
+        <div id="runs-${h.id}" class="wsw-runs-list">
+          ${runs.slice(-5).reverse().map(r => `
+            <div class="run-row">
+              ${r.thumb === 'up' ? '<span class="run-thumb-up">👍</span>' :
+                r.thumb === 'down' ? '<span class="run-thumb-down">👎</span>' : '·'}
+              ${r.outcome ? escapeHtml(r.outcome) : '—'}
+              · ${escapeHtml((r.at || '').slice(11, 16) || '')}
+              ${r.notes ? ' · ' + escapeHtml((r.notes || '').slice(0, 40)) : ''}
+            </div>
+          `).join('')}
+        </div>` : '';
+      return `
+        <div class="wsw-harness-item">
+          <div class="wsw-harness-title">${escapeHtml(h.title || h.id)}</div>
+          <div class="wsw-harness-meta">
+            <span class="mode-chip ${h.mode}">${h.mode}</span>
+            ${h.run_count ? `${h.run_count} run${h.run_count>1?'s':''} · ` : ''}
+            success ${rate}
+            ${runsRow}
+          </div>
+          ${runsList}
+          <div class="wsw-row" style="margin-top:6px;">
+            <button class="wsw-btn ghost" onclick="wswHarnessCopyCmd('${h.id}')">Copy /pmis-harness</button>
+            <button class="wsw-btn ghost" onclick="wswHarnessThumb('${h.id}','up')">👍</button>
+            <button class="wsw-btn ghost" onclick="wswHarnessThumb('${h.id}','down')">👎</button>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  const buildDisabled = building ? 'disabled' : '';
+  const buildLabel = building ? 'Building…' : 'Build harness (template)';
+  const buildLlmLabel = building ? '…' : 'Build with LLM';
+  return `
+    <div class="wsw-section">
+      <h4>Automation Harness</h4>
+      <div class="wsw-sub">PMIS composes a Claude-ready bundle for this deliverable.</div>
+      ${candsBlock}
+      ${body}
+      <div class="wsw-row" style="margin-top:8px;">
+        <button class="wsw-btn primary" ${buildDisabled} onclick="wswHarnessBuild(false)">${buildLabel}</button>
+        <button class="wsw-btn ghost" ${buildDisabled} onclick="wswHarnessBuild(true)">${buildLlmLabel}</button>
+      </div>
+    </div>
+  `;
+}
+
+async function wswHarnessBuild(useLlm) {
+  const did = WSW.state && WSW.state.session ? WSW.state.session.deliverable_id : null;
+  if (!did) return;
+  WSW.harnessBuilding = true;
+  wswRender();
+  try {
+    const r = await fetch('/api/harness/build', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ deliverable_id: did, use_llm: !!useLlm }),
+    }).then(x => x.json());
+    if (r && r.id) {
+      WSW.harnesses = [r, ...WSW.harnesses];
+    }
+  } catch (e) { alert('Build failed: ' + (e && e.message || e)); }
+  WSW.harnessBuilding = false;
+  wswFetchHarnesses(did);
+}
+
+function wswParseRuns(signalsJson) {
+  if (!signalsJson) return [];
+  try {
+    const parsed = typeof signalsJson === 'string' ? JSON.parse(signalsJson) : signalsJson;
+    return Array.isArray(parsed.runs) ? parsed.runs : [];
+  } catch { return []; }
+}
+
+function wswHarnessCopyCmd(hid) {
+  const cmd = '/pmis-harness ' + hid;
+  navigator.clipboard.writeText(cmd).then(
+    () => { alert('Copied: ' + cmd + '\nPaste into Claude Code to run the harness.'); },
+    () => alert('Copy failed — command was: ' + cmd),
+  );
+}
+
+async function wswHarnessThumb(hid, thumb) {
+  await fetch(`/api/harness/${hid}/record-run`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ thumb, notes: 'widget manual thumb' }),
+  });
+  const did = WSW.state && WSW.state.session ? WSW.state.session.deliverable_id : null;
+  if (did) wswFetchHarnesses(did);
+}
+
+async function wswFetchBrief(deliverable_id) {
+  try {
+    const r = await fetch(`/api/work/brief?deliverable_id=${encodeURIComponent(deliverable_id)}`)
+      .then(x => x.json());
+    WSW.brief = r;
+    if (WSW.panelOpen) wswRender();
+  } catch (e) { console.warn('brief fetch failed', e); }
+}
+
+function wswBriefBlock() {
+  const b = WSW.brief;
+  const openCls = WSW.briefOpen ? 'open' : '';
+  const subtitle = b ? `${(b.claude_can_do||[]).length} automatable · ${(b.you_did_before||[]).length} similar`
+                      : 'Loading…';
+  const previewBtn = (b && !b.error)
+    ? `<button class="wsw-btn ghost" style="margin-top:8px;width:100%;" onclick="wswPsOpen()">Preview problem statement →</button>`
+    : '';
+  let body = '';
+  if (!b) {
+    body = `<div class="bucket-empty">Loading brief…</div>`;
+  } else if (b.error) {
+    body = `<div class="bucket-empty">${escapeHtml(b.error)}</div>`;
+  } else {
+    const claudeItems = (b.claude_can_do || []).map(i => `
+      <div class="wsw-brief-item claude" onclick="window.open('/wiki/node/${i.node_id}','_blank')">
+        ${escapeHtml((i.preview||'').slice(0,180))}
+        <div class="meta">sim ${(i.similarity*100).toFixed(0)}% · auto ${(i.automatability*100).toFixed(0)}%</div>
+      </div>`).join('') || `<div class="bucket-empty">No automatable patterns found.</div>`;
+
+    const similarItems = (b.you_did_before || []).map(i => `
+      <div class="wsw-brief-item similar" onclick="window.open('/wiki/node/${i.node_id}','_blank')">
+        ${escapeHtml((i.preview||'').slice(0,180))}
+        <div class="meta">sim ${(i.similarity*100).toFixed(0)}%</div>
+      </div>`).join('') || `<div class="bucket-empty">No similar prior work yet.</div>`;
+
+    body = `
+      <h5>Claude can do this</h5>
+      ${claudeItems}
+      <h5>You've done this before</h5>
+      ${similarItems}
+    `;
+  }
+
+  return `
+    <button class="wsw-brief-toggle ${openCls}" onclick="wswToggleBrief()">
+      Brief — ${subtitle}<span class="chev">›</span>
+    </button>
+    <div class="wsw-brief ${openCls}">${body}${previewBtn}</div>
+  `;
+}
+
+/* ─── Phase 3.5: problem-statement preview modal ─────────────────── */
+async function wswPsOpen() {
+  const did = WSW.state && WSW.state.session ? WSW.state.session.deliverable_id : null;
+  if (!did) return;
+  const modal = document.getElementById('wsw-ps-modal');
+  const body = document.getElementById('wsw-ps-body');
+  const modeChip = document.getElementById('wsw-ps-mode');
+  body.textContent = 'Composing…';
+  modeChip.textContent = '';
+  modeChip.className = 'mode-chip';
+  modal.classList.add('open');
+  try {
+    // Start in template mode — instant, no LLM spend. User clicks
+    // "Regenerate (LLM)" to upgrade.
+    const r = await fetch(`/api/work/compose-problem?deliverable_id=${encodeURIComponent(did)}&use_llm=false`,
+      { method: 'POST' }).then(x => x.json());
+    wswPsRender(r);
+  } catch (e) {
+    body.textContent = 'Failed to compose: ' + (e && e.message || e);
+  }
+}
+
+function wswPsRender(bundle) {
+  const body = document.getElementById('wsw-ps-body');
+  const modeChip = document.getElementById('wsw-ps-mode');
+  if (bundle && bundle.detail) {
+    body.textContent = 'Error: ' + bundle.detail;
+    modeChip.textContent = '';
+    return;
+  }
+  body.textContent = bundle.problem_statement_md || '(empty)';
+  modeChip.textContent = bundle.mode || '';
+  modeChip.className = 'mode-chip ' + (bundle.mode || '');
+  window.__wswLastBundle = bundle;
+}
+
+function wswPsClose(ev) {
+  if (ev && ev.target && !ev.target.classList.contains('wsw-ps-modal')) return;
+  document.getElementById('wsw-ps-modal').classList.remove('open');
+}
+
+async function wswPsRegen(useLlm) {
+  const did = WSW.state && WSW.state.session ? WSW.state.session.deliverable_id : null;
+  if (!did) return;
+  const body = document.getElementById('wsw-ps-body');
+  body.textContent = useLlm ? 'Calling meta-LLM…' : 'Rendering template…';
+  const r = await fetch(`/api/work/compose-problem?deliverable_id=${encodeURIComponent(did)}&use_llm=${useLlm}`,
+    { method: 'POST' }).then(x => x.json());
+  wswPsRender(r);
+}
+
+function wswPsCopy() {
+  const text = document.getElementById('wsw-ps-body').textContent;
+  navigator.clipboard.writeText(text).then(
+    () => { const el = document.getElementById('wsw-ps-title'); const old = el.innerHTML;
+            el.innerHTML = 'Copied ✓'; setTimeout(() => el.innerHTML = old, 1200); },
+    () => alert('Copy failed')
+  );
+}
+
+function wswToggleBrief() {
+  WSW.briefOpen = !WSW.briefOpen;
+  wswRender();
+}
+
+function wswPanelObserving() {
+  const s = WSW.state.session;
+  const seg = WSW.state.latest_segment;
+  const suggestions = WSW.state.suggestions || [];
+  const ready = WSW.state.suggest_ready;
+  const reason = WSW.state.suggest_reason || '';
+
+  let sugBlock;
+  if (!ready) {
+    sugBlock = `<div class="wsw-sub">Waiting for ≥ 5 min of segment data… <em>(${escapeHtml(reason)})</em></div>`;
+  } else if (suggestions.length === 0) {
+    sugBlock = `<div class="wsw-sub">No active deliverables match yet.</div>`;
+  } else {
+    sugBlock = suggestions.map(sg => `
+      <div class="wsw-suggest" onclick="wswConfirm('${sg.deliverable_id}')">
+        <span>${escapeHtml(sg.deliverable_name || '—')}</span>
+        <span class="score">${(sg.score*100).toFixed(0)}%</span>
+      </div>
+    `).join('');
+  }
+
+  return `
+    <h4>Observing</h4>
+    <div class="wsw-sub">Started ${fmtTime(s.started_at)} — no deliverable bound yet.</div>
+    <div class="wsw-section">
+      <h4>AI Suggestions</h4>
+      ${sugBlock}
+    </div>
+    ${wswSegmentBlock(seg)}
+    <div class="wsw-row">
+      <button class="wsw-btn ghost" onclick="wswShowPicker()">Pick manually</button>
+      <button class="wsw-btn danger" onclick="wswEnd()">End session</button>
+    </div>
+  `;
+}
+
+function wswSegmentBlock(seg) {
+  if (!seg) return '';
+  const mins = Math.round((seg.length_secs || 0) / 60);
+  return `
+    <div class="wsw-latest">
+      <strong>Latest segment</strong> · ${mins} min · ${escapeHtml(seg.platform || 'unknown')}<br/>
+      ${escapeHtml((seg.anchor || seg.context || '').slice(0, 120))}
+    </div>`;
+}
+
+function wswShowPicker() {
+  const panel = document.getElementById('wsw-panel');
+  const opts = WSW.deliverables.map(d =>
+    `<option value="${d.deliverable_id}">${escapeHtml(d.project_name || '—')} · ${escapeHtml(d.name)}</option>`
+  ).join('');
+  panel.innerHTML = `
+    <h4>Pick a deliverable</h4>
+    <div class="wsw-picker">
+      <select id="wsw-pick">
+        <option value="">—</option>${opts}
+      </select>
+      <button class="wsw-btn primary" onclick="wswConfirmPicked()">Bind to this</button>
+      <button class="wsw-btn ghost" onclick="wswFetchState()">Cancel</button>
+    </div>
+  `;
+}
+
+async function wswStart() {
+  const sel = document.getElementById('wsw-pick');
+  const did = sel ? sel.value : '';
+  const body = did ? { deliverable_id: did } : {};
+  await fetch('/api/work/start', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(body),
+  });
+  WSW.panelOpen = true;
+  wswFetchState();
+}
+
+async function wswConfirm(deliverable_id) {
+  await fetch('/api/work/confirm', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ deliverable_id, auto_assigned: 1 }),
+  });
+  wswFetchState();
+}
+
+async function wswConfirmPicked() {
+  const sel = document.getElementById('wsw-pick');
+  if (!sel || !sel.value) return;
+  await wswConfirm(sel.value);
+}
+
+async function wswEnd() {
+  const r = await fetch('/api/work/end', { method: 'POST' }).then(x => x.json());
+  if (r.segments_bound !== undefined) {
+    alert(`Session ended — ${r.segments_bound} segment(s) bound.`);
+  }
+  WSW.panelOpen = true;
+  WSW.brief = null;
+  WSW.briefDeliverableId = null;
+  WSW.briefOpen = false;
+  WSW.harnesses = [];
+  WSW.harnessDeliverableId = null;
+  wswFetchState();
+}
+
+function wswToggle() {
+  WSW.panelOpen = !WSW.panelOpen;
+  const panel = document.getElementById('wsw-panel');
+  panel.classList.toggle('open', WSW.panelOpen);
+  if (WSW.panelOpen) wswFetchState();
+}
+
+function fmtTime(iso) {
+  if (!iso) return '—';
+  try {
+    const d = new Date(iso.includes('T') ? iso : iso.replace(' ', 'T') + 'Z');
+    return d.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+  } catch { return iso; }
+}
+
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// Boot widget — poll every 30s; fetch once on load for loop indicator state
+wswFetchState();
+WSW.pollTimer = setInterval(wswFetchState, WSW.pollMs);
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>
