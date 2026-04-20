@@ -78,16 +78,24 @@ class ProductivityTracker:
         self.activity_monitor.start()
         self.input_monitor.start()
 
-        # On startup: catch up ALL missed pipeline work across ALL dates
+        # On startup: catch up ALL missed pipeline work across ALL dates.
+        # Wrapped per-step so an embedding/API failure during catch-up does NOT
+        # kill the daemon — monitors must keep capturing context_1 regardless.
         logger.info("=== STARTUP CATCH-UP: Processing all missed pipeline work ===")
 
         # Step 1: Hourly — process all dates/hours that have segments but no hourly log
-        hourly_count = await self.hourly_agg.run_all_pending()
-        logger.info(f"Hourly catch-up: {hourly_count} hours processed.")
+        try:
+            hourly_count = await self.hourly_agg.run_all_pending()
+            logger.info(f"Hourly catch-up: {hourly_count} hours processed.")
+        except Exception as e:
+            logger.exception(f"Hourly catch-up failed (continuing): {e}")
 
         # Step 2: Daily — rebuild daily entries for all dates with hourly data
-        daily_count = await self.daily_rollup.run_all_pending()
-        logger.info(f"Daily catch-up: {daily_count} dates rebuilt.")
+        try:
+            daily_count = await self.daily_rollup.run_all_pending()
+            logger.info(f"Daily catch-up: {daily_count} dates rebuilt.")
+        except Exception as e:
+            logger.exception(f"Daily catch-up failed (continuing): {e}")
 
         logger.info("=== STARTUP CATCH-UP COMPLETE ===")
 

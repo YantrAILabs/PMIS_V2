@@ -24,7 +24,16 @@ CREATE TABLE IF NOT EXISTS memory_nodes (
     productivity_human_mins REAL DEFAULT 0,
     productivity_ai_mins REAL DEFAULT 0,
     last_productivity_sync TEXT DEFAULT '',
-    is_project_node INTEGER DEFAULT 0
+    is_project_node INTEGER DEFAULT 0,
+    -- Phase 3: unified value_score (goal + feedback + usage + recency)
+    value_score REAL DEFAULT 0.0,
+    value_goal REAL DEFAULT 0.0,
+    value_feedback REAL DEFAULT 0.0,
+    value_usage REAL DEFAULT 0.0,
+    value_recency REAL DEFAULT 0.0,
+    value_computed_at TEXT DEFAULT '',
+    -- Audit-fix: protect user-authored content from auto-rewrite
+    is_user_edited INTEGER DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS relations (
@@ -278,6 +287,129 @@ CREATE TABLE IF NOT EXISTS feedback (
 );
 
 -- ═══════════════════════════════════════════════════════════
+-- LIVE WORK SESSIONS — Phase 1
+-- ═══════════════════════════════════════════════════════════
+
+-- User-initiated work sessions. Hard-binds segments to a chosen deliverable.
+CREATE TABLE IF NOT EXISTS work_sessions (
+    id TEXT PRIMARY KEY,
+    started_at TEXT NOT NULL DEFAULT (datetime('now')),
+    ended_at TEXT,
+    project_id TEXT DEFAULT '',
+    deliverable_id TEXT DEFAULT '',
+    auto_assigned INTEGER DEFAULT 0,        -- 1 if AI suggested and user accepted
+    confirmed_by_user INTEGER DEFAULT 0,    -- 1 if user explicitly picked (not drift-accept)
+    drift_prompts_sent INTEGER DEFAULT 0,
+    note TEXT DEFAULT ''
+);
+
+-- Per-segment override bindings. Written at /work/end (or on drift-confirm)
+-- so nightly project_matcher can short-circuit to this deliverable instead
+-- of running triangulated semantic×hyperbolic×temporal match.
+CREATE TABLE IF NOT EXISTS segment_override_bindings (
+    segment_id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL REFERENCES work_sessions(id),
+    project_id TEXT DEFAULT '',
+    deliverable_id TEXT DEFAULT '',
+    source TEXT NOT NULL DEFAULT 'session'
+        CHECK(source IN ('session', 'drift_confirm', 'manual')),
+    created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_work_sessions_ended ON work_sessions(ended_at);
+CREATE INDEX IF NOT EXISTS idx_work_sessions_started ON work_sessions(started_at);
+CREATE INDEX IF NOT EXISTS idx_segment_override_session ON segment_override_bindings(session_id);
+CREATE INDEX IF NOT EXISTS idx_segment_override_deliv ON segment_override_bindings(deliverable_id);
+
+-- ═══════════════════════════════════════════════════════════
+-- SEGMENT ARTIFACTS — Step 2 (boilerplate detector)
+-- ═══════════════════════════════════════════════════════════
+
+-- Derived artifacts observed during a tracker segment: a file path opened, a
+-- terminal command run, a URL visited, a code snippet signature, a decision
+-- flagged in the summary. Feeds the boilerplate detector + Phase 4 harness
+-- context folder. Minimal for now — extractors can populate richer rows later.
+CREATE TABLE IF NOT EXISTS segment_artifacts (
+    id TEXT PRIMARY KEY,
+    segment_id TEXT NOT NULL,
+    artifact_type TEXT NOT NULL
+        CHECK(artifact_type IN ('file','command','url','snippet','decision','screenshot')),
+    path_or_uri TEXT DEFAULT '',
+    content_hash TEXT DEFAULT '',
+    preview TEXT DEFAULT '',
+    extracted_at TEXT DEFAULT (datetime('now')),
+    source TEXT DEFAULT 'heuristic'
+        CHECK(source IN ('heuristic','llm','manual'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_seg_artifacts_segment ON segment_artifacts(segment_id);
+CREATE INDEX IF NOT EXISTS idx_seg_artifacts_type ON segment_artifacts(artifact_type);
+CREATE INDEX IF NOT EXISTS idx_seg_artifacts_hash ON segment_artifacts(content_hash);
+
+-- ═══════════════════════════════════════════════════════════
+-- AGENT HARNESSES — Phase 4 automation bundles
+-- ═══════════════════════════════════════════════════════════
+
+-- Each row is a materialized bundle PMIS built for a deliverable. The
+-- problem_statement + context files live on disk under bundle_path; this
+-- table is the index + run history.
+CREATE TABLE IF NOT EXISTS agent_harnesses (
+    id TEXT PRIMARY KEY,
+    deliverable_id TEXT NOT NULL REFERENCES deliverables(id),
+    project_id TEXT DEFAULT '',
+    title TEXT DEFAULT '',
+    bundle_path TEXT NOT NULL,               -- absolute path to .pmis_harnesses/<id>/
+    problem_statement_md TEXT DEFAULT '',    -- canonical copy for UI preview
+    anchors_used TEXT DEFAULT '[]',          -- JSON list of {node_id, preview, value_score}
+    pattern_signature TEXT DEFAULT '',       -- Phase 4b pattern miner fills this
+    trigger_source TEXT DEFAULT 'manual'
+        CHECK(trigger_source IN ('manual', 'pattern_miner', 'user_session')),
+    pre_run_features TEXT DEFAULT '{}',      -- JSON — for training_events
+    post_run_signals TEXT DEFAULT '{}',      -- JSON — thumbs, outcome, reuse counts
+    run_count INTEGER DEFAULT 0,
+    thumbs_up INTEGER DEFAULT 0,
+    thumbs_down INTEGER DEFAULT 0,
+    last_run_at TEXT,
+    success_rate REAL DEFAULT 0.0,
+    mode TEXT DEFAULT 'template'             -- llm | template; Phase 3.5 composer mode
+        CHECK(mode IN ('llm', 'template')),
+    model_used TEXT DEFAULT '',
+    status TEXT DEFAULT 'ready'
+        CHECK(status IN ('ready', 'running', 'archived')),
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_harness_deliverable ON agent_harnesses(deliverable_id);
+CREATE INDEX IF NOT EXISTS idx_harness_status ON agent_harnesses(status);
+CREATE INDEX IF NOT EXISTS idx_harness_success ON agent_harnesses(success_rate);
+CREATE INDEX IF NOT EXISTS idx_harness_pattern ON agent_harnesses(pattern_signature);
+
+-- Training events: labeled (features, outcome) pairs for future model training.
+-- Populated by harness executions, feedback thumbs, and user-confirmed matches.
+-- Zero inference today — this is passive data collection per the locked design.
+CREATE TABLE IF NOT EXISTS training_events (
+    id TEXT PRIMARY KEY,
+    event_type TEXT NOT NULL
+        CHECK(event_type IN ('automation_class','boilerplate','assignment','harness_outcome')),
+    segment_id TEXT DEFAULT '',
+    node_id TEXT DEFAULT '',
+    deliverable_id TEXT DEFAULT '',
+    harness_id TEXT DEFAULT '',
+    features TEXT DEFAULT '{}',              -- JSON
+    label TEXT DEFAULT '{}',                 -- JSON
+    pmis_version TEXT DEFAULT 'phase-4a',
+    model_version TEXT DEFAULT '',
+    captured_at TEXT DEFAULT (datetime('now')),
+    exported_to_training INTEGER DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_training_events_type ON training_events(event_type);
+CREATE INDEX IF NOT EXISTS idx_training_events_deliverable ON training_events(deliverable_id);
+CREATE INDEX IF NOT EXISTS idx_training_events_harness ON training_events(harness_id);
+CREATE INDEX IF NOT EXISTS idx_training_events_exported ON training_events(exported_to_training);
+
+-- ═══════════════════════════════════════════════════════════
 -- WIKI PAGE CACHE — LLM-generated prose pages
 -- ═══════════════════════════════════════════════════════════
 
@@ -442,6 +574,30 @@ CREATE INDEX IF NOT EXISTS idx_hyp_norm ON embeddings(hyperbolic_norm);
 CREATE INDEX IF NOT EXISTS idx_turn_retrieved ON turn_retrieved_memories(turn_id);
 CREATE INDEX IF NOT EXISTS idx_turn_epistemic ON turn_epistemic_questions(turn_id);
 CREATE INDEX IF NOT EXISTS idx_turn_predictive ON turn_predictive_memories(turn_id);
+
+-- Restructure queue (audit-fix: LLM regen of red-flagged nodes)
+CREATE TABLE IF NOT EXISTS restructure_queue (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    node_id TEXT NOT NULL,
+    scope TEXT NOT NULL CHECK(scope IN ('anchor', 'context')),
+    reason TEXT DEFAULT '',
+    queued_at TEXT DEFAULT (datetime('now')),
+    processed_at TEXT,
+    status TEXT DEFAULT 'queued' CHECK(status IN ('queued', 'processing', 'done', 'skipped'))
+);
+CREATE TABLE IF NOT EXISTS restructure_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    node_id TEXT NOT NULL,
+    scope TEXT NOT NULL,
+    trigger_reason TEXT DEFAULT '',
+    before_content TEXT DEFAULT '',
+    after_content TEXT DEFAULT '',
+    applied_by TEXT DEFAULT '',
+    run_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_restructure_queue_status ON restructure_queue(status);
+CREATE INDEX IF NOT EXISTS idx_restructure_queue_node ON restructure_queue(node_id);
+CREATE INDEX IF NOT EXISTS idx_restructure_log_node ON restructure_log(node_id);
 
 -- Goals & feedback indexes
 CREATE INDEX IF NOT EXISTS idx_goals_status ON goals(status);

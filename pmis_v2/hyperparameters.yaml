@@ -18,6 +18,15 @@ score_weight_semantic: 0.55  # was 0.4 — empirical: semantic carries hierarchy
 score_weight_hierarchy: 0.15  # was 0.3 — hyperbolic underperforming on ancestor finding; reduce until replaced
 score_weight_temporal: 0.15
 score_weight_precision: 0.15
+# Value-score multiplier (audit-fix): final = base * (1 + alpha * clip(value_score, min, max))
+# Wires materialized G+F+U+R (core.value_score) into ranking. Asymmetric clip
+# keeps red-flagged nodes surfaceable instead of disappearing entirely.
+value_multiplier_alpha: 0.3
+value_clip_min: -0.5
+value_clip_max: 1.0
+# Max restructure jobs to drain per nightly pass — caps LLM spend if many
+# nodes red-flag at once.
+restructure_max_jobs_per_run: 50
 poincare_dimensions: 16
 poincare_curvature: -1.0
 poincare_sc_norm_min: 0.05
@@ -101,3 +110,35 @@ gamma_session_boost_alpha: 0.3
 gamma_session_boost_threshold: 0.6
 gamma_session_boost_factor: 0.15
 gamma_session_boost_min_turns: 3
+
+# Project matcher — triangulated scoring of work anchors → deliverable anchors
+# combined = semantic^alpha * hyperbolic^beta * temporal^gamma
+matcher_alpha: 1.0            # semantic exponent
+matcher_beta: 1.0             # hyperbolic exponent
+matcher_gamma: 1.0            # temporal exponent
+matcher_tau_high: 0.75        # >= this → auto-surface on Goals page (is_correct = -1 pending)
+matcher_tau_low: 0.45         # < this → discard; between low..high queued for review
+matcher_top_n_log: 5          # trace depth written to project_work_match_log per work anchor
+matcher_temporal_decay_days: 14  # temporal score halves this many days past deadline
+matcher_poincare_max_dist: 4.0   # normalizer for hyperbolic → [0,1]; ~diameter of unit ball in curvature=1
+
+# Match-feedback edges consumed by HGCN's feedback loss term.
+# Older thumbs are excluded because the tree has likely reshaped.
+match_feedback_max_age_days: 90
+
+# ── Phase 3: unified value_score on every memory_node ─────────────────
+# value_score(n) = w_g·G(n) + w_f·F(n) + w_u·U(n) + w_r·R(n)
+# G: goal achievement (0..1), F: feedback in [-1,1] internal (clipped at 0 for display),
+# U: log-normalized 30d retrievals, R: exp(-age_days/τ_r)
+value_weight_goal: 0.4
+value_weight_feedback: 0.3
+value_weight_usage: 0.2
+value_weight_recency: 0.1
+value_feedback_halflife_days: 30
+value_feedback_floor: 0.2    # feedback-decay floor; older feedback retains this min weight
+value_recency_tau_days: 60
+value_usage_window_days: 30
+value_goal_propagation: 0.5  # 50% attenuation per hop when goal ratio flows up the tree
+value_display_clip: 0.0      # clip value_score at this for display; red-flag when F < -0.3
+value_feedback_redflag: -0.3
+value_brief_blend: 0.35      # how much value_score biases BriefComposer ranking (0=ignore, 1=dominant)

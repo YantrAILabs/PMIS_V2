@@ -7,7 +7,7 @@ Full per-turn flow:
 """
 
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 import numpy as np
 
 from core.memory_node import MemoryNode, MemoryLevel
@@ -231,11 +231,47 @@ class IngestionPipeline:
         self, query_embedding: np.ndarray
     ) -> tuple:
         """
-        Find nearest Context + collect all context embeddings for K-nearest surprise.
-        Returns (nearest_context_dict, list_of_all_context_embeddings).
+        Find nearest Context + collect top-K context embeddings for K-nearest
+        surprise. Returns (nearest_context_dict, list_of_top_k_embeddings).
+
+        Fast path: ChromaDB ANN with level='CTX' filter — pulls only the top-K
+        contexts (K = surprise_k_nearest) instead of every CTX node's BLOB.
+        Fallback: linear scan over all CTX nodes.
         """
         from core.surprise import compute_raw_surprise
 
+        k_nearest = int(self.hp.get("surprise_k_nearest", 5))
+
+        # Fast path: ANN with level filter
+        if self.db.has_ann_index:
+            ann_results = self.db.ann_query(
+                query_embedding,
+                n_results=max(k_nearest, 1),
+                level_filter="CTX",
+            )
+            if ann_results:
+                top_embeddings: List[np.ndarray] = []
+                best_ctx = None
+                for i, r in enumerate(ann_results):
+                    embs = self.db.get_embeddings(r["id"])
+                    ctx_emb = embs.get("euclidean")
+                    if ctx_emb is None:
+                        continue
+                    top_embeddings.append(ctx_emb)
+                    if i == 0:  # ANN is sorted; first is nearest
+                        ctx_node = self.db.get_node(r["id"])
+                        if ctx_node:
+                            stats = self.db.get_context_stats(r["id"])
+                            best_ctx = {
+                                **ctx_node,
+                                **stats,
+                                "embedding": ctx_emb,
+                                "name": ctx_node.get("content", "")[:100],
+                            }
+                if best_ctx is not None:
+                    return best_ctx, top_embeddings
+
+        # Fallback: linear scan
         contexts = self.db.get_nodes_by_level("CTX")
         if not contexts:
             return None, []

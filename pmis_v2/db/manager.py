@@ -109,6 +109,45 @@ class DBManager:
                 except Exception:
                     pass
 
+        # Migration: Phase 3 — value_score columns on memory_nodes
+        for col, typedef in [
+            ("value_score", "REAL DEFAULT 0.0"),
+            ("value_goal", "REAL DEFAULT 0.0"),
+            ("value_feedback", "REAL DEFAULT 0.0"),
+            ("value_usage", "REAL DEFAULT 0.0"),
+            ("value_recency", "REAL DEFAULT 0.0"),
+            ("value_computed_at", "TEXT DEFAULT ''"),
+            # Audit-fix: protect user-authored content from auto-rewrite
+            ("is_user_edited", "INTEGER DEFAULT 0"),
+        ]:
+            try:
+                self._conn.execute(f"SELECT {col} FROM memory_nodes LIMIT 1")
+            except Exception:
+                try:
+                    self._conn.execute(f"ALTER TABLE memory_nodes ADD COLUMN {col} {typedef}")
+                    self._conn.commit()
+                except Exception:
+                    pass
+        try:
+            self._conn.execute("CREATE INDEX IF NOT EXISTS idx_nodes_value_score ON memory_nodes(value_score)")
+            self._conn.commit()
+        except Exception:
+            pass
+
+        # Migration: Phase 5 — wiki staleness tracking
+        for col, typedef in [
+            ("value_score_avg_at_render", "REAL DEFAULT 0.0"),
+            ("pitfall_count_at_render", "INTEGER DEFAULT 0"),
+        ]:
+            try:
+                self._conn.execute(f"SELECT {col} FROM wiki_page_cache LIMIT 1")
+            except Exception:
+                try:
+                    self._conn.execute(f"ALTER TABLE wiki_page_cache ADD COLUMN {col} {typedef}")
+                    self._conn.commit()
+                except Exception:
+                    pass
+
         # Migration: create turn detail tables (no FKs — historical records, nodes may be deleted)
         self._conn.executescript("""
             CREATE TABLE IF NOT EXISTS turn_retrieved_memories (
@@ -134,6 +173,52 @@ class DBManager:
             CREATE INDEX IF NOT EXISTS idx_turn_retrieved ON turn_retrieved_memories(turn_id);
             CREATE INDEX IF NOT EXISTS idx_turn_epistemic ON turn_epistemic_questions(turn_id);
             CREATE INDEX IF NOT EXISTS idx_turn_predictive ON turn_predictive_memories(turn_id);
+        """)
+        self._conn.commit()
+
+        # Migration: add value_score / value_multiplier columns to
+        # turn_retrieved_memories so the per-retrieval multiplier effect is
+        # introspectable at query time (not just baked into final_score).
+        for col, coltype in [
+            ("value_score", "REAL"),
+            ("value_multiplier", "REAL"),
+        ]:
+            try:
+                self._conn.execute(f"SELECT {col} FROM turn_retrieved_memories LIMIT 1")
+            except Exception:
+                try:
+                    self._conn.execute(
+                        f"ALTER TABLE turn_retrieved_memories ADD COLUMN {col} {coltype}"
+                    )
+                    self._conn.commit()
+                except Exception:
+                    pass
+
+        # Migration: create restructure queue/log tables for LLM regen of
+        # red-flagged nodes (audit-fix Item 7). Idempotent via IF NOT EXISTS.
+        self._conn.executescript("""
+            CREATE TABLE IF NOT EXISTS restructure_queue (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                node_id TEXT NOT NULL,
+                scope TEXT NOT NULL,
+                reason TEXT DEFAULT '',
+                queued_at TEXT DEFAULT (datetime('now')),
+                processed_at TEXT,
+                status TEXT DEFAULT 'queued'
+            );
+            CREATE TABLE IF NOT EXISTS restructure_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                node_id TEXT NOT NULL,
+                scope TEXT NOT NULL,
+                trigger_reason TEXT DEFAULT '',
+                before_content TEXT DEFAULT '',
+                after_content TEXT DEFAULT '',
+                applied_by TEXT DEFAULT '',
+                run_at TEXT DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_restructure_queue_status ON restructure_queue(status);
+            CREATE INDEX IF NOT EXISTS idx_restructure_queue_node ON restructure_queue(node_id);
+            CREATE INDEX IF NOT EXISTS idx_restructure_log_node ON restructure_log(node_id);
         """)
         self._conn.commit()
 
@@ -194,6 +279,22 @@ class DBManager:
                 except Exception:
                     pass
 
+        # Migration (2026-04-20, Phase 2): project-matching status columns
+        for table, col, coltype in [
+            ("project_work_match_log", "source", "TEXT DEFAULT 'semantic'"),
+            ("activity_time_log", "project_id", "TEXT DEFAULT ''"),
+            ("activity_time_log", "match_source", "TEXT DEFAULT ''"),
+            ("activity_segments", "consolidated_into_node_id", "TEXT DEFAULT ''"),
+        ]:
+            try:
+                self._conn.execute(f"SELECT {col} FROM {table} LIMIT 1")
+            except Exception:
+                try:
+                    self._conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {coltype}")
+                    self._conn.commit()
+                except Exception:
+                    pass
+
         # Migration: create productivity/project tables if missing
         self._conn.executescript("""
             CREATE TABLE IF NOT EXISTS projects (
@@ -243,7 +344,8 @@ class DBManager:
                 worker_type TEXT DEFAULT '',
                 time_mins REAL DEFAULT 0,
                 matched_at TEXT DEFAULT (datetime('now')),
-                is_correct INTEGER DEFAULT -1
+                is_correct INTEGER DEFAULT -1,
+                source TEXT DEFAULT 'semantic'  -- 'session_tag'|'semantic'|'manual'|'manual_consolidation'
             );
             CREATE TABLE IF NOT EXISTS productivity_sync_log (
                 id TEXT PRIMARY KEY,
@@ -568,9 +670,18 @@ class DBManager:
             row = conn.execute("SELECT * FROM trees WHERE tree_id = ?", (tree_id,)).fetchone()
             return dict(row) if row else None
 
-    def get_all_trees(self) -> List[Dict[str, Any]]:
+    def get_all_trees(self, include_dead: bool = False) -> List[Dict[str, Any]]:
         with self._connect() as conn:
-            rows = conn.execute("SELECT * FROM trees").fetchall()
+            if include_dead:
+                rows = conn.execute("SELECT * FROM trees").fetchall()
+            else:
+                rows = conn.execute(
+                    """
+                    SELECT t.* FROM trees t
+                    LEFT JOIN memory_nodes n ON n.id = t.root_node_id
+                    WHERE t.root_node_id IS NULL OR n.is_deleted = 0
+                    """
+                ).fetchall()
             return [dict(r) for r in rows]
 
     # ---------------------------------------------------------------
@@ -599,6 +710,50 @@ class DBManager:
                 "hyperbolic": np.frombuffer(row["hyperbolic"], dtype=np.float32) if row["hyperbolic"] else None,
                 "temporal": np.frombuffer(row["temporal"], dtype=np.float32) if row["temporal"] else None,
             }
+
+    def refresh_node_embedding(self, node_id: str, new_euclidean: np.ndarray) -> bool:
+        """
+        Refresh a node's Euclidean embedding after content changes.
+        Updates the embeddings BLOB + syncs ChromaDB ANN index. Hyperbolic
+        and temporal embeddings are NOT touched (HGCN owns hyperbolic;
+        temporal is timestamp-based and doesn't drift with content).
+
+        Call this whenever a node's `content` is mutated (LLM regen, user
+        edit) so semantic ranking + ChromaDB stay in sync. Returns True if
+        the embedding was refreshed, False otherwise.
+        """
+        if new_euclidean is None:
+            return False
+        blob = new_euclidean.astype(np.float32).tobytes()
+        with self._connect() as conn:
+            cur = conn.execute(
+                "UPDATE embeddings SET euclidean = ? WHERE node_id = ?",
+                (blob, node_id),
+            )
+            if cur.rowcount == 0:
+                return False
+            row = conn.execute(
+                "SELECT level, is_orphan, tree_ids FROM memory_nodes WHERE id = ?",
+                (node_id,),
+            ).fetchone()
+
+        if self._chroma and row:
+            try:
+                tree_ids = row["tree_ids"] or "[]"
+                if isinstance(tree_ids, str):
+                    try:
+                        tree_ids = json.loads(tree_ids)
+                    except Exception:
+                        tree_ids = []
+                self._chroma.add(node_id, new_euclidean, metadata={
+                    "level": row["level"],
+                    "is_orphan": bool(row["is_orphan"]),
+                    "tree_ids": tree_ids,
+                })
+            except Exception as e:
+                # Don't fail the embedding refresh because Chroma is sad
+                print(f"[refresh_node_embedding] ChromaDB sync error for {node_id}: {e}")
+        return True
 
     # ---------------------------------------------------------------
     # CONVERSATION TURNS
@@ -640,14 +795,16 @@ class DBManager:
                         INSERT INTO turn_retrieved_memories
                         (turn_id, memory_node_id, rank, final_score,
                          semantic_score, hierarchy_score, temporal_score,
-                         precision_score, source, content_preview, node_level)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                         precision_score, source, content_preview, node_level,
+                         value_score, value_multiplier)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, (
                         turn_id, mem.get("memory_node_id"), mem.get("rank"),
                         mem.get("final_score"), mem.get("semantic_score"),
                         mem.get("hierarchy_score"), mem.get("temporal_score"),
                         mem.get("precision_score"), mem.get("source"),
                         mem.get("content_preview"), mem.get("node_level"),
+                        mem.get("value_score"), mem.get("value_multiplier"),
                     ))
 
                 # Epistemic questions detail
@@ -1238,6 +1395,480 @@ class DBManager:
         with self._connect() as conn:
             conn.execute("DELETE FROM deliverables WHERE id = ?", (deliverable_id,))
 
+    def get_active_deliverable_candidates(self) -> List[Dict[str, Any]]:
+        """
+        Return every scoreable target for the project matcher: each active
+        deliverable, plus every anchor attached to it, as flat rows with the
+        fields the matcher needs (embeddings resolved by caller via get_embeddings).
+
+        Rows contain: deliverable_id, project_id, anchor_node_id (or '' for
+        deliverable-as-target), context_node_id, sc_node_id, name, deadline.
+        Anchors are preferred targets (finer grain); deliverable rows are a
+        fallback when no anchors are attached.
+        """
+        candidates: List[Dict[str, Any]] = []
+        with self._connect() as conn:
+            deliv_rows = conn.execute("""
+                SELECT d.id as deliverable_id, d.project_id, d.name, d.deadline,
+                       d.context_node_id, d.anchor_node_ids, p.sc_node_id
+                FROM deliverables d
+                JOIN projects p ON p.id = d.project_id
+                WHERE d.status = 'active' AND p.status = 'active'
+            """).fetchall()
+            for r in deliv_rows:
+                anchor_ids: List[str] = []
+                try:
+                    raw = r["anchor_node_ids"] or "[]"
+                    anchor_ids = json.loads(raw) if isinstance(raw, str) else list(raw)
+                except (ValueError, TypeError):
+                    anchor_ids = []
+
+                base = {
+                    "deliverable_id": r["deliverable_id"],
+                    "project_id": r["project_id"],
+                    "context_node_id": r["context_node_id"] or "",
+                    "sc_node_id": r["sc_node_id"] or "",
+                    "name": r["name"],
+                    "deadline": r["deadline"] or "",
+                }
+                if anchor_ids:
+                    for aid in anchor_ids:
+                        candidates.append({**base, "anchor_node_id": aid})
+                else:
+                    candidates.append({**base, "anchor_node_id": ""})
+        return candidates
+
+    # ---------------------------------------------------------------
+    # WORK SESSIONS (Phase 1 — live matcher)
+    # ---------------------------------------------------------------
+
+    def create_work_session(
+        self,
+        project_id: str = "",
+        deliverable_id: str = "",
+        auto_assigned: int = 0,
+        confirmed_by_user: int = 0,
+        note: str = "",
+    ) -> str:
+        sid = str(uuid.uuid4())[:12]
+        with self._connect() as conn:
+            conn.execute(
+                """INSERT INTO work_sessions
+                   (id, project_id, deliverable_id, auto_assigned, confirmed_by_user, note)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                (sid, project_id, deliverable_id, auto_assigned, confirmed_by_user, note),
+            )
+        return sid
+
+    def update_work_session(self, session_id: str, updates: Dict[str, Any]) -> None:
+        if not updates:
+            return
+        sets, vals = [], []
+        for k, v in updates.items():
+            if k == "id":
+                continue
+            sets.append(f"{k} = ?")
+            vals.append(v)
+        if not sets:
+            return
+        vals.append(session_id)
+        with self._connect() as conn:
+            conn.execute(f"UPDATE work_sessions SET {', '.join(sets)} WHERE id = ?", vals)
+
+    def end_work_session(self, session_id: str) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE work_sessions SET ended_at = datetime('now') WHERE id = ? AND ended_at IS NULL",
+                (session_id,),
+            )
+
+    def auto_end_stale_work_sessions(self, max_age_hours: float = 6.0) -> List[str]:
+        """Close any work_session whose ended_at IS NULL and started_at is older
+        than max_age_hours. Called on server startup to prevent stuck sessions
+        (e.g. from crashed tracker or server) from blocking /api/work/start.
+        Returns the list of session ids that were force-closed."""
+        cutoff_expr = f"datetime('now', '-{int(max_age_hours * 3600)} seconds')"
+        with self._connect() as conn:
+            stale = conn.execute(
+                f"""SELECT id FROM work_sessions
+                    WHERE ended_at IS NULL AND started_at < {cutoff_expr}"""
+            ).fetchall()
+            if not stale:
+                return []
+            ids = [r["id"] for r in stale]
+            placeholders = ",".join("?" * len(ids))
+            conn.execute(
+                f"""UPDATE work_sessions
+                    SET ended_at = datetime('now'),
+                        note = COALESCE(note,'') || ' [auto-closed: >'
+                            || ? || 'h stale]'
+                    WHERE id IN ({placeholders})""",
+                [str(max_age_hours)] + ids,
+            )
+            return ids
+
+    def get_active_work_session(self) -> Optional[Dict[str, Any]]:
+        with self._connect() as conn:
+            row = conn.execute(
+                """SELECT * FROM work_sessions
+                   WHERE ended_at IS NULL
+                   ORDER BY started_at DESC LIMIT 1"""
+            ).fetchone()
+            return dict(row) if row else None
+
+    def get_work_session(self, session_id: str) -> Optional[Dict[str, Any]]:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM work_sessions WHERE id = ?", (session_id,)
+            ).fetchone()
+            return dict(row) if row else None
+
+    def list_work_sessions(self, limit: int = 50) -> List[Dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM work_sessions ORDER BY started_at DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def upsert_segment_override(
+        self,
+        segment_id: str,
+        session_id: str,
+        project_id: str,
+        deliverable_id: str,
+        source: str = "session",
+    ) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                """INSERT OR REPLACE INTO segment_override_bindings
+                   (segment_id, session_id, project_id, deliverable_id, source)
+                   VALUES (?, ?, ?, ?, ?)""",
+                (segment_id, session_id, project_id, deliverable_id, source),
+            )
+
+    def get_segment_override(self, segment_id: str) -> Optional[Dict[str, Any]]:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM segment_override_bindings WHERE segment_id = ?",
+                (segment_id,),
+            ).fetchone()
+            return dict(row) if row else None
+
+    # ---------------------------------------------------------------
+    # AGENT HARNESSES + TRAINING EVENTS (Phase 4)
+    # ---------------------------------------------------------------
+
+    def create_harness(self, record: Dict[str, Any]) -> str:
+        hid = record.get("id") or str(uuid.uuid4())[:12]
+        with self._connect() as conn:
+            conn.execute(
+                """INSERT INTO agent_harnesses
+                   (id, deliverable_id, project_id, title, bundle_path,
+                    problem_statement_md, anchors_used, pattern_signature,
+                    trigger_source, pre_run_features, mode, model_used, status)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    hid,
+                    record["deliverable_id"],
+                    record.get("project_id", ""),
+                    record.get("title", ""),
+                    record["bundle_path"],
+                    record.get("problem_statement_md", ""),
+                    json.dumps(record.get("anchors_used") or []),
+                    record.get("pattern_signature", ""),
+                    record.get("trigger_source", "manual"),
+                    json.dumps(record.get("pre_run_features") or {}),
+                    record.get("mode", "template"),
+                    record.get("model_used", ""),
+                    record.get("status", "ready"),
+                ),
+            )
+        return hid
+
+    def get_harness(self, hid: str) -> Optional[Dict[str, Any]]:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM agent_harnesses WHERE id = ?", (hid,)
+            ).fetchone()
+            return dict(row) if row else None
+
+    def list_harnesses(
+        self, deliverable_id: Optional[str] = None, limit: int = 50
+    ) -> List[Dict[str, Any]]:
+        with self._connect() as conn:
+            if deliverable_id:
+                rows = conn.execute(
+                    """SELECT * FROM agent_harnesses
+                       WHERE deliverable_id = ? AND status != 'archived'
+                       ORDER BY updated_at DESC LIMIT ?""",
+                    (deliverable_id, limit),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """SELECT * FROM agent_harnesses WHERE status != 'archived'
+                       ORDER BY updated_at DESC LIMIT ?""",
+                    (limit,),
+                ).fetchall()
+            return [dict(r) for r in rows]
+
+    def record_harness_run(
+        self,
+        harness_id: str,
+        thumb: Optional[str] = None,    # 'up' | 'down' | None (just record a run)
+        outcome: Optional[str] = None,  # 'goal_achieved' | 'goal_unchanged'
+        post_run_signals: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Increment run counters, update thumbs, recompute success_rate. Also
+        writes a training_events row so Phase 6 corpus gets the label."""
+        post_run_signals = post_run_signals or {}
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT run_count, thumbs_up, thumbs_down, post_run_signals FROM agent_harnesses WHERE id = ?",
+                (harness_id,),
+            ).fetchone()
+            if not row:
+                raise ValueError(f"harness_not_found: {harness_id}")
+            run_count = (row["run_count"] or 0) + 1
+            thumbs_up = row["thumbs_up"] or 0
+            thumbs_down = row["thumbs_down"] or 0
+            if thumb == "up":
+                thumbs_up += 1
+            elif thumb == "down":
+                thumbs_down += 1
+            total_votes = thumbs_up + thumbs_down
+            success_rate = thumbs_up / total_votes if total_votes else 0.0
+            existing_signals = json.loads(row["post_run_signals"] or "{}")
+            existing_signals.setdefault("runs", []).append({
+                "thumb": thumb, "outcome": outcome, "at": datetime.now().isoformat(timespec="seconds"),
+                **post_run_signals,
+            })
+            conn.execute(
+                """UPDATE agent_harnesses
+                   SET run_count = ?, thumbs_up = ?, thumbs_down = ?,
+                       success_rate = ?, post_run_signals = ?,
+                       last_run_at = datetime('now'), updated_at = datetime('now')
+                   WHERE id = ?""",
+                (run_count, thumbs_up, thumbs_down, success_rate,
+                 json.dumps(existing_signals), harness_id),
+            )
+
+        # Log training event (harness_outcome)
+        if thumb or outcome:
+            self.log_training_event({
+                "event_type": "harness_outcome",
+                "harness_id": harness_id,
+                "features": {"run_count": run_count},
+                "label": {"thumb": thumb, "outcome": outcome, "success_rate": success_rate},
+            })
+
+    def log_training_event(self, record: Dict[str, Any]) -> str:
+        tid = record.get("id") or str(uuid.uuid4())[:12]
+        with self._connect() as conn:
+            conn.execute(
+                """INSERT INTO training_events
+                   (id, event_type, segment_id, node_id, deliverable_id,
+                    harness_id, features, label, pmis_version, model_version)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    tid,
+                    record["event_type"],
+                    record.get("segment_id", ""),
+                    record.get("node_id", ""),
+                    record.get("deliverable_id", ""),
+                    record.get("harness_id", ""),
+                    json.dumps(record.get("features") or {}),
+                    json.dumps(record.get("label") or {}),
+                    record.get("pmis_version", "phase-4a"),
+                    record.get("model_version", ""),
+                ),
+            )
+        return tid
+
+    # ---------------------------------------------------------------
+    # SEGMENT ARTIFACTS (Step 2 — boilerplate detector)
+    # ---------------------------------------------------------------
+
+    def upsert_segment_artifact(self, record: Dict[str, Any]) -> str:
+        aid = record.get("id") or str(uuid.uuid4())[:12]
+        with self._connect() as conn:
+            conn.execute(
+                """INSERT OR REPLACE INTO segment_artifacts
+                   (id, segment_id, artifact_type, path_or_uri, content_hash,
+                    preview, source)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    aid,
+                    record["segment_id"],
+                    record["artifact_type"],
+                    record.get("path_or_uri", ""),
+                    record.get("content_hash", ""),
+                    record.get("preview", ""),
+                    record.get("source", "heuristic"),
+                ),
+            )
+        return aid
+
+    def list_artifact_clusters(
+        self, min_repetitions: int = 3, limit: int = 50
+    ) -> List[Dict[str, Any]]:
+        """Boilerplate candidates: content_hash buckets with ≥N repetitions."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                """SELECT content_hash, artifact_type,
+                          COUNT(*) AS reps,
+                          MIN(preview) AS sample_preview,
+                          COUNT(DISTINCT segment_id) AS distinct_segments
+                   FROM segment_artifacts
+                   WHERE content_hash != ''
+                   GROUP BY content_hash, artifact_type
+                   HAVING reps >= ?
+                   ORDER BY reps DESC LIMIT ?""",
+                (min_repetitions, limit),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def count_segment_artifacts(self) -> Dict[str, int]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """SELECT artifact_type, COUNT(*) AS n FROM segment_artifacts
+                   GROUP BY artifact_type"""
+            ).fetchall()
+            return {r["artifact_type"]: r["n"] for r in rows}
+
+    def count_training_events(self) -> Dict[str, int]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """SELECT event_type, COUNT(*) as n FROM training_events GROUP BY event_type"""
+            ).fetchall()
+            return {r["event_type"]: r["n"] for r in rows}
+
+    def propagate_goal_achievement(
+        self, goal_id: str, strength: float = 0.6, note: str = ""
+    ) -> Dict[str, Any]:
+        """Mark goal achieved + emit positive feedback on every linked anchor
+        with source='outcome'. Also logs training_events (event_type='harness_outcome')
+        for any harness whose anchors overlap with the goal's linked nodes —
+        that's the outcome-triggered signal from Phase 4b locked decisions.
+
+        Returns counts of what it touched.
+        """
+        with self._connect() as conn:
+            goal_row = conn.execute(
+                "SELECT id, title, status FROM goals WHERE id = ?", (goal_id,)
+            ).fetchone()
+            if not goal_row:
+                raise ValueError(f"goal_not_found: {goal_id}")
+
+            # 1. Transition goal to achieved
+            conn.execute(
+                "UPDATE goals SET status='achieved', updated_at=datetime('now') WHERE id=?",
+                (goal_id,),
+            )
+
+            # 2. Fetch linked nodes
+            link_rows = conn.execute(
+                """SELECT node_id, weight, link_type FROM goal_links
+                   WHERE goal_id = ? AND link_type = 'supports'""",
+                (goal_id,),
+            ).fetchall()
+            linked_node_ids = [r["node_id"] for r in link_rows]
+
+            # 3. Emit positive feedback per linked node, source=outcome
+            fb_content = f"Goal achieved: {goal_row['title']}"
+            if note:
+                fb_content += f" — {note}"
+            for r in link_rows:
+                conn.execute(
+                    """INSERT INTO feedback
+                       (node_id, goal_id, polarity, content, source, strength)
+                       VALUES (?, ?, 'positive', ?, 'session', ?)""",
+                    (r["node_id"], goal_id, fb_content, float(strength) * float(r["weight"] or 0.5) * 2.0),
+                )
+
+            # 4. Find harnesses whose anchors_used overlaps with linked nodes;
+            #    bump their post_run_signals + log training events.
+            harness_touched = 0
+            if linked_node_ids:
+                harness_rows = conn.execute(
+                    "SELECT id, anchors_used, post_run_signals FROM agent_harnesses"
+                ).fetchall()
+                for h in harness_rows:
+                    try:
+                        anchors = json.loads(h["anchors_used"] or "[]")
+                    except Exception:
+                        anchors = []
+                    anchor_ids = {a.get("node_id") for a in anchors if isinstance(a, dict)}
+                    overlap = anchor_ids & set(linked_node_ids)
+                    if not overlap:
+                        continue
+                    existing = json.loads(h["post_run_signals"] or "{}")
+                    existing.setdefault("outcome_propagations", []).append({
+                        "goal_id": goal_id,
+                        "overlap_count": len(overlap),
+                        "at": datetime.now().isoformat(timespec="seconds"),
+                    })
+                    conn.execute(
+                        """UPDATE agent_harnesses SET post_run_signals=?,
+                           updated_at=datetime('now') WHERE id=?""",
+                        (json.dumps(existing), h["id"]),
+                    )
+                    harness_touched += 1
+                    # Training event
+                    tid = str(uuid.uuid4())[:12]
+                    conn.execute(
+                        """INSERT INTO training_events
+                           (id, event_type, deliverable_id, harness_id, features, label,
+                            pmis_version, model_version)
+                           VALUES (?, 'harness_outcome', '', ?, ?, ?, 'phase-4b', '')""",
+                        (
+                            tid,
+                            h["id"],
+                            json.dumps({"goal_id": goal_id, "overlap_anchors": list(overlap)}),
+                            json.dumps({"outcome": "goal_achieved", "strength": strength}),
+                        ),
+                    )
+
+            conn.commit()
+
+        return {
+            "goal_id": goal_id,
+            "title": goal_row["title"],
+            "linked_nodes": len(linked_node_ids),
+            "feedback_written": len(linked_node_ids),
+            "harnesses_touched": harness_touched,
+        }
+
+    def get_deliverable(self, deliverable_id: str) -> Optional[Dict[str, Any]]:
+        with self._connect() as conn:
+            row = conn.execute(
+                """SELECT d.*, p.name as project_name, p.sc_node_id as project_sc_node_id
+                   FROM deliverables d
+                   LEFT JOIN projects p ON p.id = d.project_id
+                   WHERE d.id = ?""",
+                (deliverable_id,),
+            ).fetchone()
+            return dict(row) if row else None
+
+    # ---------------------------------------------------------------
+
+    def get_activity_anchors_for_date(self, target_date: str) -> List[Dict[str, Any]]:
+        """
+        Return anchor memory_nodes created by the activity-merge pass for
+        target_date. Used by the project matcher to score today's work anchors
+        against active deliverables.
+        """
+        tag = f"activity_merge_{target_date}"
+        with self._connect() as conn:
+            rows = conn.execute("""
+                SELECT id, content, source_conversation_id, created_at
+                FROM memory_nodes
+                WHERE source_conversation_id = ?
+                  AND level = 'ANC'
+                  AND is_deleted = 0
+            """, (tag,)).fetchall()
+            return [dict(r) for r in rows]
+
     # ---------------------------------------------------------------
     # PROJECT-WORK MATCH LOG
     # ---------------------------------------------------------------
@@ -1250,8 +1881,10 @@ class DBManager:
                 (id, segment_id, project_id, deliverable_id,
                  sc_node_id, context_node_id, anchor_node_id,
                  semantic_score, hyperbolic_score, combined_match_pct,
-                 match_method, work_description, worker_type, time_mins, matched_at, is_correct)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?)
+                 match_method, work_description, worker_type, time_mins,
+                 matched_at, is_correct, source)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                        datetime('now'), ?, ?)
             """, (
                 mid, match["segment_id"], match["project_id"],
                 match.get("deliverable_id", ""),
@@ -1262,6 +1895,7 @@ class DBManager:
                 match.get("match_method", ""), match.get("work_description", ""),
                 match.get("worker_type", ""), match.get("time_mins", 0),
                 match.get("is_correct", -1),
+                match.get("source", "semantic"),
             ))
         return mid
 
@@ -1277,6 +1911,55 @@ class DBManager:
                     "SELECT * FROM project_work_match_log ORDER BY matched_at DESC LIMIT ?",
                     (limit,)
                 ).fetchall()
+            return [dict(r) for r in rows]
+
+    def set_match_correctness(self, match_id: str, is_correct: int) -> bool:
+        """Mark a match row as user-confirmed (1) or user-rejected (0).
+        Returns True if a row was updated."""
+        if is_correct not in (0, 1):
+            raise ValueError("is_correct must be 0 or 1")
+        with self._connect() as conn:
+            cur = conn.execute(
+                "UPDATE project_work_match_log SET is_correct = ? WHERE id = ?",
+                (is_correct, match_id),
+            )
+            return cur.rowcount > 0
+
+    def get_matches_for_goal(
+        self, goal_id: str, min_score: float = 0.75, limit: int = 20
+    ) -> List[Dict[str, Any]]:
+        """Return recent matches whose matched node (anchor/context/sc) is
+        linked to this goal via goal_links. Used by the Goals wiki page to
+        show surfaced work-to-deliverable matches for thumbs up/down."""
+        with self._connect() as conn:
+            # Collect goal-linked node ids
+            linked = conn.execute(
+                "SELECT node_id FROM goal_links WHERE goal_id = ?",
+                (goal_id,),
+            ).fetchall()
+            linked_ids = {r["node_id"] for r in linked}
+            if not linked_ids:
+                return []
+
+            placeholders = ",".join("?" * len(linked_ids))
+            params: List[Any] = list(linked_ids) * 3 + [min_score, limit]
+            rows = conn.execute(f"""
+                SELECT m.*, mn.content as work_content, mn.level as work_level,
+                       d.name as deliverable_name,
+                       p.name as project_name
+                FROM project_work_match_log m
+                LEFT JOIN memory_nodes mn ON mn.id = m.segment_id
+                LEFT JOIN deliverables d ON d.id = m.deliverable_id
+                LEFT JOIN projects p ON p.id = m.project_id
+                WHERE (
+                    m.anchor_node_id IN ({placeholders})
+                    OR m.context_node_id IN ({placeholders})
+                    OR m.sc_node_id IN ({placeholders})
+                )
+                AND m.combined_match_pct >= ?
+                ORDER BY m.matched_at DESC
+                LIMIT ?
+            """, params).fetchall()
             return [dict(r) for r in rows]
 
     def get_match_quality_stats(self) -> Dict[str, Any]:

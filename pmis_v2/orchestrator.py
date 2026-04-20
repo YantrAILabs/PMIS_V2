@@ -226,6 +226,8 @@ class Orchestrator:
                     "source": m.get("_source", "broad"),
                     "content_preview": m.get("content", "")[:150],
                     "node_level": m.get("level"),
+                    "value_score": m.get("value_score"),
+                    "value_multiplier": m.get("value_multiplier"),
                 }
                 for i, m in enumerate(result.retrieved_memories)
             ],

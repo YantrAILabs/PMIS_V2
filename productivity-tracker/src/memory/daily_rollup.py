@@ -8,14 +8,12 @@ import json
 import logging
 from datetime import datetime
 
-from openai import AsyncOpenAI
 
 from src.storage.db import Database
 try:
     from src.storage.chromadb_store import ChromaDBStore
 except ImportError:
     ChromaDBStore = None
-from src.pipeline.prompts import DAILY_SYNTHESIS_PROMPT
 
 logger = logging.getLogger("tracker.daily_rollup")
 
@@ -27,7 +25,6 @@ class DailyRollup:
         self.db = db
         self.config = config
         self.chroma = ChromaDBStore(config)
-        self.openai = AsyncOpenAI()
 
     async def run(self, target_date: str = None):
         """Run daily rollup for the given date (default: today)."""

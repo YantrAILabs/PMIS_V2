@@ -100,6 +100,8 @@ class RetrievalEngine:
             candidate["hierarchy_score"] = scores["hierarchy_score"]
             candidate["temporal_score"] = scores["temporal_score"]
             candidate["precision_score"] = scores["precision_score"]
+            candidate["value_multiplier"] = scores.get("value_multiplier", 1.0)
+            # value_score is already on the candidate from the node row spread
             scored.append(candidate)
 
         # --- GRAPH ENRICHMENT: bottom-up + sibling expansion ---
@@ -115,6 +117,12 @@ class RetrievalEngine:
 
         if target_level:
             scored = [s for s in scored if s.get("level") == target_level]
+
+        # Annotate depth (hops to root) so renderers can surface nested
+        # hierarchy instead of collapsing to the SC/CTX/ANC label alone.
+        depth_cache: Dict[str, int] = {}
+        for item in scored[:top_k]:
+            item["_depth"] = self._compute_depth(item["id"], depth_cache)
 
         # Record access on returned results
         for item in scored[:top_k]:
@@ -261,6 +269,36 @@ class RetrievalEngine:
         results.sort(key=lambda x: x["semantic_similarity"], reverse=True)
         return results[:k]
 
+    def _compute_depth(
+        self, node_id: str, cache: Dict[str, int], max_hops: int = 8
+    ) -> int:
+        """Hops from node to its top-most ancestor via child_of. 0 == root."""
+        if node_id in cache:
+            return cache[node_id]
+        import sqlite3
+        conn = sqlite3.connect(self.db.db_path)
+        try:
+            current = node_id
+            hops = 0
+            visited = {current}
+            while hops < max_hops:
+                row = conn.execute(
+                    "SELECT target_id FROM relations "
+                    "WHERE source_id = ? AND relation_type = 'child_of' LIMIT 1",
+                    (current,),
+                ).fetchone()
+                if not row:
+                    break
+                current = row[0]
+                if current in visited:
+                    break
+                visited.add(current)
+                hops += 1
+        finally:
+            conn.close()
+        cache[node_id] = hops
+        return hops
+
     def _enrich_from_graph(
         self,
         scored: List[Dict[str, Any]],
@@ -291,26 +329,40 @@ class RetrievalEngine:
         conn = sqlite3.connect(self.db.db_path)
         conn.row_factory = sqlite3.Row
 
+        max_ancestor_hops = int(self.hp.get("retrieval_ancestor_max_hops", 6))
         for seed in seeds:
             sid = seed["id"]
-            # 1. Bottom-up: get parent(s)
-            parents = conn.execute("""
-                SELECT target_id FROM relations
-                WHERE source_id = ? AND relation_type = 'child_of'
-            """, (sid,)).fetchall()
-            for p in parents:
-                pid = p["target_id"]
-                if pid not in already_seen and pid not in new_ids:
-                    new_ids.add(pid)
+            # 1. Bottom-up: walk ancestry chain to root (not just 1 hop).
+            # This surfaces nested CTX→CTX→SC chains instead of collapsing to
+            # the immediate parent only.
+            current = sid
+            hops = 0
+            direct_parent_ids: List[str] = []
+            while hops < max_ancestor_hops:
+                parents = conn.execute("""
+                    SELECT target_id FROM relations
+                    WHERE source_id = ? AND relation_type = 'child_of'
+                """, (current,)).fetchall()
+                if not parents:
+                    break
+                # First parent drives the chain; all parents contribute candidates
+                for p in parents:
+                    pid = p["target_id"]
+                    if pid not in already_seen and pid not in new_ids:
+                        new_ids.add(pid)
+                    if hops == 0:
+                        direct_parent_ids.append(pid)
+                current = parents[0]["target_id"]
+                hops += 1
 
-            # 2. Sibling expansion: get siblings (share same parent)
-            for p in parents:
+            # 2. Sibling expansion: only at the direct-parent level
+            for pid in direct_parent_ids:
                 siblings = conn.execute("""
                     SELECT source_id FROM relations
                     WHERE target_id = ? AND relation_type = 'child_of'
                       AND source_id != ?
                     LIMIT 5
-                """, (p["target_id"], sid)).fetchall()
+                """, (pid, sid)).fetchall()
                 for sib in siblings:
                     if sib["source_id"] not in already_seen and sib["source_id"] not in new_ids:
                         new_ids.add(sib["source_id"])
@@ -364,8 +416,14 @@ class RetrievalEngine:
     ) -> Dict[str, float]:
         """
         Combined scoring. Returns dict with final_score + all component scores.
-          score = w_sem × semantic + w_hier × hierarchy +
+          base  = w_sem × semantic + w_hier × hierarchy +
                   w_temp × temporal + w_prec × precision + source_bonus
+          final = base × (1 + α × clip(value_score, value_clip_min, value_clip_max))
+
+        The value-score multiplier wires the materialized 4-factor
+        value_score (G+F+U+R, computed by core.value_score) into ranking.
+        Asymmetric clip keeps red-flagged nodes surfaceable instead of
+        hiding them entirely.
         """
         w_sem = self.hp.get("score_weight_semantic", 0.40)
         w_hier = self.hp.get("score_weight_hierarchy", 0.30)
@@ -387,7 +445,7 @@ class RetrievalEngine:
         # 5. Source bonus: narrow results get small γ-based boost
         source_bonus = 0.05 if candidate.get("_source") == "narrow" else 0.0
 
-        final = (
+        base = (
             w_sem * semantic_sim +
             w_hier * hier_score +
             w_temp * temp_score +
@@ -395,12 +453,23 @@ class RetrievalEngine:
             source_bonus
         )
 
+        # 6. Value-score multiplier — materialized G+F+U+R from core.value_score
+        v_raw = float(candidate.get("value_score") or 0.0)
+        alpha = float(self.hp.get("value_multiplier_alpha", 0.3))
+        v_min = float(self.hp.get("value_clip_min", -0.5))
+        v_max = float(self.hp.get("value_clip_max", 1.0))
+        v_clipped = max(v_min, min(v_max, v_raw))
+        multiplier = 1.0 + alpha * v_clipped
+        final = base * multiplier
+
         return {
             "final_score": final,
             "semantic_score": semantic_sim,
             "hierarchy_score": hier_score,
             "temporal_score": temp_score,
             "precision_score": precision_score,
+            "value_score": v_raw,
+            "value_multiplier": multiplier,
         }
 
     def _compute_hierarchy_score(
