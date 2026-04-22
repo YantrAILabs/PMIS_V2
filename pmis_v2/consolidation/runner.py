@@ -55,20 +55,20 @@ def _acquire_lock() -> bool:
             age = 0
         if age < LOCK_STALE_SECONDS:
             try:
-                existing = LOCK_PATH.read_text().strip()
+                existing = LOCK_PATH.read_text(encoding="utf-8").strip()
             except OSError:
                 existing = "?"
             logger.info("Runner lock held by pid=%s (age %.0fs); skipping.", existing, age)
             return False
         logger.warning("Stale runner lock (age %.0fs); overriding.", age)
-    LOCK_PATH.write_text(str(os.getpid()))
+    LOCK_PATH.write_text(str(os.getpid()), encoding="utf-8")
     atexit.register(_release_lock)
     return True
 
 
 def _release_lock() -> None:
     try:
-        if LOCK_PATH.exists() and LOCK_PATH.read_text().strip() == str(os.getpid()):
+        if LOCK_PATH.exists() and LOCK_PATH.read_text(encoding="utf-8").strip() == str(os.getpid()):
             LOCK_PATH.unlink()
     except Exception:
         pass
