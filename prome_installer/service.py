@@ -200,10 +200,15 @@ def _windows_install() -> tuple[bool, str]:
     wrapper_bat = paths.DATA_DIR / "tracker-run.bat"
     stdout_log = paths.DATA_DIR / "tracker-stdout.log"
     stderr_log = paths.DATA_DIR / "tracker-stderr.log"
+    # PYTHONDONTWRITEBYTECODE=1 prevents Python from reading/writing .pyc
+    # cache files. Fixes a class of bugs where `git pull` leaves stale .pyc
+    # shadowing fresh .py on Windows (filesystem mtime quirk), which silently
+    # regresses cost-critical settings like vision_detail.
     wrapper_bat.write_text(
         "@echo off\r\n"
+        "set PYTHONDONTWRITEBYTECODE=1\r\n"
         f'cd /d "{paths.TRACKER_DIR}"\r\n'
-        f'"{paths.VENV_PYTHON}" -m src.agent.tracker >> "{stdout_log}" 2>> "{stderr_log}"\r\n',
+        f'"{paths.VENV_PYTHON}" -B -m src.agent.tracker >> "{stdout_log}" 2>> "{stderr_log}"\r\n',
         encoding="utf-8",
     )
 
@@ -227,18 +232,22 @@ def _windows_install() -> tuple[bool, str]:
         return False, f"Startup shortcut creation failed: {result.stderr.strip() or result.stdout.strip()}"
 
     # 3. Launch the tracker NOW as a detached, window-less background process.
-    #    DETACHED_PROCESS + CREATE_NO_WINDOW = no console, survives parent exit.
+    #    -B flag + PYTHONDONTWRITEBYTECODE env guarantees no stale .pyc
+    #    shadowing the fresh .py (same rationale as wrapper.bat above).
     CREATE_NO_WINDOW = 0x08000000
     DETACHED_PROCESS = 0x00000008
+    env = os.environ.copy()
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
     try:
         subprocess.Popen(
-            [str(paths.VENV_PYTHON), "-m", "src.agent.tracker"],
+            [str(paths.VENV_PYTHON), "-B", "-m", "src.agent.tracker"],
             cwd=str(paths.TRACKER_DIR),
             stdout=open(stdout_log, "ab"),
             stderr=open(stderr_log, "ab"),
             stdin=subprocess.DEVNULL,
             creationflags=CREATE_NO_WINDOW | DETACHED_PROCESS,
             close_fds=True,
+            env=env,
         )
     except Exception as e:
         return True, f"Startup shortcut installed but immediate launch failed: {e}. Tracker will start on next login."

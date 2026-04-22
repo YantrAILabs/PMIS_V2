@@ -3,6 +3,15 @@ Frame analyzer — sends batches of screenshots to a vision model.
 
 Provider order is configurable via settings.yaml `llm.provider_order`.
 Default: OpenAI gpt-4o-mini first, Ollama qwen2.5vl:3b/7b as fallback.
+
+Cost safety — these are MODULE-LEVEL CONSTANTS deliberately. They were moved
+out of settings.yaml because a stale Python bytecode cache (.pyc from before
+these knobs existed) could silently shadow the fresh .py and cause gpt-4o-mini
+to bill at HIGH detail (~25,500 tokens per image on gpt-4o-mini) instead of
+LOW (~2,833 tokens per image). Hard-coding here means no config drift, no
+stale cache, no regression path — pulling the fix and restarting is enough.
+
+If you genuinely need full-res OCR, edit _VISION_DETAIL below.
 """
 
 import asyncio
@@ -19,6 +28,17 @@ from src.pipeline.prompts import FRAME_BATCH_PROMPT
 logger = logging.getLogger("tracker.frame_analyzer")
 
 
+# ─── Cost-critical constants — DO NOT move back to settings.yaml ─────────
+#
+# gpt-4o-mini image pricing (effective):
+#   "low"  → ~2,833 tokens per image (flat, server resizes to 512x512)
+#   "high" → ~25,500 tokens per 1024x576 image (full-res, tiled)
+# "low" is 9× cheaper and plenty for app+task identification.
+_VISION_DETAIL = "low"
+_MAX_TOKENS_VISION = 400
+_VISION_VERSION = "2026.04.23-low-locked"  # bumps when this block changes
+
+
 class FrameAnalyzer:
     """Analyzes screenshot frames with OpenAI → Ollama fallback."""
 
@@ -29,11 +49,10 @@ class FrameAnalyzer:
         openai_config = config.get("openai", {})
         self.openai_model = openai_config.get("vision_model", "gpt-4o-mini")
         self.openai_timeout = openai_config.get("timeout", 45)
-        # "low" = 85 tokens per image flat (server resizes to 512x512).
-        # "high" = up to ~765 tokens/image at 1024px (full-res, reads small text).
-        # For app+task identification, "low" is plenty and ~5-8x cheaper.
-        self.openai_vision_detail = openai_config.get("vision_detail", "low")
-        self.openai_max_tokens = openai_config.get("max_tokens_vision", 400)
+        # Cost-critical knobs bound to module constants — ignore any
+        # settings.yaml value that would regress to high detail.
+        self.openai_vision_detail = _VISION_DETAIL
+        self.openai_max_tokens = _MAX_TOKENS_VISION
 
         ollama_config = config.get("ollama", {})
         self.ollama_vision_enabled = ollama_config.get("vision_enabled", False)
@@ -42,6 +61,16 @@ class FrameAnalyzer:
         self.ollama_base_url = ollama_config.get("base_url", "http://localhost:11434")
         self.ollama_timeout = ollama_config.get("timeout", 60)
         self.ollama_keep_alive = ollama_config.get("keep_alive", "0")
+
+        # Startup log — makes "is the fix actually active?" a 1-line grep.
+        logger.info(
+            "FrameAnalyzer %s initialized: model=%s detail=%s max_tokens=%s providers=%s",
+            _VISION_VERSION,
+            self.openai_model,
+            self.openai_vision_detail,
+            self.openai_max_tokens,
+            self.provider_order,
+        )
 
     async def analyze_batch(self, frames: list[dict]) -> list[dict]:
         """
