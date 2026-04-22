@@ -1,7 +1,7 @@
 [project]
 name = "productivity-tracker"
 version = "0.1.0"
-description = "Mac-native productivity tracker with ChatGPT Vision + PMIS v2 memory"
+description = "Cross-platform productivity tracker (macOS + Windows) with ChatGPT Vision + PMIS v2 memory"
 requires-python = ">=3.11"
 dependencies = [
     # AI / Vision
@@ -23,6 +23,11 @@ dependencies = [
     "numpy>=1.24",
     "psutil>=5.9",
     "httpx>=0.25.0",
+
+    # Windows-only native deps (no-op on macOS/Linux)
+    "mss>=9.0 ; sys_platform == 'win32'",
+    "pywin32>=306 ; sys_platform == 'win32'",
+    "pynput>=1.7 ; sys_platform == 'win32'",
 ]
 
 [project.optional-dependencies]
