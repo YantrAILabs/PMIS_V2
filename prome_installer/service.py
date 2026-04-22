@@ -18,6 +18,8 @@ Public API used by steps/daemon.py:
 
 from __future__ import annotations
 
+import getpass
+import os
 import subprocess
 import sys
 import time
@@ -175,12 +177,19 @@ def _windows_install() -> tuple[bool, str]:
         encoding="utf-8",
     )
 
+    # Resolve current user in DOMAIN\user or just user form. Without /RU,
+    # schtasks defaults to SYSTEM which requires admin — causing "Access denied"
+    # for non-elevated installs.
+    user = os.environ.get("USERDOMAIN", "") + "\\" + getpass.getuser() \
+        if os.environ.get("USERDOMAIN") else getpass.getuser()
+
     create = subprocess.run(
         [
             "schtasks.exe", "/Create",
             "/SC", "ONLOGON",          # trigger: at user logon
             "/TN", paths.TASK_SCHEDULER_NAME,
             "/TR", f'"{wrapper_bat}"',
+            "/RU", user,               # run as the current user (no admin needed)
             "/RL", "LIMITED",          # run with user's standard privileges (no UAC)
             "/F",                      # force overwrite if exists
         ],
@@ -188,7 +197,31 @@ def _windows_install() -> tuple[bool, str]:
         text=True,
     )
     if create.returncode != 0:
-        return False, f"schtasks /Create failed: {create.stderr.strip() or create.stdout.strip()}"
+        # Fallback: retry without /RU (older Windows builds may not accept it
+        # in combination with /RL LIMITED). This gives the user a clearer
+        # error if both paths fail.
+        retry = subprocess.run(
+            [
+                "schtasks.exe", "/Create",
+                "/SC", "ONLOGON",
+                "/TN", paths.TASK_SCHEDULER_NAME,
+                "/TR", f'"{wrapper_bat}"',
+                "/RL", "LIMITED",
+                "/F",
+            ],
+            capture_output=True,
+            text=True,
+        )
+        if retry.returncode != 0:
+            return False, (
+                f"schtasks /Create failed (both with and without /RU).\n"
+                f"  First attempt: {create.stderr.strip() or create.stdout.strip()}\n"
+                f"  Retry: {retry.stderr.strip() or retry.stdout.strip()}\n"
+                f"  Hint: run install.bat in an elevated terminal (Run as administrator), "
+                f"or create the task manually with:\n"
+                f'  schtasks /Create /SC ONLOGON /TN {paths.TASK_SCHEDULER_NAME} '
+                f'/TR "{wrapper_bat}" /RU {user} /RL LIMITED /F'
+            )
 
     # Start immediately (so user doesn't have to log out+in).
     run = subprocess.run(

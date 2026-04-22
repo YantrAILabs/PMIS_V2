@@ -1,7 +1,9 @@
 """
 Full ProMe memory pipeline sync for productivity segments.
 
-Runs the complete pipeline: SQL → Vector → Hyperbolic → Project Matching → RSGD.
+Runs the pipeline: SQL → Vector → Hyperbolic → Project Matching.
+(RSGD retraining is no longer part of the runtime pipeline — hyperbolic
+positions come from the initial projection and nightly consolidation only.)
 Called every 30 minutes by the tracker daemon when new frames exist.
 """
 
@@ -24,13 +26,12 @@ class ProductivityPipelineSync:
     """Runs full ProMe pipeline on unsynced productivity segments."""
 
     def __init__(self, db_manager, chroma_store, embedder, poincare_pm,
-                 rsgd_trainer, nightly_consolidation, tracker_db,
+                 nightly_consolidation, tracker_db,
                  hyperparams: Optional[Dict] = None):
         self.db = db_manager
         self.chroma = chroma_store
         self.embedder = embedder
         self.poincare_pm = poincare_pm
-        self.rsgd = rsgd_trainer
         self.consolidation = nightly_consolidation
         self.tracker_db = tracker_db
         self.hyperparams = hyperparams or {}
@@ -50,7 +51,6 @@ class ProductivityPipelineSync:
         from db.chroma_store import ChromaStore
         from ingestion.embedder import Embedder
         from core.poincare import ProjectionManager
-        from core.rsgd import RSGDTrainer
         from consolidation.nightly import NightlyConsolidation
 
         pmis_db_path = config.get("pmis", {}).get(
@@ -90,17 +90,16 @@ class ProductivityPipelineSync:
 
         embedder = Embedder(hyperparams=hyperparams)
         pm = ProjectionManager(input_dim=existing_dim)
-        rsgd = RSGDTrainer(hyperparams=hyperparams)
         consolidation = NightlyConsolidation(db_mgr, hyperparams=hyperparams)
 
         from src.storage.db import Database
         tracker_db = Database()
 
-        return cls(db_mgr, chroma, embedder, pm, rsgd, consolidation,
+        return cls(db_mgr, chroma, embedder, pm, consolidation,
                    tracker_db, hyperparams)
 
     def run(self, unsynced_segments: List[Dict]) -> Dict[str, Any]:
-        """Execute full pipeline: SQL → Vector → Hyperbolic → Match → RSGD."""
+        """Execute pipeline: SQL → Vector → Hyperbolic → Match."""
         sync_id = str(uuid.uuid4())[:10]
         started_at = datetime.now().isoformat()
 
@@ -130,11 +129,6 @@ class ProductivityPipelineSync:
                     logger.warning(f"Segment {segment.get('target_segment_id','?')} failed: {seg_err}")
                     continue
 
-            # Step 5: Incremental RSGD on touched nodes
-            rsgd_epochs = 0
-            if all_touched_ids:
-                rsgd_epochs = self._run_incremental_rsgd(all_touched_ids)
-
             avg_match = sum(match_scores) / len(match_scores) if match_scores else 0
 
             self.db.update_sync_status(sync_id, "completed", datetime.now().isoformat())
@@ -146,7 +140,6 @@ class ProductivityPipelineSync:
                 "nodes_updated": nodes_updated,
                 "matches_found": len(match_scores),
                 "avg_match_pct": round(avg_match * 100, 1),
-                "rsgd_epochs_run": rsgd_epochs,
                 "status": "completed",
             }
 
@@ -160,7 +153,6 @@ class ProductivityPipelineSync:
                 "nodes_updated": nodes_updated,
                 "matches_found": 0,
                 "avg_match_pct": 0,
-                "rsgd_epochs_run": 0,
                 "status": "failed",
                 "error": str(e),
             }
@@ -356,50 +348,3 @@ class ProductivityPipelineSync:
 
         return node_id, 1  # Created new
 
-    def _run_incremental_rsgd(self, touched_ids: List[str]) -> int:
-        """Run RSGD on touched nodes + neighbors to refine hyperbolic positions."""
-        try:
-            all_hyp = self.db.get_all_hyperbolic()
-            edges = self.db.get_child_of_edges()
-            levels = self.db.get_node_levels()
-
-            if not all_hyp or not edges:
-                return 0
-
-            # Expand to 1-hop neighbors
-            touched_set = set(touched_ids)
-            for child_id, parent_id in edges:
-                if child_id in touched_set or parent_id in touched_set:
-                    touched_set.add(child_id)
-                    touched_set.add(parent_id)
-
-            epochs = self.hyperparams.get("rsgd_epochs_incremental", 8)
-
-            # RSGDTrainer.train() expects embeddings dict, edges list, levels dict
-            result = self.rsgd.train(
-                embeddings=all_hyp,
-                edges=edges,
-                node_levels=levels,
-                epochs=epochs,
-            )
-
-            # RSGDResult has: updated_embeddings, final_loss, epochs_run, wall_time_seconds
-            if result.updated_embeddings:
-                self.db.batch_update_hyperbolic(result.updated_embeddings)
-
-            self.db.log_rsgd_run({
-                "run_type": "incremental_productivity",
-                "epochs": result.epochs_run,
-                "final_loss": result.final_loss,
-                "nodes_updated": result.nodes_updated,
-                "edges_used": result.edges_used,
-                "learning_rate": self.rsgd.lr,
-                "wall_time_seconds": result.wall_time_seconds,
-            })
-
-            logger.info(f"Incremental RSGD: {epochs} epochs, {len(touched_set)} nodes")
-            return epochs
-
-        except Exception as e:
-            logger.warning(f"Incremental RSGD failed: {e}")
-            return 0

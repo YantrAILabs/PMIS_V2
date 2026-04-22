@@ -109,11 +109,7 @@ def main():
     except Exception as e:
         check("Temporal encoding", False, str(e))
 
-    try:
-        from core.rsgd import RSGDTrainer
-        check("RSGDTrainer imports", True)
-    except Exception as e:
-        check("RSGDTrainer imports", False, str(e))
+    # (RSGD removed from pipeline — no longer verified here.)
 
     # ── Test 7: Pipeline sync imports (optional — depend on tracker package) ──
     try:
