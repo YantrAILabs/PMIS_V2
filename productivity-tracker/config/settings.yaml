@@ -32,6 +32,16 @@ openai:
   # Text/segment classification (cloud — tried first)
   text_model: "gpt-4o-mini"
   timeout: 45
+
+  # Cost controls ────────────────────────────────────────────────────────
+  # vision_detail: "low"  = 85 tokens per image flat (server downscales to 512x512).
+  #                Plenty for app + task identification. ~5-8x cheaper.
+  # vision_detail: "high" = up to ~765 tokens/image at 1024px. Use only if you
+  #                need to read small on-screen text (code, dense documents).
+  vision_detail: "low"
+  max_tokens_vision: 400     # JSON frame output fits comfortably in 400
+  max_tokens_text: 500       # Segment synthesis fits in 500
+
   # API key is read from env (OPENAI_API_KEY). If missing, provider auto-skips to next.
 
 ollama:

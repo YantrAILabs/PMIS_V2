@@ -28,6 +28,7 @@ class ContextClassifier:
         openai_config = config.get("openai", {})
         self.openai_model = openai_config.get("text_model", "gpt-4o-mini")
         self.openai_timeout = openai_config.get("timeout", 45)
+        self.openai_max_tokens = openai_config.get("max_tokens_text", 500)
 
         ollama_config = config.get("ollama", {})
         self.ollama_model = ollama_config.get("text_model", "qwen2.5:3b")
@@ -105,7 +106,7 @@ class ContextClassifier:
                 model=self.openai_model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.1,
-                max_tokens=800,
+                max_tokens=self.openai_max_tokens,
                 response_format={"type": "json_object"},
             )
             return response.choices[0].message.content
