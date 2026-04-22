@@ -16,6 +16,11 @@ from datetime import datetime
 from typing import Dict, List, Any, Optional
 from pathlib import Path
 
+# Repo root (parent of pmis_v2/) — productivity-tracker/ lives as a sibling.
+# Resolved relative to this file so Windows / Linux / macOS all work regardless
+# of where the user cloned the repo.
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+
 
 class WikiRenderer:
     """Assembles data for wiki page templates from the database."""
@@ -198,7 +203,7 @@ class WikiRenderer:
         import os, yaml
         from datetime import date as dt_date, timedelta
 
-        pt_root = Path.home() / "Desktop" / "memory" / "productivity-tracker"
+        pt_root = _REPO_ROOT / "productivity-tracker"
         goals_path = pt_root / "config" / "goals.yaml"
         deliv_path = pt_root / "config" / "deliverables.yaml"
         tracker_db = Path(os.path.expanduser("~/.productivity-tracker/tracker.db"))
@@ -453,7 +458,7 @@ class WikiRenderer:
         enrichment fields so the file stays a clean spec. Returns the
         re-enriched view (same shape as render_pm_projects)."""
         import yaml
-        pt_root = Path.home() / "Desktop" / "memory" / "productivity-tracker"
+        pt_root = _REPO_ROOT / "productivity-tracker"
         goals_path = pt_root / "config" / "goals.yaml"
         goals_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -496,7 +501,7 @@ class WikiRenderer:
     def list_pm_deliverables(self) -> List[Dict]:
         """Read productivity-tracker/config/deliverables.yaml for the picker."""
         import yaml
-        pt_root = Path.home() / "Desktop" / "memory" / "productivity-tracker"
+        pt_root = _REPO_ROOT / "productivity-tracker"
         deliv_path = pt_root / "config" / "deliverables.yaml"
         out: List[Dict] = []
         if not deliv_path.exists():
@@ -524,7 +529,7 @@ class WikiRenderer:
         if not name:
             raise ValueError("name required")
 
-        pt_root = Path.home() / "Desktop" / "memory" / "productivity-tracker"
+        pt_root = _REPO_ROOT / "productivity-tracker"
         deliv_path = pt_root / "config" / "deliverables.yaml"
         deliv_path.parent.mkdir(parents=True, exist_ok=True)
 
