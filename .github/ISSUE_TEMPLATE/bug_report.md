@@ -1,6 +1,6 @@
 ---
 name: Bug report
-about: Something in PMIS isn't doing what you expected.
+about: Something in ProMe isn't doing what you expected.
 title: "[bug] "
 labels: bug
 ---
@@ -20,7 +20,7 @@ A one-sentence description.
 Paste the error / logs / screenshot.
 
 ## Environment
-- PMIS commit or version:
+- ProMe commit or version:
 - Python version: `python3 --version`
 - OS: macOS / Linux / WSL (version)
 - Embedder: Ollama local (which model?) or OpenAI

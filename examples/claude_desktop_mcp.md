@@ -1,6 +1,6 @@
-# Claude Desktop + PMIS (MCP setup)
+# Claude Desktop + ProMe (MCP setup)
 
-PMIS ships with an MCP server that lets Claude Desktop query your live memory and PM state directly. After this guide, you can ask Claude things like *"what did I learn about cold outreach last week?"* or *"what am I working on right now?"* and get answers grounded in your own history.
+ProMe ships with an MCP server that lets Claude Desktop query your live memory and PM state directly. After this guide, you can ask Claude things like *"what did I learn about cold outreach last week?"* or *"what am I working on right now?"* and get answers grounded in your own history.
 
 ## Prerequisites
 
@@ -12,7 +12,7 @@ PMIS ships with an MCP server that lets Claude Desktop query your live memory an
   ```
 - Claude Desktop installed.
 
-## 1. Install PMIS
+## 1. Install ProMe
 
 From the repo root:
 
@@ -31,11 +31,11 @@ python3 pmis_v2/server.py &          # :8100 — API + /wiki
 python3 pmis_v2/health_dashboard.py & # :8200 — Health + Feedback
 ```
 
-Open http://localhost:8100/wiki/ to confirm PMIS is live, and http://localhost:8200/ for the health dashboard.
+Open http://localhost:8100/wiki/ to confirm ProMe is live, and http://localhost:8200/ for the health dashboard.
 
 ## 3. Verify Claude Desktop sees the MCP server
 
-Restart Claude Desktop after running `install.sh`. A new PMIS icon should appear in the compose box (the usual MCP indicator). If it doesn't, check:
+Restart Claude Desktop after running `install.sh`. A new ProMe icon should appear in the compose box (the usual MCP indicator). If it doesn't, check:
 
 ```bash
 cat "$HOME/Library/Application Support/Claude/claude_desktop_config.json"
@@ -55,6 +55,6 @@ In Claude Desktop, ask:
 
 ## Troubleshooting
 
-- **No PMIS icon in Claude Desktop** — `install.sh` didn't write the config. Re-run it, or paste the snippet from `pmis_v2/claude_mcp_config.json` into `~/Library/Application Support/Claude/claude_desktop_config.json` manually.
+- **No ProMe icon in Claude Desktop** — `install.sh` didn't write the config. Re-run it, or paste the snippet from `pmis_v2/claude_mcp_config.json` into `~/Library/Application Support/Claude/claude_desktop_config.json` manually.
 - **`Error finding id` in logs** — your ChromaDB index is out of sync with SQLite. Run `curl -X POST http://127.0.0.1:8200/api/action/reindex` or, for a full reset, `rm -rf pmis_v2/data/chroma && ./start.sh`.
 - **Server on :8100 won't start** — port collision. `lsof -i :8100` to find the old process, `kill <pid>`, retry.
