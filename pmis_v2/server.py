@@ -1170,12 +1170,12 @@ async def wiki_goals(request: Request):
     return templates.TemplateResponse(request, "wiki_goals.html", data)
 
 
-# ─── Review tab (Phase 3) ─────────────────────────────────────────────
+# ─── Review tab ───────────────────────────────────────────────────────
 #
-# Pending rows in project_work_match_log (is_correct=-1, source='semantic',
-# and top-rank for that anchor) need human judgment. This page lets the user
-# confirm / reassign / reject each one. On confirm, is_correct flips to 1 and
-# source becomes 'manual'. On reject, is_correct flips to 0.
+# Two-stage flow: the user sees raw unconsolidated segments, clicks
+# Consolidate, then confirms or rejects each proposed group. Confirming
+# writes activity_time_log rows with match_source='user_review' — the
+# highest-authority tag nightly + manual consolidation will then defer to.
 
 def _review_proposals():
     """Build the ReviewProposals service — lazy so imports stay cheap."""
@@ -1298,69 +1298,7 @@ async def api_review_proposal_assign(proposal_id: str, payload: ReviewProposalAs
     )
 
 
-# ─── Legacy review endpoints (old is_correct=-1 flow) ─────────────────
-# Kept for now so any in-flight semantic-match prompts still clear; the
-# new review_proposals flow above is the source of truth going forward.
-
-
-class ReviewConfirmPayload(BaseModel):
-    match_id: str
-
-
-@app.post("/api/review/{anchor_id}/confirm")
-async def api_review_confirm(anchor_id: str, payload: ReviewConfirmPayload):
-    """Confirm one candidate: set that row to is_correct=1 source='manual',
-    mark all sibling rows for the same anchor as is_correct=0 (rejected)."""
-    import sqlite3
-    from core import config as _cfg
-    db_path = _cfg.get("db_path", "data/memory.db")
-    conn = sqlite3.connect(db_path)
-    try:
-        conn.execute(
-            """UPDATE project_work_match_log
-               SET is_correct = 1, source = 'manual'
-               WHERE id = ? AND segment_id = ?""",
-            (payload.match_id, anchor_id),
-        )
-        conn.execute(
-            """UPDATE project_work_match_log
-               SET is_correct = 0
-               WHERE segment_id = ? AND id != ? AND is_correct = -1""",
-            (anchor_id, payload.match_id),
-        )
-        conn.commit()
-    finally:
-        conn.close()
-    return {"ok": True, "anchor_id": anchor_id, "match_id": payload.match_id}
-
-
-@app.post("/api/review/{anchor_id}/reject")
-async def api_review_reject(anchor_id: str):
-    """Reject all pending candidates for an anchor."""
-    import sqlite3
-    from core import config as _cfg
-    db_path = _cfg.get("db_path", "data/memory.db")
-    conn = sqlite3.connect(db_path)
-    try:
-        conn.execute(
-            """UPDATE project_work_match_log
-               SET is_correct = 0, source = 'manual'
-               WHERE segment_id = ? AND is_correct = -1""",
-            (anchor_id,),
-        )
-        conn.commit()
-    finally:
-        conn.close()
-    return {"ok": True, "anchor_id": anchor_id}
-
-
-@app.get("/api/review/pending")
-async def api_review_pending():
-    """JSON version for programmatic access / dashboard badge."""
-    return _review_payload()
-
-
-# ─── Manual per-project daily consolidation (Phase 4) ─────────────────
+# ─── Manual per-project daily consolidation ──────────────────────────
 
 def _manual_consolidator():
     from consolidation.manual_project import ManualProjectConsolidator

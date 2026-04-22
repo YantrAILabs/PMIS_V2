@@ -121,8 +121,8 @@ gamma_session_boost_min_turns: 3
 matcher_alpha: 1.0            # semantic exponent
 matcher_beta: 1.0             # hyperbolic exponent
 matcher_gamma: 1.0            # temporal exponent
-matcher_tau_high: 0.75        # >= this → auto-surface on Goals page (is_correct = -1 pending)
-matcher_tau_low: 0.45         # < this → discard; between low..high queued for review
+matcher_tau_high: 0.75        # >= this → auto-accept match (used by Phase 1 scoring)
+matcher_tau_low: 0.45         # < this → discard; between low..high surfaces for user review
 matcher_top_n_log: 5          # trace depth written to project_work_match_log per work anchor
 matcher_temporal_decay_days: 14  # temporal score halves this many days past deadline
 matcher_poincare_max_dist: 4.0   # normalizer for hyperbolic → [0,1]; ~diameter of unit ball in curvature=1

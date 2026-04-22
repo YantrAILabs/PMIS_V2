@@ -123,7 +123,8 @@ The memory engine is one half; PMIS also exposes a full work-management surface:
 | `POST /api/work/compose-problem` | Meta-LLM composer that writes a `problem_statement.md` for a harness |
 | `GET /api/work/current` · `/deliverables` · `/sessions` | Read work state |
 | `POST /api/match/{id}/thumbs` | Thumbs-up/down on activity↔deliverable matches |
-| `GET /api/review/pending` · `POST /api/review/{id}/confirm|reject` | Review queue for pending anchors |
+| `GET /api/review/unconsolidated` · `POST /api/review/consolidate` | Review page: raw segments + Consolidate action |
+| `GET /api/review/proposals` · `POST /api/review/proposals/{id}/confirm\|reject` · `PATCH /api/review/proposals/{id}` | Draft proposal lifecycle — confirm writes `match_source='user_review'` |
 | `POST /api/value/recompute` · `GET /api/node/{id}/value` | Outcome-driven value score |
 | `POST /api/project/{id}/consolidate-{preview,day}` | Per-project manual consolidation |
 
