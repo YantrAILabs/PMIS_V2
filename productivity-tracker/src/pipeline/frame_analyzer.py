@@ -29,6 +29,11 @@ class FrameAnalyzer:
         openai_config = config.get("openai", {})
         self.openai_model = openai_config.get("vision_model", "gpt-4o-mini")
         self.openai_timeout = openai_config.get("timeout", 45)
+        # "low" = 85 tokens per image flat (server resizes to 512x512).
+        # "high" = up to ~765 tokens/image at 1024px (full-res, reads small text).
+        # For app+task identification, "low" is plenty and ~5-8x cheaper.
+        self.openai_vision_detail = openai_config.get("vision_detail", "low")
+        self.openai_max_tokens = openai_config.get("max_tokens_vision", 400)
 
         ollama_config = config.get("ollama", {})
         self.ollama_vision_enabled = ollama_config.get("vision_enabled", False)
@@ -93,7 +98,10 @@ class FrameAnalyzer:
         for img in images:
             content.append({
                 "type": "image_url",
-                "image_url": {"url": f"data:image/png;base64,{img}"},
+                "image_url": {
+                    "url": f"data:image/png;base64,{img}",
+                    "detail": self.openai_vision_detail,
+                },
             })
 
         try:
@@ -102,7 +110,7 @@ class FrameAnalyzer:
                 model=self.openai_model,
                 messages=[{"role": "user", "content": content}],
                 temperature=0.1,
-                max_tokens=800,
+                max_tokens=self.openai_max_tokens,
                 response_format={"type": "json_object"},
             )
             return response.choices[0].message.content
