@@ -1,1 +1,1 @@
-# PMIS V2 Desktop Agent
+# ProMe Desktop Agent

@@ -1,5 +1,5 @@
 """
-Full PMIS V2 memory pipeline sync for productivity segments.
+Full ProMe memory pipeline sync for productivity segments.
 
 Runs the complete pipeline: SQL → Vector → Hyperbolic → Project Matching → RSGD.
 Called every 30 minutes by the tracker daemon when new frames exist.
@@ -14,14 +14,14 @@ from typing import Dict, List, Any, Optional
 
 logger = logging.getLogger("tracker.pipeline_sync")
 
-# Add PMIS V2 to path
+# Add ProMe (pmis_v2) to path
 PMIS_V2_DIR = Path(__file__).resolve().parents[3] / "pmis_v2"
 if str(PMIS_V2_DIR) not in sys.path:
     sys.path.insert(0, str(PMIS_V2_DIR))
 
 
 class ProductivityPipelineSync:
-    """Runs full PMIS V2 pipeline on unsynced productivity segments."""
+    """Runs full ProMe pipeline on unsynced productivity segments."""
 
     def __init__(self, db_manager, chroma_store, embedder, poincare_pm,
                  rsgd_trainer, nightly_consolidation, tracker_db,
@@ -37,7 +37,7 @@ class ProductivityPipelineSync:
 
     @classmethod
     def from_config(cls, config: dict) -> "ProductivityPipelineSync":
-        """Factory method — creates all PMIS V2 components from tracker config."""
+        """Factory method — creates all ProMe components from tracker config."""
         import yaml
 
         hyper_path = PMIS_V2_DIR / "hyperparameters.yaml"
@@ -200,13 +200,29 @@ class ProductivityPipelineSync:
             self.db.update_node_productivity_time(nid, duration_mins, human_mins, ai_mins)
 
         # Step 4: Project matching
+        # First check segment_override_bindings — Phase 1 hard-bind from
+        # a user-confirmed work_session short-circuits the semantic matcher.
         match_result = {"combined_match_pct": 0, "project_id": "", "deliverable_id": ""}
+        override = None
         try:
-            from src.memory.project_matcher import ProjectMatcher
-            matcher = ProjectMatcher(self.db, self.chroma, self.embedder)
-            match_result = matcher.match_segment(segment, sc_id, ctx_id, anc_id)
-        except Exception as match_err:
-            logger.debug(f"Project matching skipped: {match_err}")
+            override = self.db.get_segment_override(segment_id) if segment_id else None
+        except Exception:
+            override = None
+
+        if override and override.get("deliverable_id"):
+            match_result = {
+                "combined_match_pct": 1.0,
+                "project_id": override.get("project_id", ""),
+                "deliverable_id": override.get("deliverable_id", ""),
+                "match_method": f"session_override:{override.get('source','session')}",
+            }
+        else:
+            try:
+                from src.memory.project_matcher import ProjectMatcher
+                matcher = ProjectMatcher(self.db, self.chroma, self.embedder)
+                match_result = matcher.match_segment(segment, sc_id, ctx_id, anc_id)
+            except Exception as match_err:
+                logger.debug(f"Project matching skipped: {match_err}")
 
         match_score = match_result.get("combined_match_pct", 0)
         is_productive = 1 if match_score >= 0.5 else (0 if match_score == 0 else -1)

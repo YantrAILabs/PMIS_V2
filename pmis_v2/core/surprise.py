@@ -4,13 +4,15 @@ Surprise computation engine for PMIS v2.
 Computes per-turn surprise using:
   effective_surprise = raw_surprise × cluster_precision
 
-Where raw_surprise is cosine distance from nearest memory cluster,
-and cluster_precision reflects how confident the system is about that territory.
+Phase 1 changes:
+  - K=5 weighted nearest contexts (replaces single nearest)
+  - Precision floor for established contexts
+  - Precision component factors exposed for diagnostics
 """
 
 import numpy as np
-from dataclasses import dataclass
-from typing import Dict, Any, List, Optional
+from dataclasses import dataclass, field
+from typing import Dict, Any, List, Optional, Tuple
 
 
 @dataclass
@@ -22,6 +24,13 @@ class SurpriseResult:
     nearest_context_name: str
     nearest_distance: float
     is_orphan_territory: bool
+    # Phase 1: expose precision components for diagnostics
+    precision_anchor_factor: float = 0.0
+    precision_recency_factor: float = 0.0
+    precision_consistency_factor: float = 0.0
+    # Phase 1: K-nearest metadata
+    second_nearest_distance: float = 0.0
+    contexts_searched: int = 0
 
 
 def compute_raw_surprise(
@@ -40,17 +49,57 @@ def compute_raw_surprise(
     return float(np.clip(1.0 - cosine_sim, 0.0, 2.0))
 
 
+def compute_raw_surprise_k(
+    query_embedding: np.ndarray,
+    context_embeddings: List[np.ndarray],
+    k: int = 5,
+) -> Tuple[float, float]:
+    """
+    K-nearest weighted surprise. More robust than single-point.
+
+    Returns (raw_surprise, confidence).
+    Confidence replaces cluster_precision's role as noise filter:
+      - Tight cluster of K neighbors = high confidence (real signal)
+      - Spread out = low confidence (ambiguous territory)
+    """
+    if not context_embeddings:
+        return 1.0, 0.1
+
+    # Compute distances to all contexts
+    distances = []
+    for ctx_emb in context_embeddings:
+        distances.append(compute_raw_surprise(query_embedding, ctx_emb))
+
+    distances.sort()
+    top_k = distances[:k]
+
+    # Weighted average: nearest matters most
+    weights = [1.0 / (2 ** i) for i in range(len(top_k))]
+    raw_surprise = sum(w * d for w, d in zip(weights, top_k)) / sum(weights)
+
+    # Spread measure: tight cluster = high confidence
+    if len(top_k) > 1:
+        spread = max(top_k) - min(top_k)
+        confidence = 1.0 - min(spread / 0.5, 1.0)
+    else:
+        confidence = 0.5
+
+    return float(raw_surprise), float(confidence)
+
+
 def compute_cluster_precision(
     num_anchors: int,
     avg_recency_hours: float,
     internal_consistency: float,
     hyperparams: Dict[str, Any],
-) -> float:
+    access_count: int = 0,
+) -> Tuple[float, float, float, float]:
     """
     Precision of a Context cluster.
     High precision = system is confident about this territory.
 
-    precision = w1 * anchor_factor + w2 * recency_factor + w3 * consistency
+    Returns (precision, anchor_factor, recency_factor, consistency_factor)
+    for diagnostics visibility.
     """
     # Anchor count (log scale, saturates at threshold)
     saturation = hyperparams.get("precision_anchor_saturation", 50)
@@ -68,17 +117,26 @@ def compute_cluster_precision(
         hyperparams.get("precision_weight_recency", 0.35) * recency_factor +
         hyperparams.get("precision_weight_consistency", 0.25) * consistency_factor
     )
-    return float(np.clip(precision, 0.05, 1.0))
+
+    # Phase 1: Precision floor for established contexts
+    floor = hyperparams.get("precision_established_floor", 0.7)
+    min_anchors = hyperparams.get("precision_established_min_anchors", 15)
+    min_access = hyperparams.get("precision_established_min_access", 10)
+    if num_anchors >= min_anchors and access_count >= min_access:
+        precision = max(precision, floor)
+
+    precision = float(np.clip(precision, 0.05, 1.0))
+    return precision, float(anchor_factor), float(recency_factor), float(consistency_factor)
 
 
 def compute_effective_surprise(raw_surprise: float, cluster_precision: float) -> float:
     """
-    effective = raw × precision
+    effective = raw x precision
 
-    High surprise + high precision = genuinely novel → EXPLORE
-    High surprise + low precision  = noise           → IGNORE
-    Low surprise  + high precision = confirmation    → EXPLOIT
-    Low surprise  + low precision  = weak signal     → GATHER DATA
+    High surprise + high precision = genuinely novel -> EXPLORE
+    High surprise + low precision  = noise           -> IGNORE
+    Low surprise  + high precision = confirmation    -> EXPLOIT
+    Low surprise  + low precision  = weak signal     -> GATHER DATA
     """
     return raw_surprise * cluster_precision
 
@@ -87,12 +145,16 @@ def compute_full_surprise(
     query_embedding: np.ndarray,
     nearest_context: Optional[Dict[str, Any]],
     hyperparams: Dict[str, Any],
+    all_context_embeddings: Optional[List[np.ndarray]] = None,
 ) -> SurpriseResult:
     """
     Full surprise computation for a single turn.
-    Takes query embedding + nearest context info, returns SurpriseResult.
+
+    Phase 1: If all_context_embeddings is provided, uses K-nearest
+    weighted surprise instead of single nearest.
     """
     orphan_threshold = hyperparams.get("orphan_distance_threshold", 0.80)
+    k = hyperparams.get("surprise_k_nearest", 5)
 
     if nearest_context is None:
         return SurpriseResult(
@@ -105,18 +167,50 @@ def compute_full_surprise(
             is_orphan_territory=True,
         )
 
-    nearest_embedding = nearest_context.get("embedding")
-    if nearest_embedding is None:
-        raw = 1.0
-    else:
-        raw = compute_raw_surprise(query_embedding, np.array(nearest_embedding))
+    # Phase 1: K-nearest surprise if context embeddings provided
+    if all_context_embeddings and len(all_context_embeddings) >= 2:
+        raw, k_confidence = compute_raw_surprise_k(
+            query_embedding, all_context_embeddings, k=k
+        )
+        contexts_searched = len(all_context_embeddings)
 
-    precision = compute_cluster_precision(
+        # Compute distances for second-nearest metadata
+        nearest_embedding = nearest_context.get("embedding")
+        if nearest_embedding is not None:
+            all_dists = sorted([
+                compute_raw_surprise(query_embedding, e)
+                for e in all_context_embeddings
+            ])
+            second_dist = all_dists[1] if len(all_dists) > 1 else 0.0
+        else:
+            second_dist = 0.0
+    else:
+        # Fallback: single nearest (original behavior)
+        nearest_embedding = nearest_context.get("embedding")
+        if nearest_embedding is None:
+            raw = 1.0
+        else:
+            raw = compute_raw_surprise(query_embedding, np.array(nearest_embedding))
+        k_confidence = None
+        contexts_searched = 1
+        second_dist = 0.0
+
+    # Compute precision from context stats
+    precision, anchor_f, recency_f, consistency_f = compute_cluster_precision(
         num_anchors=nearest_context.get("num_anchors", 1),
         avg_recency_hours=nearest_context.get("avg_recency_hours", 720),
         internal_consistency=nearest_context.get("internal_consistency", 0.5),
         hyperparams=hyperparams,
+        access_count=nearest_context.get("access_count", 0),
     )
+
+    # If K-nearest confidence is available, blend with cluster precision
+    if k_confidence is not None:
+        # K-nearest confidence modulates precision:
+        # tight K-nearest cluster + high precision = very confident
+        # spread K-nearest + high precision = precision might be misleading
+        precision = precision * (0.5 + 0.5 * k_confidence)
+        precision = float(np.clip(precision, 0.05, 1.0))
 
     effective = compute_effective_surprise(raw, precision)
     is_orphan = raw > orphan_threshold
@@ -129,6 +223,11 @@ def compute_full_surprise(
         nearest_context_name=nearest_context.get("name", "unknown"),
         nearest_distance=raw,
         is_orphan_territory=is_orphan,
+        precision_anchor_factor=anchor_f,
+        precision_recency_factor=recency_f,
+        precision_consistency_factor=consistency_f,
+        second_nearest_distance=second_dist,
+        contexts_searched=contexts_searched,
     )
 
 

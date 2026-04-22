@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ProMe Health Monitor</title>
+<style>
+:root {
+  --bg: #ffffff; --bg2: #f8f9fa; --bg3: #e9ecef;
+  --fg: #1a1a1a; --fg2: #4a4a4a; --fg3: #888888;
+  --border: #dee2e6;
+  --green: #16a34a; --blue: #2563eb; --red: #dc2626; --orange: #ea580c;
+  --nav-bg: #1a1a2e;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:var(--fg); }
+
+/* NAV */
+.nav { background:var(--nav-bg); padding:10px 20px; display:flex; justify-content:space-between; align-items:center; position:sticky; top:0; z-index:10; }
+.nav .brand-wrap { display:flex; flex-direction:column; gap:1px; }
+.nav .brand { color:#4ade80; font-weight:700; font-size:15px; letter-spacing:-0.2px; }
+.nav .tagline { color:#8a8d92; font-size:10.5px; letter-spacing:0.3px; }
+.nav .meta { color:#aaa; font-size:12px; }
+
+/* LAYOUT — sidebar + main, kicks in below nav */
+.layout { display:flex; align-items:flex-start; max-width:1340px; margin:0 auto; }
+.sidebar {
+  width:220px; flex-shrink:0; padding:18px 14px 40px;
+  border-right:1px solid var(--border); position:sticky; top:48px;
+  align-self:flex-start; max-height:calc(100vh - 48px); overflow-y:auto;
+}
+.sidebar .s-label {
+  font-size:10px; color:var(--fg3); text-transform:uppercase; letter-spacing:1.4px;
+  padding:14px 10px 6px;
+}
+.sidebar .s-label:first-child { padding-top:0; }
+.sidebar .s-item {
+  display:flex; align-items:center; gap:8px;
+  padding:7px 10px; margin:1px 0; border-radius:6px;
+  color:var(--fg2); font-size:13px; text-decoration:none; cursor:pointer;
+  transition:background 0.12s ease, color 0.12s ease;
+}
+.sidebar .s-item:hover { background:var(--bg2); color:var(--fg); }
+.sidebar .s-item.active { background:#ecfdf5; color:#166534; font-weight:600; }
+.sidebar .s-item .glyph { width:14px; text-align:center; color:var(--fg3); font-size:12px; }
+.sidebar .s-item.active .glyph { color:#16a34a; }
+.sidebar .s-item.ext::after { content:"↗"; color:var(--fg3); font-size:10px; margin-left:auto; }
+.sidebar .s-item.running { opacity:0.55; pointer-events:none; }
+.sidebar .s-item.action:hover { color:var(--blue); }
+.main-col { flex:1; min-width:0; }
+@media (max-width: 860px) {
+  .layout { flex-direction:column; }
+  .sidebar { width:100%; position:static; max-height:none; border-right:none; border-bottom:1px solid var(--border); padding:14px 16px; }
+}
+
+/* ALERTS */
+.alerts { padding:8px 24px; background:#fef2f2; border-bottom:1px solid #fecaca; display:none; }
+.alerts.show { display:block; }
+.alert-item { font-size:12px; color:var(--red); padding:2px 0; }
+.alert-item .src { font-weight:600; }
+
+/* GRID */
+.grid { max-width:1100px; margin:20px auto; padding:0 16px; }
+
+/* HEART (full width) */
+.heart-card { background:var(--bg2); border:1px solid var(--border); border-radius:10px; padding:16px 20px; margin-bottom:16px; display:flex; align-items:center; gap:20px; }
+.heart-card .dot { width:16px; height:16px; border-radius:50%; flex-shrink:0; }
+.heart-card .label { font-size:13px; font-weight:600; }
+.heart-card .stats { display:flex; gap:24px; flex:1; }
+.heart-card .stat { text-align:center; }
+.heart-card .stat-val { font-size:20px; font-weight:700; }
+.heart-card .stat-label { font-size:10px; color:var(--fg3); text-transform:uppercase; }
+
+/* ORGAN CARDS (2 per row) */
+.organs { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:20px; }
+.organ { background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:16px; }
+.organ:hover { box-shadow:0 2px 8px rgba(0,0,0,0.06); }
+.organ-header { display:flex; align-items:center; gap:8px; margin-bottom:12px; }
+.organ-header .dot { width:10px; height:10px; border-radius:50%; }
+.organ-header .icon { font-size:18px; }
+.organ-header .name { font-weight:600; font-size:14px; }
+.organ-header .sub { font-size:11px; color:var(--fg3); margin-left:auto; }
+
+.metric { display:flex; justify-content:space-between; padding:3px 0; font-size:12px; border-bottom:1px solid var(--bg3); }
+.metric:last-child { border:none; }
+.metric .key { color:var(--fg3); }
+.metric .val { font-weight:600; font-family:monospace; }
+
+.organ .actions { margin-top:10px; display:flex; gap:6px; flex-wrap:wrap; }
+.action-btn { font-size:11px; padding:4px 10px; border:1px solid var(--border); border-radius:4px; background:var(--bg2); color:var(--fg2); cursor:pointer; font-weight:500; }
+.action-btn:hover { border-color:var(--blue); color:var(--blue); background:#eff6ff; }
+.action-btn.running { opacity:0.6; pointer-events:none; }
+
+/* TIMELINE */
+.timeline { max-width:1100px; margin:0 auto 40px; padding:0 16px; }
+.timeline h2 { font-size:14px; color:var(--fg3); margin-bottom:8px; text-transform:uppercase; letter-spacing:1px; }
+.tl-item { display:flex; gap:8px; padding:4px 0; border-bottom:1px solid var(--bg3); font-size:12px; }
+.tl-time { min-width:100px; color:var(--fg3); font-family:monospace; }
+.tl-source { min-width:100px; font-weight:600; color:var(--blue); }
+.tl-detail { color:var(--fg2); }
+
+/* STATUS DOTS */
+.dot-green { background:var(--green); }
+.dot-yellow { background:var(--orange); }
+.dot-red { background:var(--red); }
+</style>
+</head>
+<body>
+
+<div class="nav">
+  <a href="/" class="brand-wrap" style="text-decoration:none; display:inline-flex; align-items:center; gap:10px;" title="ProMe — Personal Memory Intelligence">
+    <svg class="prome-logo" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" width="26" height="26" style="flex-shrink:0;color:var(--green);"><circle cx="16" cy="16" r="13" fill="none" stroke="currentColor" stroke-width="2"/><path d="M 5 12 Q 16 22 27 12" fill="none" stroke="currentColor" stroke-width="1.3" opacity="0.55"/><path d="M 5 20 Q 16 10 27 20" fill="none" stroke="currentColor" stroke-width="1.3" opacity="0.55"/><circle cx="16" cy="16" r="2.4" fill="currentColor"/><circle cx="9" cy="16" r="1.4" fill="currentColor" opacity="0.8"/><circle cx="23" cy="16" r="1.4" fill="currentColor" opacity="0.8"/></svg>
+    <span class="brand">ProMe</span>
+    <span class="tagline">Personal OS for work that ships</span>
+  </a>
+  <span style="flex:1; display:flex; gap:18px; justify-content:center; font-size:13px;">
+    <a href="/" style="color:#4ade80; text-decoration:none; font-weight:600;">Monitor</a>
+    <a href="/dashboard" style="color:#e0e0e0; text-decoration:none;">Dashboard</a>
+    <a href="/feedback" style="color:#e0e0e0; text-decoration:none;">Feedback</a>
+    <a href="/diagnostics" style="color:#e0e0e0; text-decoration:none;">Diagnostics</a>
+    <a href="/lint" style="color:#e0e0e0; text-decoration:none;">Lint</a>
+  </span>
+  <span class="meta">
+    Last refresh: <span id="last-refresh">loading...</span> &middot;
+    Auto-refresh: <span id="auto-status">ON</span>
+  </span>
+</div>
+
+<div class="alerts" id="alerts-bar"></div>
+
+<div class="layout">
+
+<!-- ─── SIDEBAR ─── -->
+<aside class="sidebar">
+
+  <div class="s-label">Health Monitor</div>
+  <a class="s-item active" href="/"><span class="glyph">◉</span>Monitor</a>
+  <a class="s-item" href="/dashboard"><span class="glyph">▤</span>Dashboard</a>
+  <a class="s-item" href="/feedback"><span class="glyph">♡</span>Feedback</a>
+  <a class="s-item" href="/diagnostics"><span class="glyph">⚕</span>Diagnostics</a>
+  <a class="s-item" href="/lint"><span class="glyph">⚑</span>Lint</a>
+
+  <div class="s-label">Product</div>
+  <a class="s-item ext" href="http://localhost:8100/wiki/" target="_blank"><span class="glyph">⛬</span>Wiki</a>
+  <a class="s-item ext" href="http://localhost:8100/wiki/goals" target="_blank"><span class="glyph">◎</span>Goals</a>
+  <a class="s-item ext" href="http://localhost:8100/wiki/review" target="_blank"><span class="glyph">✓</span>Review</a>
+  <a class="s-item ext" href="http://localhost:8100/wiki/productivity" target="_blank"><span class="glyph">~</span>Productivity</a>
+  <a class="s-item ext" href="http://localhost:8100/docs" target="_blank"><span class="glyph">𝒇</span>API docs</a>
+
+  <div class="s-label">Quick Actions</div>
+  <div class="s-item action" onclick="doAction('train-hgcn', this)"><span class="glyph">⇡</span>Train HGCN</div>
+  <div class="s-item action" onclick="doAction('consolidate', this)"><span class="glyph">✦</span>Consolidate</div>
+  <div class="s-item action" onclick="doAction('cell-divide', this)"><span class="glyph">⌸</span>Cell Divide</div>
+  <div class="s-item action" onclick="doAction('reindex', this)"><span class="glyph">⟳</span>Rebuild Index</div>
+  <div class="s-item action" onclick="doAction('regen-wiki', this)"><span class="glyph">✎</span>Regen Wiki</div>
+  <div class="s-item action" onclick="doAction('activity-merge', this)"><span class="glyph">⥂</span>Activity Merge</div>
+  <div class="s-item action" onclick="doAction('assign-time', this)"><span class="glyph">⧖</span>Assign Time</div>
+
+  <div class="s-label">Repo</div>
+  <a class="s-item ext" href="https://github.com/YantrAILabs/PMIS_V2" target="_blank"><span class="glyph">⌸</span>GitHub</a>
+  <a class="s-item ext" href="https://github.com/YantrAILabs/PMIS_V2/blob/main/README.md" target="_blank"><span class="glyph">▤</span>README</a>
+
+</aside>
+
+<!-- ─── MAIN ─── -->
+<div class="main-col">
+
+<div class="grid">
+  <!-- HEART -->
+  <div class="heart-card" id="heart">
+    <div class="dot dot-green" id="heart-dot"></div>
+    <div class="label">HEART — System Vitals</div>
+    <div class="stats" id="heart-stats"></div>
+  </div>
+
+  <!-- ORGAN GRID -->
+  <div class="organs">
+
+    <!-- BLOOD -->
+    <div class="organ" id="blood">
+      <div class="organ-header">
+        <div class="dot dot-green" id="blood-dot"></div>
+        <span class="icon">&#129656;</span>
+        <span class="name">BLOOD — Ingestion</span>
+      </div>
+      <div id="blood-metrics"></div>
+      <div class="actions">
+        <button class="action-btn" onclick="doAction('activity-merge', this)">Run Activity Merge</button>
+        <button class="action-btn" onclick="doAction('assign-time', this)">Assign Time</button>
+      </div>
+    </div>
+
+    <!-- BRAIN -->
+    <div class="organ" id="brain">
+      <div class="organ-header">
+        <div class="dot dot-green" id="brain-dot"></div>
+        <span class="icon">&#129504;</span>
+        <span class="name">BRAIN — HGCN / Poincare</span>
+      </div>
+      <div id="brain-metrics"></div>
+      <div class="actions">
+        <button class="action-btn" onclick="doAction('train-hgcn', this)">Train HGCN Now</button>
+      </div>
+    </div>
+
+    <!-- LUNGS -->
+    <div class="organ" id="lungs">
+      <div class="organ-header">
+        <div class="dot dot-green" id="lungs-dot"></div>
+        <span class="icon">&#129723;</span>
+        <span class="name">LUNGS — Retrieval</span>
+      </div>
+      <div id="lungs-metrics"></div>
+    </div>
+
+    <!-- IMMUNE -->
+    <div class="organ" id="immune">
+      <div class="organ-header">
+        <div class="dot dot-green" id="immune-dot"></div>
+        <span class="icon">&#128737;</span>
+        <span class="name">IMMUNE — Consolidation</span>
+      </div>
+      <div id="immune-metrics"></div>
+      <div class="actions">
+        <button class="action-btn" onclick="doAction('consolidate', this)">Run Consolidation</button>
+        <button class="action-btn" onclick="doAction('cell-divide', this)">Cell Division</button>
+      </div>
+    </div>
+
+    <!-- SKELETON -->
+    <div class="organ" id="skeleton">
+      <div class="organ-header">
+        <div class="dot dot-green" id="skeleton-dot"></div>
+        <span class="icon">&#129460;</span>
+        <span class="name">SKELETON — Knowledge Graph</span>
+      </div>
+      <div id="skeleton-metrics"></div>
+      <div class="actions">
+        <button class="action-btn" onclick="doAction('reindex', this)">Rebuild Index</button>
+      </div>
+    </div>
+
+    <!-- NERVOUS -->
+    <div class="organ" id="nervous">
+      <div class="organ-header">
+        <div class="dot dot-green" id="nervous-dot"></div>
+        <span class="icon">&#129516;</span>
+        <span class="name">NERVOUS — Wiki / Goals</span>
+      </div>
+      <div id="nervous-metrics"></div>
+      <div class="actions">
+        <button class="action-btn" onclick="doAction('regen-wiki', this)">Regenerate Wiki</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- TIMELINE -->
+<div class="timeline">
+  <h2>Timeline</h2>
+  <div id="timeline-list"></div>
+</div>
+
+</div><!-- /.main-col -->
+</div><!-- /.layout -->
+
+<script>
+function renderMetrics(el, metrics) {
+  el.innerHTML = Object.entries(metrics).map(([k, v]) => {
+    if (typeof v === 'object' && v !== null) {
+      v = Object.entries(v).map(([k2,v2]) => `${k2}:${v2}`).join(' ');
+    }
+    return `<div class="metric"><span class="key">${k.replace(/_/g,' ')}</span><span class="val">${v}</span></div>`;
+  }).join('');
+}
+
+function setDot(id, status) {
+  const dot = document.getElementById(id);
+  if (dot) {
+    dot.className = 'dot dot-' + status;
+  }
+}
+
+function updateDashboard(data) {
+  document.getElementById('last-refresh').textContent = data.timestamp.substring(11);
+
+  // Heart
+  setDot('heart-dot', data.heart.status);
+  const hs = document.getElementById('heart-stats');
+  const hm = data.heart.metrics;
+  hs.innerHTML = ['uptime','total_nodes','last_activity','errors_24h'].map(k =>
+    `<div class="stat"><div class="stat-val">${hm[k]}</div><div class="stat-label">${k.replace(/_/g,' ')}</div></div>`
+  ).join('');
+
+  // Organs
+  ['blood','brain','lungs','immune','skeleton','nervous'].forEach(name => {
+    setDot(name + '-dot', data[name].status);
+    renderMetrics(document.getElementById(name + '-metrics'), data[name].metrics);
+  });
+
+  // Alerts
+  const alertsBar = document.getElementById('alerts-bar');
+  if (data.alerts && data.alerts.length > 0) {
+    alertsBar.className = 'alerts show';
+    alertsBar.innerHTML = data.alerts.map(a =>
+      `<div class="alert-item"><span class="src">[${a.source}]</span> ${a.message}</div>`
+    ).join('');
+  } else {
+    alertsBar.className = 'alerts';
+  }
+
+  // Timeline
+  const tl = document.getElementById('timeline-list');
+  tl.innerHTML = (data.timeline || []).map(e =>
+    `<div class="tl-item"><span class="tl-time">${e.time}</span><span class="tl-source">${e.source}</span><span class="tl-detail">${e.detail}</span></div>`
+  ).join('');
+}
+
+async function refresh() {
+  try {
+    const data = await fetch('/api/health').then(r => r.json());
+    updateDashboard(data);
+  } catch (e) {
+    document.getElementById('last-refresh').textContent = 'ERROR';
+  }
+}
+
+async function doAction(action, btn) {
+  btn.classList.add('running');
+  btn.textContent = 'Running...';
+  try {
+    await fetch(`/api/action/${action}`, { method: 'POST' });
+    await refresh();
+  } catch (e) {
+    alert(`Action failed: ${e}`);
+  }
+  btn.classList.remove('running');
+  btn.textContent = btn.textContent.replace('Running...', btn.getAttribute('data-label') || btn.textContent);
+  // Restore label
+  setTimeout(refresh, 1000);
+}
+
+// Save original button labels
+document.querySelectorAll('.action-btn').forEach(btn => btn.setAttribute('data-label', btn.textContent));
+
+// Initial load + auto-refresh
+refresh();
+setInterval(refresh, 30000);
+</script>
+</body>
+</html>

@@ -1,4 +1,4 @@
-# PMIS v2 — Surprise-Minimizing Personal Memory Intelligence System
+# ProMe (PMIS v2) — Surprise-Minimizing Personal Memory Intelligence System
 
 ## What This Is
 This is Rohit's personal memory system built on the Free Energy Principle.

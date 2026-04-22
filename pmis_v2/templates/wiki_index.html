@@ -1,0 +1,35 @@
+{% extends "wiki_base.html" %}
+{% block title %}memory — Index{% endblock %}
+
+{% block content %}
+<h1>memory</h1>
+<p>{{ total_scs }} domains, {{ total_nodes }} knowledge nodes.
+{% if orphan_count > 0 %}<span class="tag stale">{{ orphan_count }} orphans</span>{% endif %}
+</p>
+
+<h2>Domains</h2>
+
+{% for sc in super_contexts %}
+<div class="card">
+  <h3>
+    {% if sc.is_stale %}<span style="color:var(--fg3)">&#9675;</span>{% else %}<span style="color:var(--green)">&#9679;</span>{% endif %}
+    <a href="/wiki/node/{{ sc.id }}">{{ sc.content.split('.')[0] }}</a>
+  </h3>
+  <div class="sub">
+    {{ sc.total_nodes }} nodes &middot;
+    {{ sc.ctx_count }} contexts &middot;
+    {% if sc.last_accessed %}Last active: {{ sc.last_accessed[:10] }}{% else %}Never accessed{% endif %}
+    {% if sc.is_stale %} &middot; <span style="color:var(--orange)">Stale</span>{% endif %}
+  </div>
+  {% for g in sc.goals %}
+  <span class="tag goal" style="margin-top:6px; display:inline-block;">Goal: {{ g.title[:50] }}</span>
+  {% endfor %}
+  {% if sc.feedback.positive or sc.feedback.negative %}
+  <div class="sub" style="margin-top:4px;">
+    Feedback: +{{ sc.feedback.positive or 0 }} / -{{ sc.feedback.negative or 0 }}
+  </div>
+  {% endif %}
+</div>
+{% endfor %}
+
+{% endblock %}

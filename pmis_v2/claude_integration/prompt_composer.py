@@ -68,7 +68,9 @@ def _format_memories(memories: List[Dict[str, Any]]) -> str:
         era = mem.get("era", "")
 
         era_tag = f" [{era}]" if era else ""
-        lines.append(f"  [{i}] [{level}|{source}]{era_tag} (score={score:.2f}) {content}")
+        depth = mem.get("_depth")
+        level_tag = f"{level}:d{depth}" if isinstance(depth, int) else level
+        lines.append(f"  [{i}] [{level_tag}|{source}]{era_tag} (score={score:.2f}) {content}")
 
     return "\n".join(lines)
 

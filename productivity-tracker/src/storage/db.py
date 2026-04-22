@@ -11,7 +11,7 @@ from pathlib import Path
 from sqlalchemy import create_engine, func
 from sqlalchemy.orm import sessionmaker, Session
 
-from src.storage.models import Base, Context1, Context2, HourlyMemory, DailyMemory, Deliverable
+from src.storage.models import Base, Context1, Context2, HourlyMemory, DailyMemory, Deliverable, PipelineLog
 
 logger = logging.getLogger("tracker.db")
 
@@ -81,6 +81,34 @@ class Database:
             raw.execute("CREATE INDEX IF NOT EXISTS idx_c1_synced ON context_1(synced_to_memory)")
         except Exception:
             pass
+
+        # ─── Idempotent pipeline: dedup + unique indexes ───────────────
+
+        # Deduplicate daily_memory before adding unique index (keeps row with highest time_mins)
+        try:
+            raw.execute("""
+                DELETE FROM daily_memory WHERE id NOT IN (
+                    SELECT id FROM (
+                        SELECT id, ROW_NUMBER() OVER (
+                            PARTITION BY date, level, supercontext, COALESCE(context,''), COALESCE(anchor,'')
+                            ORDER BY time_mins DESC
+                        ) as rn FROM daily_memory
+                    ) WHERE rn = 1
+                )
+            """)
+        except Exception:
+            pass
+
+        # Unique indexes — prevent future duplicates at the natural key level
+        for stmt in [
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_hourly_key ON hourly_memory(date, hour, supercontext, context, anchor)",
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_daily_key ON daily_memory(date, level, supercontext, COALESCE(context,''), COALESCE(anchor,''))",
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_pipeline_key ON pipeline_log(date, stage, COALESCE(hour, -1))",
+        ]:
+            try:
+                raw.execute(stmt)
+            except Exception:
+                pass
 
         raw.commit()
         raw.close()
@@ -157,11 +185,27 @@ class Database:
 
     # ─── Hourly memory ──────────────────────────────────────────────────
 
-    def insert_hourly(self, **kwargs):
+    def upsert_hourly(self, **kwargs):
+        """Insert or update hourly memory entry. Idempotent on (date, hour, sc, ctx, anchor)."""
         with self.get_session() as s:
-            row = HourlyMemory(**kwargs)
-            s.add(row)
+            existing = s.query(HourlyMemory).filter_by(
+                date=kwargs["date"], hour=kwargs["hour"],
+                supercontext=kwargs["supercontext"],
+                context=kwargs["context"], anchor=kwargs["anchor"],
+            ).first()
+            if existing:
+                existing.time_mins = kwargs["time_mins"]
+                existing.human_mins = kwargs["human_mins"]
+                existing.agent_mins = kwargs["agent_mins"]
+                existing.segment_ids = kwargs.get("segment_ids", existing.segment_ids)
+                existing.embedding_id = kwargs.get("embedding_id", existing.embedding_id)
+            else:
+                s.add(HourlyMemory(**kwargs))
             s.commit()
+
+    def insert_hourly(self, **kwargs):
+        """Backward-compatible alias for upsert_hourly."""
+        self.upsert_hourly(**kwargs)
 
     def get_hourly_for_date(self, target_date: str) -> list[dict]:
         with self.get_session() as s:
@@ -180,10 +224,96 @@ class Database:
 
     # ─── Daily memory ───────────────────────────────────────────────────
 
-    def insert_daily(self, **kwargs):
+    def upsert_daily(self, **kwargs):
+        """Insert or update daily memory entry. Idempotent on (date, level, sc, ctx, anchor)."""
         with self.get_session() as s:
-            row = DailyMemory(**kwargs)
-            s.add(row)
+            existing = s.query(DailyMemory).filter_by(
+                date=kwargs["date"], level=kwargs["level"],
+                supercontext=kwargs["supercontext"],
+                context=kwargs.get("context"), anchor=kwargs.get("anchor"),
+            ).first()
+            if existing:
+                existing.time_mins = kwargs["time_mins"]
+                existing.human_mins = kwargs["human_mins"]
+                existing.agent_mins = kwargs["agent_mins"]
+                existing.segment_count = kwargs.get("segment_count", existing.segment_count)
+                existing.embedding_id = kwargs.get("embedding_id", existing.embedding_id)
+            else:
+                s.add(DailyMemory(**kwargs))
+            s.commit()
+
+    def insert_daily(self, **kwargs):
+        """Backward-compatible alias for upsert_daily."""
+        self.upsert_daily(**kwargs)
+
+    def delete_daily_for_date(self, target_date: str):
+        """Delete all daily memory entries for a date (clean rebuild)."""
+        with self.get_session() as s:
+            s.query(DailyMemory).filter(DailyMemory.date == target_date).delete()
+            s.commit()
+
+    # ─── Pipeline log ───────────────────────────────────────────────────
+
+    def log_pipeline_run(self, date: str, stage: str, hour: int = None,
+                         segments: int = 0, time_mins: float = 0, status: str = "done"):
+        """Record pipeline completion. Idempotent — updates if (date, stage, hour) exists."""
+        with self.get_session() as s:
+            existing = s.query(PipelineLog).filter_by(
+                date=date, stage=stage, hour=hour,
+            ).first()
+            if existing:
+                existing.segments_processed = segments
+                existing.time_mins = time_mins
+                existing.status = status
+                existing.processed_at = datetime.utcnow()
+            else:
+                s.add(PipelineLog(
+                    date=date, stage=stage, hour=hour,
+                    segments_processed=segments, time_mins=time_mins, status=status,
+                ))
+            s.commit()
+
+    def get_processed_hours(self, target_date: str) -> set:
+        """Return set of hours already processed for a date."""
+        with self.get_session() as s:
+            rows = (
+                s.query(PipelineLog.hour)
+                .filter(PipelineLog.date == target_date,
+                        PipelineLog.stage == "hourly",
+                        PipelineLog.status == "done")
+                .all()
+            )
+            return {r[0] for r in rows if r[0] is not None}
+
+    def get_processed_daily_dates(self) -> set:
+        """Return set of dates that have completed daily rollup."""
+        with self.get_session() as s:
+            rows = (
+                s.query(PipelineLog.date)
+                .filter(PipelineLog.stage == "daily", PipelineLog.status == "done")
+                .distinct()
+                .all()
+            )
+            return {r[0] for r in rows}
+
+    def get_dates_with_segments(self) -> list:
+        """Return all distinct dates that have context_1 data."""
+        with self.get_session() as s:
+            rows = (
+                s.query(func.date(Context1.timestamp_start))
+                .distinct()
+                .order_by(func.date(Context1.timestamp_start))
+                .all()
+            )
+            return [r[0] for r in rows if r[0]]
+
+    def clear_pipeline_log_for_date(self, target_date: str, stage: str = None):
+        """Clear pipeline log entries for a date (and optionally a specific stage)."""
+        with self.get_session() as s:
+            q = s.query(PipelineLog).filter(PipelineLog.date == target_date)
+            if stage:
+                q = q.filter(PipelineLog.stage == stage)
+            q.delete()
             s.commit()
 
     def get_daily_for_date(self, target_date: str) -> list[dict]:
@@ -246,7 +376,7 @@ class Database:
     # ─── Productivity sync queries ─────────────────────────────────────
 
     def get_unsynced_segments(self) -> list[dict]:
-        """Get all segments that haven't been synced to PMIS V2 memory."""
+        """Get all segments that haven't been synced to ProMe memory."""
         with self.get_session() as s:
             rows = (
                 s.query(Context1)
@@ -272,7 +402,7 @@ class Database:
                             context_node_id: str = '', anchor_node_id: str = '',
                             match_score: float = 0.0, is_productive: int = -1,
                             project_id: str = '', deliverable_id: str = ''):
-        """Mark a segment as synced to PMIS V2 with resolved node IDs."""
+        """Mark a segment as synced to ProMe with resolved node IDs."""
         with self.get_session() as s:
             row = (
                 s.query(Context1)

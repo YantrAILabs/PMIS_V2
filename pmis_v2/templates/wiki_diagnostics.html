@@ -1,0 +1,43 @@
+{% extends "health_wiki_base.html" %}
+{% block title %}Diagnostics — ProMe Health Monitor{% endblock %}
+
+{% block content %}
+<h1>Turn Diagnostics</h1>
+
+{% if summary %}
+<div class="meta-bar">
+  <span class="tag">{{ summary.total_turns }} turns</span>
+  <span class="tag">&gamma; mean: {{ "%.3f"|format(summary.gamma_mean) }}</span>
+  <span class="tag">&gamma; std: {{ "%.3f"|format(summary.gamma_std) }}</span>
+  <span class="tag">hier_disc: {{ "%.3f"|format(summary.hier_disc_mean) }}</span>
+  {% for mode, count in summary.mode_distribution.items() %}
+  <span class="tag">{{ mode }}: {{ count }}</span>
+  {% endfor %}
+</div>
+{% endif %}
+
+<h2>Recent Turns</h2>
+<table>
+<tr>
+  <th>Turn</th><th>Conv</th><th>&gamma;</th><th>Mode</th>
+  <th>Surprise</th><th>Precision</th>
+  <th>Top1 Score</th><th>hier_disc</th>
+  <th>Storage</th><th>Time</th>
+</tr>
+{% for e in entries %}
+<tr>
+  <td>{{ e.turn_number }}</td>
+  <td><span title="{{ e.conversation_id }}">{{ e.conversation_id[:8] }}</span></td>
+  <td>{{ "%.3f"|format(e.gamma_final or 0) }}</td>
+  <td><span style="font-weight:600; color:{% if e.gamma_mode == 'ASSOCIATIVE' %}var(--green){% elif e.gamma_mode == 'PREDICTIVE' %}var(--orange){% else %}var(--fg){% endif %}">{{ e.gamma_mode or '-' }}</span></td>
+  <td>{{ "%.3f"|format(e.effective_surprise or 0) }}</td>
+  <td>{{ "%.3f"|format(e.cluster_precision or 0) }}</td>
+  <td>{{ "%.3f"|format(e.top1_final_score or 0) }}</td>
+  <td>{{ "%.4f"|format(e.hierarchy_score_discriminative or 0) }}</td>
+  <td>{{ e.storage_action or '-' }}</td>
+  <td>{{ (e.timestamp or '')[:16] }}</td>
+</tr>
+{% endfor %}
+</table>
+
+{% endblock %}

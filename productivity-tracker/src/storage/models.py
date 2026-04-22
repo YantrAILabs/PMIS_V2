@@ -47,7 +47,7 @@ class Context1(Base):
 
     # Memory sync tracking
     synced_to_memory = Column(Integer, default=0)  # 0=pending, 1=synced
-    sc_node_id = Column(String, default='')        # resolved PMIS V2 memory_nodes ID
+    sc_node_id = Column(String, default='')        # resolved ProMe memory_nodes ID
     context_node_id = Column(String, default='')
     anchor_node_id = Column(String, default='')
     match_score = Column(Float, default=0.0)       # combined match % to project tree
@@ -130,6 +130,25 @@ class DailyMemory(Base):
         Index("idx_daily_date", date),
         Index("idx_daily_sc", supercontext),
         Index("idx_daily_deliverable", deliverable_id),
+    )
+
+
+class PipelineLog(Base):
+    """Tracks which hours and days have been processed by the pipeline."""
+    __tablename__ = "pipeline_log"
+
+    id = Column(String, primary_key=True, default=gen_uuid)
+    date = Column(String(10), nullable=False)       # YYYY-MM-DD
+    stage = Column(String(20), nullable=False)       # "hourly" or "daily"
+    hour = Column(Integer, nullable=True)            # 0-23 for hourly, NULL for daily
+    status = Column(String(10), default="done")      # "done" or "failed"
+    segments_processed = Column(Integer, default=0)
+    time_mins = Column(Float, default=0)
+    processed_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        Index("idx_plog_date_stage", date, stage),
+        Index("idx_plog_date_hour", date, hour),
     )
 
 

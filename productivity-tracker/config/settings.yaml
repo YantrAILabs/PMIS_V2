@@ -21,15 +21,36 @@ segmentation:
   # Minimum segment length (avoid micro-segments)
   min_segment_secs: 15              # Segments shorter than this get merged with next
 
-chatgpt:
-  # Vision analysis
+llm:
+  # Provider order for frame + segment analysis. First provider wins; next is fallback.
+  # Valid entries: "openai", "ollama"
+  provider_order: ["openai", "ollama"]
+
+openai:
+  # Vision analysis (cloud — tried first)
   vision_model: "gpt-4o-mini"
-  vision_detail: "low"              # "low" for initial pass, "high" if text is small
-  
-  # Context classification  
+  # Text/segment classification (cloud — tried first)
   text_model: "gpt-4o-mini"
-  max_tokens: 500
-  temperature: 0.1                  # Low temp for consistent classification
+  timeout: 45
+  # API key is read from env (OPENAI_API_KEY). If missing, provider auto-skips to next.
+
+ollama:
+  # Vision analysis (local fallback) — OFF by default so the 11GB VLM does not
+  # auto-load when OpenAI is the primary. Flip to true only if you want a local
+  # safety net when the OpenAI vision call fails.
+  vision_enabled: false
+  vision_model: "qwen2.5vl:3b"
+  vision_fallback: "qwen2.5vl:7b"   # Falls back to 7b if 3b fails
+
+  # Text classification (local fallback)
+  text_model: "qwen2.5:3b"
+
+  # Keep-alive sent with every Ollama request. "0" = unload the model immediately
+  # after the response. Prevents 5-min-idle RAM residency when fallback does fire.
+  keep_alive: "0"
+
+  base_url: "http://localhost:11434"
+  timeout: 60
 
 memory:
   # Hourly aggregation
@@ -46,7 +67,9 @@ memory:
   daily_rollup_hour: 23             # 11 PM
 
   # Embedding model (for tracker's own ChromaDB)
-  embedding_model: "text-embedding-3-small"
+  # Provider: "ollama" (local nomic-embed-text, 768d) | "openai" (text-embedding-3-small, 1536d)
+  embedding_provider: "ollama"
+  embedding_model: "nomic-embed-text"
 
   # Matching threshold
   semantic_match_threshold: 0.8

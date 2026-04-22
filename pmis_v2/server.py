@@ -1,5 +1,5 @@
 """
-PMIS V2 HTTP Server
+ProMe HTTP Server
 
 FastAPI server on port 8100 with:
 - REST API for memory operations
@@ -27,9 +27,11 @@ from datetime import datetime, date
 from typing import Optional, List, Dict, Any
 from contextlib import asynccontextmanager
 
-# Add pmis_v2 to path
+# Add pmis_v2 to path (internal modules) + repo root (so `import pmis` works)
 PMIS_DIR = Path(__file__).parent
+REPO_ROOT = PMIS_DIR.parent
 sys.path.insert(0, str(PMIS_DIR))
+sys.path.insert(0, str(REPO_ROOT))
 
 from fastapi import FastAPI, Request, Query, Header, Depends, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
@@ -66,10 +68,58 @@ async def lifespan(app: FastAPI):
     print(f"[PMIS V2] Orchestrator initialized. DB: {db_path}")
     print(f"[PMIS V2] Platform store initialized.")
 
+    # Robustness: close any work_sessions left hanging >6h (crashed tracker,
+    # forgotten /api/work/end, server restart mid-session). Without this, a
+    # stale session blocks /api/work/start from ever creating a new one.
+    try:
+        stale = _orch.db.auto_end_stale_work_sessions(max_age_hours=6.0)
+        if stale:
+            print(f"[PMIS V2] Auto-ended {len(stale)} stale work session(s): {stale}")
+    except Exception as e:
+        print(f"[PMIS V2] Stale-session sweep skipped: {e}")
+
+    # Sync YAML PM board (goals.yaml / deliverables.yaml) into projects +
+    # deliverables tables so live_matcher and /api/work/deliverables see them.
+    # Embedder is passed so deliverables get auto-embedded into synthetic CTX
+    # nodes (Fix 2 — without this, LiveMatcher has nothing to score against).
+    try:
+        from sync.yaml_to_db import sync_pm_yaml_to_db
+        counts = sync_pm_yaml_to_db(_orch.db, embedder=_orch.embedder, hyperparams=_orch.hp)
+        print(f"[PMIS V2] YAML→DB sync: {counts}")
+    except Exception as e:
+        print(f"[PMIS V2] YAML→DB sync skipped: {e}")
+
     # Start agent health checker background thread
     _agent_thread = threading.Thread(target=_agent_health_loop, daemon=True)
     _agent_thread.start()
     print("[PMIS V2] Agent health checker started.")
+
+    # Phase 5 (2026-04-20): two-part in-process scheduler.
+    # We inherit the Terminal's TCC permissions when the user launches
+    # server.py, so there's no "Operation not permitted" on ~/Desktop like
+    # a launchd agent would hit. All consolidation timing lives here.
+    #
+    #   1. Startup catchup — fires once immediately to consolidate any
+    #      missed days since last_consolidation_date.
+    #   2. Daily scheduler — polls every 30 min; when clock crosses 18:00
+    #      local and today hasn't fired yet, triggers run_idempotent.
+    def _runner_startup():
+        try:
+            from consolidation.runner import run_startup_catchup
+            run_startup_catchup()
+        except Exception as e:
+            print(f"[PMIS V2] Startup catchup failed: {e}")
+
+    def _runner_scheduler():
+        try:
+            from consolidation.runner import run_daily_scheduler
+            run_daily_scheduler(evening_cutoff_hour=18)
+        except Exception as e:
+            print(f"[PMIS V2] Daily scheduler crashed: {e}")
+
+    threading.Thread(target=_runner_startup, daemon=True, name="pmis-nightly-catchup").start()
+    threading.Thread(target=_runner_scheduler, daemon=True, name="pmis-nightly-scheduler").start()
+    print("[PMIS V2] Nightly catchup + 18:00 scheduler started (background).")
 
     yield
 
@@ -81,7 +131,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="PMIS V2 Memory System",
+    title="ProMe Memory System",
     version="2.0",
     lifespan=lifespan,
 )
@@ -159,6 +209,24 @@ class SessionEndRequest(BaseModel):
 
 class CommandRequest(BaseModel):
     command: str
+
+class IngestRequest(BaseModel):
+    text: str
+    conversation_id: Optional[str] = None
+    role: str = "user"
+
+class AttachRequest(BaseModel):
+    node_id: Optional[str] = None
+    project: Optional[str] = None
+
+class RetrieveRequest(BaseModel):
+    query: str
+    mode: str = "auto"
+    k: int = 8
+
+class DeleteRequest(BaseModel):
+    node_id: Optional[str] = None
+    all: bool = False
 
 class HyperparamUpdate(BaseModel):
     updates: Dict[str, Any]
@@ -309,11 +377,68 @@ async def end_session(req: SessionEndRequest):
     return {"ended": True, "conversation_id": req.conversation_id}
 
 
+@app.post("/api/match/{match_id}/thumbs")
+async def match_thumbs(match_id: str, req: Request):
+    """Record user correctness label on a project_work_match_log row.
+
+    Body: {"polarity": "up" | "down"}
+    Sets is_correct=1 for up, 0 for down. HGCN consumes these nightly via
+    build_match_feedback_edges (Phase 3) to pull/push Poincaré positions.
+    """
+    body = await req.json()
+    polarity = (body.get("polarity") or "").lower()
+    if polarity not in ("up", "down"):
+        raise HTTPException(status_code=400, detail="polarity must be 'up' or 'down'")
+    is_correct = 1 if polarity == "up" else 0
+    updated = _orch.db.set_match_correctness(match_id, is_correct)
+    if not updated:
+        raise HTTPException(status_code=404, detail=f"match {match_id} not found")
+    return {"match_id": match_id, "polarity": polarity, "is_correct": is_correct}
+
+
 @app.post("/api/consolidate")
 async def consolidate():
     """Run nightly consolidation."""
     result = _orch.handle_command("consolidate")
     return {"result": result, "completed": True}
+
+
+# ---------------- 5-verb public API (cognee-parity) ----------------
+# These mirror the `pmis` package: ingest / attach / retrieve / delete.
+# `consolidate` already exists above; these four complete the set.
+
+@app.post("/api/ingest")
+async def api_ingest(req: IngestRequest):
+    """Embed + surprise-gate a new memory. Returns node_id or null."""
+    import pmis
+    node_id = await pmis.ingest(
+        req.text,
+        conversation_id=req.conversation_id or "web",
+        role=req.role,
+    )
+    return {"node_id": node_id, "stored": node_id is not None}
+
+
+@app.post("/api/attach")
+async def api_attach(req: AttachRequest):
+    """Attach an orphan to its nearest Context."""
+    import pmis
+    return await pmis.attach(req.node_id, project=req.project)
+
+
+@app.post("/api/retrieve")
+async def api_retrieve(req: RetrieveRequest):
+    """γ-blended retrieval across semantic/hyperbolic/temporal/precision."""
+    import pmis
+    hits = await pmis.retrieve(req.query, mode=req.mode, k=req.k)
+    return {"hits": hits, "count": len(hits)}
+
+
+@app.post("/api/delete")
+async def api_delete(req: DeleteRequest):
+    """Soft-delete a node (node_id) or reset the store (all=true)."""
+    import pmis
+    return await pmis.delete(req.node_id, all=req.all)
 
 
 @app.post("/api/command")
@@ -804,8 +929,8 @@ async def openapi_actions(request: Request):
     return {
         "openapi": "3.1.0",
         "info": {
-            "title": "PMIS Memory System",
-            "description": "Personal Memory Intelligence System — retrieve and store memories across conversations",
+            "title": "ProMe Memory System",
+            "description": "ProMe — Personal Memory Intelligence System — retrieve and store memories across conversations",
             "version": "2.0"
         },
         "servers": [{"url": base_url}],
@@ -909,56 +1034,8 @@ async def update_hyperparams(req: HyperparamUpdate):
 
 
 # ================================================================
-# DASHBOARD (server-rendered)
+# DASHBOARD — shifted to port 8200. See health_dashboard.py /dashboard
 # ================================================================
-
-@app.get("/", response_class=HTMLResponse)
-async def dashboard(request: Request):
-    """Main dashboard page."""
-    template_path = templates_dir / "dashboard.html"
-    if template_path.exists():
-        return templates.TemplateResponse(request, "dashboard.html", {
-            "title": "PMIS V2 Dashboard",
-        })
-    else:
-        # Inline minimal dashboard until template is built
-        stats = _orch.get_stats()
-        return HTMLResponse(f"""
-        <html>
-        <head><title>PMIS V2 Dashboard</title>
-        <style>
-        body {{ font-family: monospace; background: #0a0a0f; color: #e0e0e0; padding: 40px; }}
-        h1 {{ color: #fff; }}
-        .stat {{ display: inline-block; background: #12121a; border: 1px solid #2a2a3a;
-                 border-radius: 10px; padding: 16px 24px; margin: 8px; text-align: center; }}
-        .stat .val {{ font-size: 2em; font-weight: bold; color: #4ade80; }}
-        .stat .lbl {{ font-size: 0.8em; color: #888; margin-top: 4px; }}
-        a {{ color: #60a5fa; }}
-        </style></head>
-        <body>
-        <h1>PMIS V2 Dashboard</h1>
-        <p>Server running on port 8100. Full dashboard template coming in Phase 4.</p>
-        <div>
-            <div class="stat"><div class="val">{stats['super_contexts']}</div><div class="lbl">Super Contexts</div></div>
-            <div class="stat"><div class="val">{stats['contexts']}</div><div class="lbl">Contexts</div></div>
-            <div class="stat"><div class="val">{stats['anchors']}</div><div class="lbl">Anchors</div></div>
-            <div class="stat"><div class="val">{stats['total_nodes']}</div><div class="lbl">Total Nodes</div></div>
-            <div class="stat"><div class="val">{stats['orphans']}</div><div class="lbl">Orphans</div></div>
-            <div class="stat"><div class="val">{stats['trees']}</div><div class="lbl">Trees</div></div>
-        </div>
-        <h3>API Endpoints</h3>
-        <ul>
-            <li><a href="/health">/health</a></li>
-            <li><a href="/api/stats">/api/stats</a></li>
-            <li><a href="/api/browse">/api/browse</a></li>
-            <li><a href="/api/orphans">/api/orphans</a></li>
-            <li><a href="/api/conversations">/api/conversations</a></li>
-            <li><a href="/api/stats/daily">/api/stats/daily</a></li>
-            <li><a href="/api/hyperparams">/api/hyperparams</a></li>
-            <li><a href="/docs">/docs</a> (Swagger UI)</li>
-        </ul>
-        </body></html>
-        """)
 
 
 # ================================================================
@@ -971,9 +1048,1706 @@ async def integrations_page(request: Request):
     template_path = templates_dir / "integrations.html"
     if template_path.exists():
         return templates.TemplateResponse(request, "integrations.html", {
-            "title": "PMIS V2 — Platform Integrations",
+            "title": "ProMe — Platform Integrations",
         })
     return HTMLResponse("<h1>Integration template not found. Run the build step.</h1>")
+
+
+# ================================================================
+# WIKI PAGES
+# ================================================================
+
+from wiki_renderer import WikiRenderer
+
+def _get_wiki():
+    return WikiRenderer(_orch.db)
+
+
+@app.get("/wiki/", response_class=HTMLResponse)
+async def wiki_index(request: Request):
+    """Wiki index — all SCs with stats."""
+    wiki = _get_wiki()
+    data = wiki.render_index()
+    return templates.TemplateResponse(request, "wiki_index.html", data)
+
+
+@app.get("/wiki/node/{node_id}", response_class=HTMLResponse)
+async def wiki_node(request: Request, node_id: str):
+    """Wiki page for any node (SC, CTX, ANC). Generates LLM prose."""
+    wiki = _get_wiki()
+    data = wiki.render_node(node_id)
+    if not data:
+        raise HTTPException(status_code=404, detail=f"Node {node_id} not found")
+
+    # Check for regenerate flag
+    regenerate = request.query_params.get("regenerate") == "1"
+    if regenerate:
+        import sqlite3
+        conn = sqlite3.connect(_orch.db.db_path)
+        conn.execute("DELETE FROM wiki_page_cache WHERE node_id=?", (node_id,))
+        conn.commit()
+        conn.close()
+
+    # Generate or retrieve cached prose
+    prose_md = wiki.generate_wiki_prose(node_id)
+    if prose_md:
+        # Convert markdown to HTML (simple conversion)
+        prose_html = _markdown_to_html(prose_md)
+        data["prose"] = prose_html
+    else:
+        data["prose"] = None
+
+    return templates.TemplateResponse(request, "wiki_node.html", data)
+
+
+def _markdown_to_html(md: str) -> str:
+    """Simple markdown to HTML conversion."""
+    import re
+    html = md
+
+    # Headers — H2 gets auto-generated id for anchor links
+    html = re.sub(r'^### (.+)$', r'<h3>\1</h3>', html, flags=re.MULTILINE)
+
+    def h2_with_id(match):
+        title = match.group(1).strip()
+        # Strip any existing <span id="..."> wrapper
+        clean = re.sub(r'<span[^>]*>([^<]*)</span>', r'\1', title)
+        slug = clean.lower().replace(' ', '-').replace('&', 'and').replace('/', '-')
+        slug = re.sub(r'[^a-z0-9-]', '', slug)
+        return f'<h2 id="{slug}">{clean}</h2>'
+
+    html = re.sub(r'^## (.+)$', h2_with_id, html, flags=re.MULTILINE)
+    html = re.sub(r'^# (.+)$', r'<h1>\1</h1>', html, flags=re.MULTILINE)
+
+    # Bold
+    html = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', html)
+
+    # Italic
+    html = re.sub(r'\*(.+?)\*', r'<em>\1</em>', html)
+
+    # Middot separators (from TOC)
+    html = html.replace('&middot;', '&middot;')
+
+    # Links [text](url)
+    html = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', r'<a href="\2">\1</a>', html)
+
+    # Paragraphs (double newline)
+    paragraphs = html.split('\n\n')
+    result = []
+    for p in paragraphs:
+        p = p.strip()
+        if not p:
+            continue
+        if p.startswith('<h') or p.startswith('<ul') or p.startswith('<ol'):
+            result.append(p)
+        else:
+            # Wrap in <p> if not already a block element
+            result.append(f'<p>{p}</p>')
+
+    return '\n'.join(result)
+
+
+@app.get("/wiki/node/{node_id}/backend", response_class=JSONResponse)
+async def wiki_node_backend(node_id: str):
+    """Backend data panel for a node (JSON)."""
+    wiki = _get_wiki()
+    data = wiki.render_backend(node_id)
+    if not data:
+        raise HTTPException(status_code=404, detail=f"Node {node_id} not found")
+    return data
+
+
+@app.get("/wiki/goals", response_class=HTMLResponse)
+async def wiki_goals(request: Request):
+    """Goals page."""
+    wiki = _get_wiki()
+    data = wiki.render_goals()
+    # Phase 3: surface pending-review count on the Goals tab as a badge
+    try:
+        data["review_pending_count"] = _review_pending_count()
+    except Exception:
+        data["review_pending_count"] = 0
+    return templates.TemplateResponse(request, "wiki_goals.html", data)
+
+
+# ─── Review tab (Phase 3) ─────────────────────────────────────────────
+#
+# Pending rows in project_work_match_log (is_correct=-1, source='semantic',
+# and top-rank for that anchor) need human judgment. This page lets the user
+# confirm / reassign / reject each one. On confirm, is_correct flips to 1 and
+# source becomes 'manual'. On reject, is_correct flips to 0.
+
+def _review_pending_count() -> int:
+    """Count distinct anchors with at least one pending review row today."""
+    import sqlite3
+    from core import config as _cfg
+    db_path = _cfg.get("db_path", "data/memory.db")
+    conn = sqlite3.connect(db_path)
+    try:
+        n = conn.execute(
+            """SELECT COUNT(DISTINCT segment_id) FROM project_work_match_log
+               WHERE is_correct = -1 AND source = 'semantic'"""
+        ).fetchone()[0]
+    finally:
+        conn.close()
+    return int(n or 0)
+
+
+def _review_payload() -> Dict[str, Any]:
+    """Assemble the wiki_review.html context dict."""
+    import sqlite3
+    from core import config as _cfg
+    db_path = _cfg.get("db_path", "data/memory.db")
+    hp = _cfg.get_all()
+    tau_high = float(hp.get("matcher_tau_high", 0.75))
+    tau_low = float(hp.get("matcher_tau_low", 0.45))
+
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+
+    # Group pending top-rank rows by anchor. Rank is implicit in
+    # combined_match_pct; show top 3 candidates per anchor.
+    rows = conn.execute(
+        """
+        SELECT pwm.id AS match_id, pwm.segment_id AS anchor_id,
+               pwm.project_id, pwm.deliverable_id,
+               pwm.combined_match_pct AS combined,
+               pwm.matched_at,
+               n.content AS anchor_content,
+               p.name   AS project_name,
+               d.name   AS deliverable_name
+        FROM project_work_match_log pwm
+        LEFT JOIN memory_nodes n ON n.id = pwm.segment_id
+        LEFT JOIN projects     p ON p.id = pwm.project_id
+        LEFT JOIN deliverables d ON d.id = pwm.deliverable_id
+        WHERE pwm.is_correct = -1 AND pwm.source = 'semantic'
+        ORDER BY pwm.segment_id, pwm.combined_match_pct DESC
+        """
+    ).fetchall()
+
+    auto_today = conn.execute(
+        """SELECT COUNT(*) FROM project_work_match_log
+           WHERE is_correct = 1 AND source IN ('semantic','session_tag')
+           AND DATE(matched_at) = DATE('now')"""
+    ).fetchone()[0]
+    conn.close()
+
+    # Group by anchor, keep top-3
+    grouped: Dict[str, Dict[str, Any]] = {}
+    for r in rows:
+        aid = r["anchor_id"]
+        if aid not in grouped:
+            grouped[aid] = {
+                "anchor_id": aid,
+                "content": (r["anchor_content"] or "(anchor content unavailable)")[:400],
+                "when": (r["matched_at"] or "")[:16],
+                "top_score": r["combined"] or 0.0,
+                "candidates": [],
+            }
+        if len(grouped[aid]["candidates"]) < 3:
+            grouped[aid]["candidates"].append({
+                "match_id": r["match_id"],
+                "project_id": r["project_id"],
+                "project_name": r["project_name"],
+                "deliverable_id": r["deliverable_id"],
+                "deliverable_name": r["deliverable_name"],
+                "combined": r["combined"] or 0.0,
+            })
+
+    return {
+        "pending": list(grouped.values()),
+        "auto_confirmed_today": int(auto_today or 0),
+        "tau_high": tau_high,
+        "tau_low": tau_low,
+    }
+
+
+@app.get("/wiki/review", response_class=HTMLResponse)
+async def wiki_review(request: Request):
+    """Review pending project matches."""
+    return templates.TemplateResponse(request, "wiki_review.html", _review_payload())
+
+
+class ReviewConfirmPayload(BaseModel):
+    match_id: str
+
+
+@app.post("/api/review/{anchor_id}/confirm")
+async def api_review_confirm(anchor_id: str, payload: ReviewConfirmPayload):
+    """Confirm one candidate: set that row to is_correct=1 source='manual',
+    mark all sibling rows for the same anchor as is_correct=0 (rejected)."""
+    import sqlite3
+    from core import config as _cfg
+    db_path = _cfg.get("db_path", "data/memory.db")
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            """UPDATE project_work_match_log
+               SET is_correct = 1, source = 'manual'
+               WHERE id = ? AND segment_id = ?""",
+            (payload.match_id, anchor_id),
+        )
+        conn.execute(
+            """UPDATE project_work_match_log
+               SET is_correct = 0
+               WHERE segment_id = ? AND id != ? AND is_correct = -1""",
+            (anchor_id, payload.match_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return {"ok": True, "anchor_id": anchor_id, "match_id": payload.match_id}
+
+
+@app.post("/api/review/{anchor_id}/reject")
+async def api_review_reject(anchor_id: str):
+    """Reject all pending candidates for an anchor."""
+    import sqlite3
+    from core import config as _cfg
+    db_path = _cfg.get("db_path", "data/memory.db")
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            """UPDATE project_work_match_log
+               SET is_correct = 0, source = 'manual'
+               WHERE segment_id = ? AND is_correct = -1""",
+            (anchor_id,),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return {"ok": True, "anchor_id": anchor_id}
+
+
+@app.get("/api/review/pending")
+async def api_review_pending():
+    """JSON version for programmatic access / dashboard badge."""
+    return _review_payload()
+
+
+# ─── Manual per-project daily consolidation (Phase 4) ─────────────────
+
+def _manual_consolidator():
+    from consolidation.manual_project import ManualProjectConsolidator
+    from core import config as _cfg
+    from db.manager import DBManager as _DB
+    db = _DB(_cfg.get("db_path", "data/memory.db"))
+    return ManualProjectConsolidator(db, _cfg.get_all()), db
+
+
+@app.get("/api/project/{project_id}/consolidate-preview")
+async def api_project_consolidate_preview(project_id: str, date: str):
+    """Return the LLM-generated markdown draft + segment list — user edits
+    before confirming. Does NOT persist anything."""
+    mc, _db = _manual_consolidator()
+    segments = mc.collect_segments(project_id, date)
+    draft = mc.draft_summary(project_id, date, segments) if segments else ""
+    return {
+        "project_id": project_id,
+        "date": date,
+        "segment_count": len(segments),
+        "duration_mins": round(
+            sum(s.get("duration_secs", 10) for s in segments) / 60.0, 1
+        ),
+        "draft_markdown": draft,
+        "segment_ids": [s.get("id") for s in segments],
+    }
+
+
+class ManualConsolidatePayload(BaseModel):
+    date: str
+    edited_markdown: str
+    segment_ids: Optional[List[str]] = None
+
+
+@app.post("/api/project/{project_id}/consolidate-day")
+async def api_project_consolidate_day(
+    project_id: str, payload: ManualConsolidatePayload
+):
+    """Persist the manual consolidation.
+
+    - Recollects segments to make sure we mark-as-consolidated exactly the
+      ones the caller saw (optionally filtered by `segment_ids` if provided).
+    - Marks those segments so nightly won't touch them.
+    - Stores the final markdown as an ANC attached to the project's SC.
+    """
+    mc, _db = _manual_consolidator()
+    segments = mc.collect_segments(project_id, payload.date)
+    if payload.segment_ids:
+        wanted = set(payload.segment_ids)
+        segments = [s for s in segments if s.get("id") in wanted]
+    if not segments:
+        raise HTTPException(
+            status_code=400,
+            detail="No segments to consolidate (either already consolidated, or no tagged work_sessions found).",
+        )
+    result = mc.commit(project_id, payload.date, payload.edited_markdown, segments)
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("error", "commit failed"))
+    return result
+
+
+# ─── PM board CRUD (Goal → Project → Deliverable) ─────────────────────
+
+class PMGoalsPayload(BaseModel):
+    goals: List[Dict[str, Any]]
+
+
+@app.get("/api/pm/goals")
+async def api_pm_goals():
+    """Enriched PM board state (for JS hydration)."""
+    wiki = _get_wiki()
+    return wiki.render_pm_projects()
+
+
+@app.put("/api/pm/goals")
+async def api_pm_goals_save(payload: PMGoalsPayload):
+    """Persist goals.yaml from UI state; returns re-enriched view."""
+    wiki = _get_wiki()
+    try:
+        return wiki.save_pm_goals(payload.goals)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/api/pm/deliverables")
+async def api_pm_deliverables():
+    """Deliverables catalog for the picker (reads deliverables.yaml)."""
+    wiki = _get_wiki()
+    return {"deliverables": wiki.list_pm_deliverables()}
+
+
+class PMDeliverableCreate(BaseModel):
+    name: str
+    supercontext: Optional[str] = None
+    project_id: Optional[str] = None
+    deadline: Optional[str] = None
+    description: Optional[str] = None
+
+
+@app.post("/api/pm/deliverables")
+async def api_pm_deliverable_create(payload: PMDeliverableCreate):
+    """Create a new deliverable:
+      1. Append to deliverables.yaml (auto D-00X id)
+      2. Optionally link to project_id via goals.yaml deliverable_patterns
+      3. Re-run YAML→DB sync so the new row appears in the picker and
+         gets a synthetic CTX node auto-embedded (Fix 2). Immediately
+         matchable by the LiveMatcher.
+    """
+    wiki = _get_wiki()
+    try:
+        created = wiki.create_pm_deliverable(payload.name, payload.supercontext)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    # Add optional fields straight into deliverables.yaml row
+    try:
+        import yaml as _yaml
+        pt_root = Path.home() / "Desktop" / "memory" / "productivity-tracker"
+        deliv_path = pt_root / "config" / "deliverables.yaml"
+        if deliv_path.exists():
+            raw = _yaml.safe_load(deliv_path.read_text()) or {}
+            for d in raw.get("deliverables", []) or []:
+                if d.get("id") == created.get("id"):
+                    if payload.deadline: d["deadline"] = payload.deadline
+                    if payload.description: d["description"] = payload.description
+                    if payload.supercontext: d["supercontext"] = payload.supercontext
+                    break
+            deliv_path.write_text(_yaml.safe_dump(raw, sort_keys=False, default_flow_style=False))
+    except Exception:
+        pass
+
+    # Link to a project: add this deliverable's id as a key under the project's
+    # deliverable_patterns so the pattern miner + yaml_to_db.sync can see it.
+    if payload.project_id:
+        try:
+            import yaml as _yaml
+            pt_root = Path.home() / "Desktop" / "memory" / "productivity-tracker"
+            goals_path = pt_root / "config" / "goals.yaml"
+            if goals_path.exists():
+                g = _yaml.safe_load(goals_path.read_text()) or {}
+                for goal in g.get("goals", []) or []:
+                    for proj in goal.get("projects", []) or []:
+                        if proj.get("id") == payload.project_id:
+                            dp = proj.setdefault("deliverable_patterns", {})
+                            dp.setdefault(created["id"], [payload.name.split()[0] if payload.name else created["id"]])
+                            break
+                goals_path.write_text(_yaml.safe_dump(g, sort_keys=False, default_flow_style=False))
+        except Exception:
+            pass
+
+    # Run sync so new rows land in projects+deliverables DB tables and
+    # LiveMatcher gets a new candidate to score against.
+    try:
+        from sync.yaml_to_db import sync_pm_yaml_to_db
+        sync_counts = sync_pm_yaml_to_db(_orch.db, embedder=_orch.embedder, hyperparams=_orch.hp)
+        created["sync_counts"] = sync_counts
+    except Exception as e:
+        created["sync_error"] = str(e)
+
+    return created
+
+
+class PMProjectCreate(BaseModel):
+    title: str
+    goal_id: Optional[str] = None            # attach to an existing goal (fallback: first active)
+    description: Optional[str] = None
+    deadline: Optional[str] = None
+    match_patterns: Optional[List[str]] = None
+
+
+@app.post("/api/pm/projects")
+async def api_pm_project_create(payload: PMProjectCreate):
+    """Create a new project inside goals.yaml, under an existing goal (given
+    by goal_id or the first active goal as fallback). Re-syncs YAML → DB."""
+    import yaml as _yaml
+    import uuid as _uuid
+
+    title = (payload.title or "").strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="title required")
+
+    pt_root = Path.home() / "Desktop" / "memory" / "productivity-tracker"
+    goals_path = pt_root / "config" / "goals.yaml"
+    goals_path.parent.mkdir(parents=True, exist_ok=True)
+    raw: Dict[str, Any] = {}
+    if goals_path.exists():
+        try:
+            raw = _yaml.safe_load(goals_path.read_text()) or {}
+        except Exception:
+            raw = {}
+    goals_list = raw.get("goals", []) or []
+    if not goals_list:
+        # seed a generic container goal so there's somewhere to put the project
+        goals_list = [{"id": f"G-{_uuid.uuid4().hex[:9]}",
+                        "title": "General", "why": "", "status": "active",
+                        "projects": []}]
+        raw["goals"] = goals_list
+
+    target_goal = None
+    if payload.goal_id:
+        for g in goals_list:
+            if g.get("id") == payload.goal_id:
+                target_goal = g
+                break
+    if target_goal is None:
+        for g in goals_list:
+            if g.get("status", "active") == "active":
+                target_goal = g
+                break
+    if target_goal is None:
+        target_goal = goals_list[0]
+
+    # Generate a P-XXX id unique across the file
+    used = set()
+    for g in goals_list:
+        for p in g.get("projects", []) or []:
+            pid = p.get("id") or ""
+            if pid:
+                used.add(pid)
+    new_id = None
+    for n in range(1, 999):
+        cand = f"P-{n:03d}"
+        if cand not in used:
+            new_id = cand
+            break
+    if new_id is None:
+        new_id = f"P-{_uuid.uuid4().hex[:9]}"
+
+    new_project = {
+        "id": new_id,
+        "title": title,
+        "status": "active",
+        "target_week": "",
+        "match_patterns": payload.match_patterns or [],
+        "deliverable_patterns": {},
+        "lifecycle": [{
+            "date": datetime.now().date().isoformat(),
+            "event": "Inception",
+        }],
+    }
+    target_goal.setdefault("projects", []).append(new_project)
+
+    goals_path.write_text(_yaml.safe_dump(raw, sort_keys=False, default_flow_style=False))
+
+    sync_counts: Dict[str, Any] = {}
+    try:
+        from sync.yaml_to_db import sync_pm_yaml_to_db
+        sync_counts = sync_pm_yaml_to_db(_orch.db, embedder=_orch.embedder, hyperparams=_orch.hp)
+    except Exception as e:
+        sync_counts = {"error": str(e)}
+
+    return {
+        "id": new_id,
+        "title": title,
+        "goal_id": target_goal.get("id"),
+        "sync_counts": sync_counts,
+    }
+
+
+@app.get("/api/pm/projects")
+async def api_pm_projects():
+    """List active projects (flat, for widget picker)."""
+    return {"projects": _orch.db.list_projects(status="active")}
+
+
+class PMQuickAddPayload(BaseModel):
+    text: str
+    threshold: Optional[float] = 0.55      # cosine threshold for linking to existing project
+    force_new_project: Optional[bool] = False
+
+
+def _derive_project_title(text: str, max_words: int = 5) -> str:
+    """Heuristic: first few meaningful words, Title Cased. Good enough for
+    auto-generated project names until an LLM-mediated path is added."""
+    import re
+    stop = {"the","a","an","for","to","of","on","in","and","or","about","with","my","our"}
+    words = [w for w in re.findall(r"[A-Za-z0-9][A-Za-z0-9\-]*", text)]
+    keep = [w for w in words if w.lower() not in stop][:max_words]
+    if not keep:
+        keep = words[:max_words]
+    return " ".join(w.capitalize() for w in keep) or "Untitled"
+
+
+@app.post("/api/pm/quick-add")
+async def api_pm_quick_add(payload: PMQuickAddPayload):
+    """Text-prompt quick-add. Embeds the user's input, cosine-matches it
+    against every active project's context embedding (the synthetic CTX
+    node created by Fix-2 sync). If best similarity ≥ threshold → add as
+    deliverable under that project. Otherwise → spin up a new project
+    from the text + add the deliverable under it.
+
+    Returns {mode: 'linked' | 'new_project',
+              project_id, project_title, deliverable_id,
+              matched_score, candidates: [{project_id, score}...]}
+    """
+    import numpy as _np
+    text = (payload.text or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="text required")
+
+    # 1. Embed the user's text
+    try:
+        text_emb = _orch.embedder.embed_text(text)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"embed failed: {e}")
+
+    # 2. Collect active projects + their representative embeddings.
+    # Representative = the project's sc_node_id embedding, else the
+    # embedding of any deliverable's context_node under that project.
+    projects = _orch.db.list_projects(status="active")
+    candidates: List[Dict[str, Any]] = []
+
+    def _cos(a, b):
+        if a is None or b is None: return 0.0
+        if getattr(a, "shape", None) != getattr(b, "shape", None): return 0.0
+        na = float(_np.linalg.norm(a)); nb = float(_np.linalg.norm(b))
+        if na == 0 or nb == 0: return 0.0
+        return max(0.0, min(1.0, float(_np.dot(a, b) / (na * nb))))
+
+    with _orch.db._connect() as conn:
+        for p in projects:
+            pid = p.get("id")
+            rep_node_ids = []
+            if p.get("sc_node_id"):
+                rep_node_ids.append(p["sc_node_id"])
+            deliv_rows = conn.execute(
+                "SELECT context_node_id FROM deliverables WHERE project_id = ? AND status='active'",
+                (pid,),
+            ).fetchall()
+            for r in deliv_rows:
+                if r["context_node_id"]:
+                    rep_node_ids.append(r["context_node_id"])
+
+            best_score = 0.0
+            for nid in rep_node_ids:
+                try:
+                    eu = _orch.db.get_embeddings(nid).get("euclidean")
+                    if eu is None: continue
+                    s = _cos(text_emb, eu)
+                    if s > best_score:
+                        best_score = s
+                except Exception:
+                    continue
+            # Also blend a cheap name-level signal for projects with no embeddable descendants
+            if best_score < 0.1 and p.get("name"):
+                try:
+                    name_emb = _orch.embedder.embed_text(p["name"])
+                    best_score = _cos(text_emb, name_emb)
+                except Exception:
+                    pass
+            candidates.append({
+                "project_id": pid,
+                "project_name": p.get("name") or pid,
+                "score": best_score,
+            })
+
+    candidates.sort(key=lambda x: x["score"], reverse=True)
+
+    threshold = float(payload.threshold or 0.55)
+    best = candidates[0] if candidates else None
+    link_to_existing = (
+        (not payload.force_new_project)
+        and best is not None
+        and best["score"] >= threshold
+    )
+
+    # Build the deliverable payload that both branches will write
+    deliv_name = text[:100]   # keep deliverable name ≈ the raw intent
+
+    if link_to_existing:
+        # Route through the regular /api/pm/deliverables handler for
+        # consistent yaml+db+embed side-effects
+        deliv_res = await api_pm_deliverable_create(PMDeliverableCreate(
+            name=deliv_name,
+            project_id=best["project_id"],
+            description=text,
+        ))
+        return {
+            "mode": "linked",
+            "project_id": best["project_id"],
+            "project_title": best["project_name"],
+            "deliverable_id": deliv_res.get("id"),
+            "deliverable_name": deliv_name,
+            "matched_score": round(best["score"], 3),
+            "candidates": [
+                {"project_id": c["project_id"], "project_name": c["project_name"],
+                 "score": round(c["score"], 3)}
+                for c in candidates[:3]
+            ],
+        }
+
+    # 3. No good match → spin up a new project, then add the deliverable
+    title = _derive_project_title(text)
+    proj_res = await api_pm_project_create(PMProjectCreate(title=title))
+    deliv_res = await api_pm_deliverable_create(PMDeliverableCreate(
+        name=deliv_name,
+        project_id=proj_res["id"],
+        description=text,
+    ))
+    return {
+        "mode": "new_project",
+        "project_id": proj_res["id"],
+        "project_title": title,
+        "deliverable_id": deliv_res.get("id"),
+        "deliverable_name": deliv_name,
+        "matched_score": round(best["score"], 3) if best else 0.0,
+        "candidates": [
+            {"project_id": c["project_id"], "project_name": c["project_name"],
+             "score": round(c["score"], 3)}
+            for c in candidates[:3]
+        ],
+    }
+
+
+# Feedback / Health (lint) / Diagnostics shifted to port 8200.
+# See health_dashboard.py: /feedback, /lint, /diagnostics.
+
+
+# ─── Phase 1: Live work sessions (infinite-loop widget) ───────────────
+
+_live_matcher = None
+
+
+def _get_live_matcher():
+    """Lazy construct — Orchestrator must be initialized first."""
+    global _live_matcher
+    if _live_matcher is None:
+        from retrieval.live_matcher import LiveMatcher
+        _live_matcher = LiveMatcher(_orch.db, _orch.embedder, hyperparams=_orch.hp)
+    return _live_matcher
+
+
+class WorkStartPayload(BaseModel):
+    deliverable_id: Optional[str] = None
+    project_id: Optional[str] = None
+    auto_assigned: Optional[int] = 0
+    note: Optional[str] = ""
+
+
+@app.post("/api/work/start")
+async def api_work_start(payload: WorkStartPayload):
+    """Begin a work session. If deliverable_id is empty the session is
+    'observing' — suggestions flow but nothing is hard-bound yet."""
+    active = _orch.db.get_active_work_session()
+    if active:
+        return {"status": "already_active", "session": active}
+
+    project_id = payload.project_id or ""
+    if payload.deliverable_id and not project_id:
+        deliv = _orch.db.get_deliverable(payload.deliverable_id)
+        if deliv:
+            project_id = deliv.get("project_id", "")
+
+    sid = _orch.db.create_work_session(
+        project_id=project_id,
+        deliverable_id=payload.deliverable_id or "",
+        auto_assigned=int(payload.auto_assigned or 0),
+        confirmed_by_user=1 if payload.deliverable_id else 0,
+        note=payload.note or "",
+    )
+
+    # Phase 6 — if user picked at session-start, log assignment training event
+    if payload.deliverable_id:
+        try:
+            _orch.db.log_training_event({
+                "event_type": "assignment",
+                "deliverable_id": payload.deliverable_id,
+                "features": {
+                    "session_id": sid,
+                    "auto_assigned": int(payload.auto_assigned or 0),
+                    "hour_of_day": datetime.now().hour,
+                    "source": "session_start",
+                },
+                "label": {
+                    "deliverable_id": payload.deliverable_id,
+                    "project_id": project_id,
+                    "confirmed_by_user": 1,
+                },
+                "pmis_version": "phase-6",
+            })
+        except Exception:
+            pass
+
+    return {"status": "started", "session": _orch.db.get_work_session(sid)}
+
+
+class WorkConfirmPayload(BaseModel):
+    deliverable_id: str
+    auto_assigned: Optional[int] = 0
+
+
+@app.post("/api/work/confirm")
+async def api_work_confirm(payload: WorkConfirmPayload):
+    """Bind (or rebind) the active session to a specific deliverable.
+    Also logs an 'assignment' training event so Phase 6 can train a
+    deliverable-ranker from user-confirmed picks."""
+    active = _orch.db.get_active_work_session()
+    if not active:
+        raise HTTPException(status_code=400, detail="no_active_session")
+
+    project_id = ""
+    deliv = _orch.db.get_deliverable(payload.deliverable_id)
+    if deliv:
+        project_id = deliv.get("project_id", "")
+
+    _orch.db.update_work_session(active["id"], {
+        "deliverable_id": payload.deliverable_id,
+        "project_id": project_id,
+        "auto_assigned": int(payload.auto_assigned or 0),
+        "confirmed_by_user": 1,
+    })
+
+    # Phase 6 — labeled supervision signal for learning-to-rank over deliverables
+    try:
+        lm = _get_live_matcher()
+        seg = lm.get_latest_segment(after_iso=active["started_at"])
+        features: Dict[str, Any] = {
+            "session_id": active["id"],
+            "auto_assigned": int(payload.auto_assigned or 0),
+            "hour_of_day": datetime.now().hour,
+        }
+        if seg:
+            features.update({
+                "platform": seg.platform,
+                "window_name": seg.window_name,
+                "segment_length_secs": seg.length_secs,
+                "summary_prefix": (seg.summary or "")[:180],
+            })
+        _orch.db.log_training_event({
+            "event_type": "assignment",
+            "deliverable_id": payload.deliverable_id,
+            "features": features,
+            "label": {
+                "deliverable_id": payload.deliverable_id,
+                "project_id": project_id,
+                "confirmed_by_user": 1,
+            },
+            "pmis_version": "phase-6",
+        })
+    except Exception as e:
+        # Non-fatal — confirmation still succeeds even if logging misses
+        pass
+
+    return {"status": "bound", "session": _orch.db.get_work_session(active["id"])}
+
+
+@app.post("/api/work/end")
+async def api_work_end():
+    """Close the active session and stamp segment_override_bindings for every
+    segment whose start time falls within the session window. This is what
+    nightly ProjectMatcher will short-circuit on."""
+    active = _orch.db.get_active_work_session()
+    if not active:
+        return {"status": "no_active_session"}
+
+    _orch.db.end_work_session(active["id"])
+    ended = _orch.db.get_work_session(active["id"])
+
+    override_count = 0
+    if ended and ended.get("deliverable_id"):
+        lm = _get_live_matcher()
+        segs = lm.get_segments_in_window(
+            start_iso=ended["started_at"],
+            end_iso=ended["ended_at"],
+        )
+        for seg in segs:
+            if not seg.segment_id:
+                continue
+            _orch.db.upsert_segment_override(
+                segment_id=seg.segment_id,
+                session_id=ended["id"],
+                project_id=ended.get("project_id", ""),
+                deliverable_id=ended.get("deliverable_id", ""),
+                source="session",
+            )
+            override_count += 1
+
+    return {
+        "status": "ended",
+        "session": ended,
+        "segments_bound": override_count,
+    }
+
+
+@app.get("/api/work/current")
+async def api_work_current():
+    """Return the active session plus realtime drift / suggestion state.
+
+    Widget polls this every 30s. Three shapes of response:
+      - No active session → {"active": false, ...}
+      - Active + unbound → suggestions (after 5-min segment gate)
+      - Active + bound → drift status (after 5-min drift gate)
+    """
+    active = _orch.db.get_active_work_session()
+    if not active:
+        return {"active": False}
+
+    lm = _get_live_matcher()
+    resp: Dict[str, Any] = {
+        "active": True,
+        "session": active,
+        "drift": None,
+        "suggestions": None,
+        "latest_segment": None,
+    }
+
+    if active.get("deliverable_id"):
+        drift = lm.check_drift(
+            bound_deliverable_id=active["deliverable_id"],
+            session_start_iso=active["started_at"],
+        )
+        resp["drift"] = drift
+        resp["latest_segment"] = drift.get("latest_segment")
+        # Enrich with deliverable name so widget can show it
+        deliv = _orch.db.get_deliverable(active["deliverable_id"])
+        if deliv:
+            resp["bound_deliverable"] = {
+                "id": deliv["id"],
+                "name": deliv["name"],
+                "project_id": deliv.get("project_id", ""),
+                "project_name": deliv.get("project_name", ""),
+            }
+    else:
+        sug = lm.suggest(after_iso=active["started_at"])
+        resp["suggestions"] = sug.get("suggestions", [])
+        resp["latest_segment"] = sug.get("segment")
+        resp["suggest_ready"] = sug.get("ready", False)
+        resp["suggest_reason"] = sug.get("reason", "")
+
+    return resp
+
+
+@app.get("/api/work/deliverables")
+async def api_work_deliverables():
+    """Flat list of active deliverables with project names — for the picker."""
+    cands = _orch.db.get_active_deliverable_candidates()
+    # Dedupe by deliverable_id (get_active_deliverable_candidates expands anchors)
+    seen: Dict[str, Dict[str, Any]] = {}
+    for c in cands:
+        did = c.get("deliverable_id", "")
+        if not did or did in seen:
+            continue
+        seen[did] = {
+            "deliverable_id": did,
+            "project_id": c.get("project_id", ""),
+            "name": c.get("name", ""),
+            "deadline": c.get("deadline", ""),
+        }
+    # Attach project names
+    projects = {p["id"]: p["name"] for p in _orch.db.list_projects()}
+    for row in seen.values():
+        row["project_name"] = projects.get(row["project_id"], "")
+    return {"deliverables": list(seen.values())}
+
+
+@app.get("/api/work/sessions")
+async def api_work_sessions_list(limit: int = 20):
+    """Recent sessions — for history panel."""
+    return {"sessions": _orch.db.list_work_sessions(limit=limit)}
+
+
+_value_calc = None
+
+
+def _get_value_calc():
+    global _value_calc
+    if _value_calc is None:
+        from core.value_score import ValueScoreCalculator
+        _value_calc = ValueScoreCalculator(_orch.db, hyperparams=_orch.hp)
+    return _value_calc
+
+
+@app.post("/api/value/recompute")
+async def api_value_recompute():
+    """Phase 3 — rebuild value_score for every non-deleted node. Nightly
+    consolidation will also call this, but the endpoint lets us trigger
+    manually after schema changes or weight tuning."""
+    return _get_value_calc().recompute_all()
+
+
+@app.get("/api/node/{node_id}/value")
+async def api_node_value(node_id: str, recompute: bool = False):
+    """Return the value_score breakdown for a node. By default reads the
+    materialized columns; pass ?recompute=true to compute fresh (for
+    debugging weight tuning)."""
+    with _orch.db._connect() as conn:
+        row = conn.execute(
+            """SELECT id, level, content, value_score, value_goal, value_feedback,
+                      value_usage, value_recency, value_computed_at
+               FROM memory_nodes WHERE id = ? AND is_deleted = 0""",
+            (node_id,),
+        ).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="node_not_found")
+
+    if recompute:
+        fresh = _get_value_calc().compute_one(node_id)
+        if fresh:
+            return {
+                "node_id": node_id,
+                "level": row["level"],
+                "value_score": fresh.score,
+                "components": {
+                    "G": fresh.G, "F": fresh.F, "U": fresh.U, "R": fresh.R,
+                    "feedback_raw": fresh.feedback_raw_sum,
+                },
+                "redflag": fresh.redflag,
+                "computed_at": "just_now",
+                "source": "recompute",
+            }
+
+    F = float(row["value_feedback"] or 0.0)
+    hp = _orch.hp
+    return {
+        "node_id": node_id,
+        "level": row["level"],
+        "value_score": float(row["value_score"] or 0.0),
+        "components": {
+            "G": float(row["value_goal"] or 0.0),
+            "F": F,
+            "U": float(row["value_usage"] or 0.0),
+            "R": float(row["value_recency"] or 0.0),
+        },
+        "redflag": F <= float(hp.get("value_feedback_redflag", -0.3)),
+        "computed_at": row["value_computed_at"] or "",
+        "source": "materialized",
+    }
+
+
+_brief_composer = None
+
+
+def _get_brief_composer():
+    global _brief_composer
+    if _brief_composer is None:
+        from retrieval.brief_composer import BriefComposer
+        _brief_composer = BriefComposer(_orch.db, _orch.embedder, hyperparams=_orch.hp)
+    return _brief_composer
+
+
+@app.get("/api/work/brief")
+async def api_work_brief(deliverable_id: str):
+    """Phase 2 pre-work brief: two buckets — 'Claude can do this' and
+    'You've done this before'."""
+    if not deliverable_id:
+        raise HTTPException(status_code=400, detail="deliverable_id required")
+    return _get_brief_composer().compose(deliverable_id)
+
+
+_meta_composer = None
+
+
+def _get_meta_composer():
+    global _meta_composer
+    if _meta_composer is None:
+        from claude_integration.meta_composer import ProblemStatementComposer
+        _meta_composer = ProblemStatementComposer(
+            _orch.db, _orch.embedder,
+            hyperparams=_orch.hp,
+            brief_composer=_get_brief_composer(),
+        )
+    return _meta_composer
+
+
+@app.post("/api/work/compose-problem")
+async def api_work_compose_problem(
+    deliverable_id: str,
+    use_llm: bool = True,
+    include_activity: bool = True,
+):
+    """Phase 3.5 — Meta-LLM composes problem_statement.md for a deliverable.
+    Set use_llm=false for deterministic template fallback (fast + offline)."""
+    if not deliverable_id:
+        raise HTTPException(status_code=400, detail="deliverable_id required")
+    try:
+        bundle = _get_meta_composer().compose(
+            deliverable_id, use_llm=use_llm, include_activity=include_activity,
+        )
+        return bundle.to_dict()
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+_harness_builder = None
+
+
+def _get_harness_builder():
+    global _harness_builder
+    if _harness_builder is None:
+        from harness.harness_builder import HarnessBuilder
+        _harness_builder = HarnessBuilder(
+            _orch.db, _orch.embedder, hyperparams=_orch.hp,
+            meta_composer=_get_meta_composer(),
+        )
+    return _harness_builder
+
+
+class HarnessBuildPayload(BaseModel):
+    deliverable_id: str
+    use_llm: Optional[bool] = False
+    title: Optional[str] = None
+    trigger_source: Optional[str] = "manual"
+
+
+@app.post("/api/harness/build")
+async def api_harness_build(payload: HarnessBuildPayload):
+    """Materialize a new harness bundle on disk and register it. Phase 3.5's
+    Meta-LLM composes the problem statement; this pass adds CLAUDE.md,
+    context/ files, and bundle.json."""
+    try:
+        rec = _get_harness_builder().build(
+            deliverable_id=payload.deliverable_id,
+            use_llm=bool(payload.use_llm),
+            title_override=payload.title,
+            trigger_source=payload.trigger_source or "manual",
+        )
+        return rec
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/harness")
+async def api_harness_list(deliverable_id: Optional[str] = None):
+    return {"harnesses": _orch.db.list_harnesses(deliverable_id=deliverable_id)}
+
+
+@app.get("/api/harness/{harness_id}")
+async def api_harness_get(harness_id: str):
+    rec = _orch.db.get_harness(harness_id)
+    if not rec:
+        raise HTTPException(status_code=404, detail="harness_not_found")
+    # enrich with bundle.json if available
+    try:
+        import json as _json
+        bundle_json = Path(rec["bundle_path"]) / "bundle.json"
+        if bundle_json.exists():
+            rec["manifest"] = _json.loads(bundle_json.read_text())
+    except Exception:
+        pass
+    return rec
+
+
+class HarnessStepClassification(BaseModel):
+    step: str                            # short description of the step
+    tag: str                             # 'CLAUDE' | 'USER' | 'REVIEW'
+    executed: Optional[bool] = None      # True if Claude ran it; False if skipped
+
+
+class HarnessRunPayload(BaseModel):
+    thumb: Optional[str] = None          # 'up' | 'down' | None
+    outcome: Optional[str] = None        # 'goal_achieved' | 'goal_unchanged'
+    notes: Optional[str] = ""
+    plan_steps: Optional[List[HarnessStepClassification]] = None
+
+
+@app.post("/api/harness/{harness_id}/record-run")
+async def api_harness_record_run(harness_id: str, payload: HarnessRunPayload):
+    """Close the feedback loop. Claude Code (or the widget) calls this after
+    a harness run. Writes to training_events for Phase 6 corpus.
+
+    Step 3 addition: if `plan_steps` is provided, write one `automation_class`
+    training event per step capturing the CLAUDE/USER/REVIEW label plus which
+    ones actually executed. Feeds the future automatability classifier
+    described in the Phase 6 plan."""
+    if payload.thumb not in (None, "up", "down"):
+        raise HTTPException(status_code=400, detail="thumb must be 'up' or 'down'")
+
+    try:
+        _orch.db.record_harness_run(
+            harness_id=harness_id,
+            thumb=payload.thumb,
+            outcome=payload.outcome,
+            post_run_signals={
+                "notes": payload.notes or "",
+                "plan_step_count": len(payload.plan_steps or []),
+            },
+        )
+
+        # Step 3 — per-step automation_class events
+        steps_logged = 0
+        if payload.plan_steps:
+            harness = _orch.db.get_harness(harness_id)
+            deliverable_id = (harness or {}).get("deliverable_id", "")
+            valid_tags = {"CLAUDE", "USER", "REVIEW"}
+            for idx, step in enumerate(payload.plan_steps):
+                tag = (step.tag or "").upper().strip()
+                if tag not in valid_tags:
+                    continue
+                _orch.db.log_training_event({
+                    "event_type": "automation_class",
+                    "harness_id": harness_id,
+                    "deliverable_id": deliverable_id,
+                    "features": {
+                        "step_index": idx,
+                        "step_text": (step.step or "")[:280],
+                        "executed": bool(step.executed) if step.executed is not None else None,
+                        "plan_length": len(payload.plan_steps),
+                    },
+                    "label": {
+                        "tag": tag,                 # CLAUDE | USER | REVIEW
+                        "is_automated": tag == "CLAUDE",
+                    },
+                    "pmis_version": "phase-6",
+                })
+                steps_logged += 1
+
+        result = _orch.db.get_harness(harness_id) or {}
+        result["steps_logged"] = steps_logged
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@app.get("/api/training/counts")
+async def api_training_counts():
+    """How many labeled events we've accumulated. Phase 6 exports these."""
+    return _orch.db.count_training_events()
+
+
+_training_exporter = None
+
+
+def _get_training_exporter():
+    global _training_exporter
+    if _training_exporter is None:
+        from consolidation.training_export import TrainingCorpusExporter
+        _training_exporter = TrainingCorpusExporter(_orch.db, hyperparams=_orch.hp)
+    return _training_exporter
+
+
+@app.post("/api/training/export")
+async def api_training_export(backfill: bool = False):
+    """Phase 6 — flush training_events to JSONL corpus. Incremental by default
+    (flips exported_to_training=1); backfill=true re-exports everything (for
+    model-upgrade backtests) without flipping the flag."""
+    return _get_training_exporter().export(backfill=backfill)
+
+
+@app.get("/api/training/stats")
+async def api_training_stats():
+    """Side-by-side view of DB training_events vs on-disk JSONL corpus."""
+    return _get_training_exporter().stats()
+
+
+_boilerplate_detector = None
+
+
+def _get_boilerplate_detector():
+    global _boilerplate_detector
+    if _boilerplate_detector is None:
+        from harness.boilerplate_detector import BoilerplateDetector
+        _boilerplate_detector = BoilerplateDetector(_orch.db, hyperparams=_orch.hp)
+    return _boilerplate_detector
+
+
+@app.post("/api/boilerplate/extract")
+async def api_boilerplate_extract(days: Optional[int] = None):
+    """Heuristic extraction of artifacts from tracker segments into
+    segment_artifacts table."""
+    return _get_boilerplate_detector().extract(days=days)
+
+
+@app.post("/api/boilerplate/mine")
+async def api_boilerplate_mine(min_reps: Optional[int] = None):
+    """Cluster segment_artifacts by content_hash and write boilerplate
+    training_events for every cluster crossing min_reps."""
+    return _get_boilerplate_detector().mine(min_reps=min_reps)
+
+
+@app.get("/api/boilerplate/clusters")
+async def api_boilerplate_clusters(min_reps: int = 3, limit: int = 50):
+    return {
+        "min_reps": min_reps,
+        "clusters": _orch.db.list_artifact_clusters(min_repetitions=min_reps, limit=limit),
+        "artifact_counts": _orch.db.count_segment_artifacts(),
+    }
+
+
+_pattern_miner = None
+
+
+def _get_pattern_miner():
+    global _pattern_miner
+    if _pattern_miner is None:
+        from harness.pattern_miner import PatternMiner
+        _pattern_miner = PatternMiner(_orch.db, hyperparams=_orch.hp)
+    return _pattern_miner
+
+
+@app.get("/api/harness/candidates")
+async def api_harness_candidates(deliverable_id: Optional[str] = None):
+    """Phase 4b — pattern-mined harness suggestions. Recurring (platform,
+    window_root) task shapes from tracker segments, filtered to ≥5 reps +
+    sufficient avg value_score."""
+    cands = _get_pattern_miner().find_candidates(deliverable_id=deliverable_id)
+    return {"candidates": [c.to_dict() for c in cands]}
+
+
+class GoalAchievePayload(BaseModel):
+    note: Optional[str] = ""
+
+
+@app.post("/api/goals/{goal_id}/achieve")
+async def api_goals_achieve(goal_id: str, payload: Optional[GoalAchievePayload] = None):
+    """Mark a goal achieved AND propagate positive feedback to every anchor
+    linked to that goal (source='outcome', strength=0.6 per locked decisions).
+    Also touches harnesses that used those anchors — bumps their thumbs_up via
+    training_events of type harness_outcome."""
+    note = payload.note if payload and payload.note else ""
+    result = _orch.db.propagate_goal_achievement(goal_id=goal_id, note=note)
+    # Recompute value_scores so UI reflects the new G(n) + F(n) immediately
+    try:
+        _get_value_calc().recompute_all()
+    except Exception as e:
+        result["recompute_error"] = str(e)
+    return result
+
+
+@app.get("/api/work/compose-prompt-preview")
+async def api_work_compose_prompt_preview(deliverable_id: str):
+    """Return the exact user-prompt Markdown the meta-LLM will see. Useful
+    for debugging weight tuning without spending API tokens."""
+    if not deliverable_id:
+        raise HTTPException(status_code=400, detail="deliverable_id required")
+    try:
+        return {
+            "deliverable_id": deliverable_id,
+            "prompt": _get_meta_composer().render_prompt(deliverable_id),
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@app.post("/api/work/sync-yaml")
+async def api_work_sync_yaml():
+    """Re-sync goals.yaml + deliverables.yaml into projects + deliverables
+    tables. Call after editing the Goals UI to refresh the picker."""
+    try:
+        from sync.yaml_to_db import sync_pm_yaml_to_db
+        return {
+            "status": "ok",
+            "counts": sync_pm_yaml_to_db(
+                _orch.db, embedder=_orch.embedder, hyperparams=_orch.hp,
+            ),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/work/recent-work")
+async def api_work_recent(lookback_minutes: int = 120, limit: int = 3):
+    """Aggregated task clusters from the last N minutes of tracker segments.
+    Fuels the widget's 'Resume where you left off' section."""
+    from retrieval.recent_work import get_recent_work
+    try:
+        return {"lookback_minutes": lookback_minutes,
+                 "items": get_recent_work(lookback_minutes=lookback_minutes, limit=limit)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/pm/deadlines")
+async def api_pm_deadlines(limit: int = 3, include_overdue: bool = True):
+    """Upcoming deliverables ordered by deadline ASC with days_until."""
+    from datetime import date as _date
+    with _orch.db._connect() as conn:
+        rows = conn.execute(
+            """SELECT d.id, d.name, d.deadline, d.project_id, d.status,
+                      p.name AS project_name
+               FROM deliverables d
+               LEFT JOIN projects p ON p.id = d.project_id
+               WHERE d.status = 'active' AND d.deadline != ''"""
+        ).fetchall()
+
+    today = _date.today()
+    items: List[Dict[str, Any]] = []
+    for r in rows:
+        d = dict(r)
+        try:
+            dl = datetime.strptime(d["deadline"][:10], "%Y-%m-%d").date()
+        except Exception:
+            continue
+        days_until = (dl - today).days
+        if not include_overdue and days_until < 0:
+            continue
+        d["days_until"] = days_until
+        d["overdue"] = days_until < 0
+        items.append(d)
+
+    items.sort(key=lambda x: x["days_until"])
+    return {"deadlines": items[:limit], "total": len(items)}
+
+
+_TRACKER_LABEL = "com.yantra.productivity-tracker"
+_TRACKER_PLIST = str(Path.home() / "Library" / "LaunchAgents" / f"{_TRACKER_LABEL}.plist")
+_TRACKER_ROOT = Path.home() / "Desktop" / "memory" / "productivity-tracker"
+_TRACKER_VENV_PY = _TRACKER_ROOT / ".venv" / "bin" / "python"
+
+
+def _tracker_pgrep_pid() -> Optional[int]:
+    import subprocess
+    try:
+        out = subprocess.run(
+            ["pgrep", "-f", "src.agent.tracker"],
+            capture_output=True, text=True, timeout=3,
+        )
+        if out.returncode == 0 and out.stdout.strip():
+            return int(out.stdout.strip().splitlines()[0])
+    except Exception:
+        return None
+    return None
+
+
+def _tracker_launchd_loaded() -> bool:
+    import subprocess
+    try:
+        out = subprocess.run(
+            ["launchctl", "list", _TRACKER_LABEL],
+            capture_output=True, text=True, timeout=3,
+        )
+        return out.returncode == 0
+    except Exception:
+        return False
+
+
+@app.get("/api/tracker/status")
+async def api_tracker_status():
+    """Return whether the productivity-tracker daemon is running."""
+    pid = _tracker_pgrep_pid()
+    return {
+        "label": _TRACKER_LABEL,
+        "loaded": _tracker_launchd_loaded(),
+        "running": pid is not None,
+        "pid": pid,
+        "plist": _TRACKER_PLIST,
+    }
+
+
+class TrackerTogglePayload(BaseModel):
+    desired_state: Optional[str] = None  # 'on' | 'off' | None → toggle
+
+
+@app.post("/api/tracker/toggle")
+async def api_tracker_toggle(payload: Optional[TrackerTogglePayload] = None):
+    """Toggle (or explicitly set) the productivity-tracker daemon.
+
+    Strategy (macOS 10.11+):
+      1. Primary: `launchctl bootstrap/bootout gui/<uid> <plist>` — the modern
+         API. `load/unload` is deprecated and often silently no-ops.
+      2. Fallback: direct process control via `pkill -f src.agent.tracker`
+         for stop, and `subprocess.Popen` of the venv python for start.
+    Returns the attempt log so the widget can show *why* a toggle failed.
+    """
+    import os, subprocess, time as _t
+
+    current = await api_tracker_status()
+    desired = (payload.desired_state or "").lower() if payload else ""
+    if desired not in ("on", "off"):
+        desired = "off" if current["running"] else "on"
+
+    uid = os.getuid()
+    service_target = f"gui/{uid}/{_TRACKER_LABEL}"
+    domain_target = f"gui/{uid}"
+    attempts: List[Dict[str, Any]] = []
+
+    def _run(cmd):
+        try:
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=8)
+            return {"cmd": " ".join(cmd), "rc": r.returncode,
+                     "stdout": r.stdout.strip()[-400:], "stderr": r.stderr.strip()[-400:]}
+        except Exception as e:
+            return {"cmd": " ".join(cmd), "rc": -1, "error": str(e)}
+
+    if desired == "off":
+        # Primary: launchctl bootout
+        attempts.append(_run(["launchctl", "bootout", service_target]))
+        # Also try deprecated unload for older setups
+        attempts.append(_run(["launchctl", "unload", _TRACKER_PLIST]))
+        # Fallback: if a tracker process is still alive, kill it directly.
+        _t.sleep(0.4)
+        pid_after = _tracker_pgrep_pid()
+        if pid_after is not None:
+            attempts.append(_run(["kill", "-TERM", str(pid_after)]))
+            _t.sleep(0.6)
+            pid_after = _tracker_pgrep_pid()
+            if pid_after is not None:
+                attempts.append(_run(["kill", "-KILL", str(pid_after)]))
+    else:
+        # Primary: launchctl bootstrap
+        attempts.append(_run(["launchctl", "bootstrap", domain_target, _TRACKER_PLIST]))
+        # Also try deprecated load for older setups
+        attempts.append(_run(["launchctl", "load", _TRACKER_PLIST]))
+        # Kickstart so it starts right now even if the plist is already loaded
+        attempts.append(_run(["launchctl", "kickstart", "-k", service_target]))
+        _t.sleep(0.6)
+        # Fallback: if still not running, spawn the daemon directly.
+        if _tracker_pgrep_pid() is None and _TRACKER_VENV_PY.exists():
+            try:
+                proc = subprocess.Popen(
+                    [str(_TRACKER_VENV_PY), "-m", "src.agent.tracker"],
+                    cwd=str(_TRACKER_ROOT),
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    start_new_session=True,
+                )
+                attempts.append({"cmd": "Popen src.agent.tracker", "pid": proc.pid})
+            except Exception as e:
+                attempts.append({"cmd": "Popen src.agent.tracker", "error": str(e)})
+
+    _t.sleep(0.5)
+    new_status = await api_tracker_status()
+    return {"requested": desired, "status": new_status, "attempts": attempts}
+
+
+# ================================================================
+# WIKI FEEDBACK + EDIT  (audit-fix additions)
+# ================================================================
+
+class WikiFeedbackBody(BaseModel):
+    node_id: str
+    polarity: str                 # 'positive' | 'negative' | 'correction' OR 'up'|'down'
+    content: Optional[str] = ""   # optional free-text note
+    goal_id: Optional[str] = None
+    source: Optional[str] = "explicit"
+    strength: Optional[float] = 1.0
+
+
+class WikiContentPatchBody(BaseModel):
+    node_id: str
+    new_content: str              # full-replace patch (V1)
+
+
+@app.post("/api/wiki/feedback")
+async def api_wiki_feedback(body: WikiFeedbackBody):
+    """HTTP wrapper around db.add_feedback. Writes to the production
+    feedback table. Accepts 'up'/'down' as aliases for 'positive'/'negative'."""
+    polarity = (body.polarity or "").lower().strip()
+    alias = {"up": "positive", "down": "negative"}
+    polarity = alias.get(polarity, polarity)
+    if polarity not in ("positive", "negative", "correction"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"polarity must be positive|negative|correction (got {body.polarity!r})",
+        )
+
+    db = _orch.db
+    if not db.get_node(body.node_id):
+        raise HTTPException(status_code=404, detail=f"node not found: {body.node_id}")
+
+    fb_id = db.add_feedback(
+        node_id=body.node_id,
+        polarity=polarity,
+        content=body.content or "",
+        goal_id=body.goal_id,
+        source=(body.source or "explicit"),
+        strength=float(body.strength or 1.0),
+    )
+    return {
+        "ok": True,
+        "feedback_id": fb_id,
+        "node_id": body.node_id,
+        "polarity": polarity,
+    }
+
+
+@app.post("/api/wiki/content-patch")
+async def api_wiki_content_patch(body: WikiContentPatchBody):
+    """Apply a user-authored full-content replacement to a node.
+
+      1. Updates memory_nodes.content + sets is_user_edited=1 + last_modified=now
+      2. Re-embeds (Euclidean) via embedder + syncs ChromaDB via refresh_node_embedding
+      3. Writes an audit row into consolidation_log with before/after
+    """
+    db = _orch.db
+    row = db.get_node(body.node_id)
+    if not row:
+        raise HTTPException(status_code=404, detail=f"node not found: {body.node_id}")
+
+    before = row.get("content") or ""
+    after = (body.new_content or "").strip()
+    if not after:
+        raise HTTPException(status_code=400, detail="new_content cannot be empty")
+    if after == before:
+        return {"ok": True, "changed": False, "reason": "no change"}
+
+    # Persist the content change + is_user_edited flag
+    with db._connect() as conn:
+        conn.execute("""
+            UPDATE memory_nodes
+            SET content = ?, is_user_edited = 1, last_modified = datetime('now')
+            WHERE id = ?
+        """, (after, body.node_id))
+
+    # Re-embed (best-effort, never fails the request)
+    embedding_refreshed = False
+    try:
+        new_euc = _orch.ingestion.embedder.embed_text(after)
+        embedding_refreshed = db.refresh_node_embedding(body.node_id, new_euc)
+    except Exception as e:
+        print(f"[content-patch] re-embed failed for {body.node_id}: {e}")
+
+    # Audit into consolidation_log (no new table required)
+    try:
+        db.log_consolidation({
+            "action": "user_content_patch",
+            "source_node_ids": [body.node_id],
+            "target_node_id": body.node_id,
+            "reason": "user edit via /api/wiki/content-patch",
+            "details": {
+                "before_preview": before[:400],
+                "after_preview": after[:400],
+                "embedding_refreshed": embedding_refreshed,
+            },
+        })
+    except Exception as e:
+        print(f"[content-patch] audit log failed for {body.node_id}: {e}")
+
+    return {
+        "ok": True,
+        "changed": True,
+        "node_id": body.node_id,
+        "before_preview": before[:200],
+        "after_preview": after[:200],
+        "is_user_edited": True,
+        "embedding_refreshed": embedding_refreshed,
+    }
+
+
+class WikiRegenNowBody(BaseModel):
+    node_id: str
+    scope: Optional[str] = None      # 'anchor' | 'context' | None (auto)
+    force: Optional[bool] = False    # override is_user_edited skip
+    reason: Optional[str] = "manual_override"
+
+
+@app.post("/api/wiki/regen-now")
+async def api_wiki_regen_now(body: WikiRegenNowBody):
+    """Manual trigger: regen a single node's content via LLM. Bypasses queue.
+
+    Respects is_user_edited unless force=true. Re-embeds on success."""
+    try:
+        from consolidation.restructure import Restructurer
+        from core import config as _cfg
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"restructurer unavailable: {e}")
+
+    rs = Restructurer(_orch.db, _cfg.get_all(),
+                      embedder=_orch.ingestion.embedder)
+    result = rs.regen_now(body.node_id, scope=body.scope,
+                          reason=body.reason or "manual_override",
+                          force=bool(body.force))
+    # Also drop it from queue if it was enqueued
+    with _orch.db._connect() as conn:
+        conn.execute("""
+            UPDATE restructure_queue SET status = 'done',
+                processed_at = datetime('now')
+            WHERE node_id = ? AND status IN ('queued', 'processing')
+        """, (body.node_id,))
+    return {"ok": True, "result": result}
+
+
+@app.get("/api/wiki/regen-queue")
+async def api_wiki_regen_queue(status: str = "queued", limit: int = 50):
+    """List restructure queue entries. status: queued|processing|done|skipped|all."""
+    with _orch.db._connect() as conn:
+        if status == "all":
+            rows = conn.execute("""
+                SELECT rq.id, rq.node_id, rq.scope, rq.reason, rq.status,
+                       rq.queued_at, rq.processed_at,
+                       mn.level, mn.value_feedback, mn.is_user_edited,
+                       SUBSTR(mn.content, 1, 100) AS content_preview
+                FROM restructure_queue rq
+                LEFT JOIN memory_nodes mn ON mn.id = rq.node_id
+                ORDER BY rq.queued_at DESC LIMIT ?
+            """, (limit,)).fetchall()
+        else:
+            rows = conn.execute("""
+                SELECT rq.id, rq.node_id, rq.scope, rq.reason, rq.status,
+                       rq.queued_at, rq.processed_at,
+                       mn.level, mn.value_feedback, mn.is_user_edited,
+                       SUBSTR(mn.content, 1, 100) AS content_preview
+                FROM restructure_queue rq
+                LEFT JOIN memory_nodes mn ON mn.id = rq.node_id
+                WHERE rq.status = ?
+                ORDER BY rq.queued_at DESC LIMIT ?
+            """, (status, limit)).fetchall()
+        return {"status_filter": status, "count": len(rows),
+                "jobs": [dict(r) for r in rows]}
+
+
+@app.get("/api/wiki/stale")
+async def api_wiki_stale(drift_threshold: float = 0.2, limit: int = 50):
+    """Phase 5 — pages whose cached prose is out of sync with current
+    value_score distribution (drift > threshold) or pitfall counts have
+    changed. Nightly consolidation should prioritize regenerating these."""
+    wiki = _get_wiki()
+    try:
+        return {
+            "drift_threshold": drift_threshold,
+            "stale_pages": wiki.list_stale_pages(drift_threshold=drift_threshold, limit=limit),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/widget/floating", response_class=HTMLResponse)
+async def widget_floating(request: Request):
+    """Naked HTML (no wiki chrome) for the menu-bar popover WKWebView."""
+    return templates.TemplateResponse(request, "floating_widget.html", {})
+
+
+@app.get("/wiki/productivity", response_class=HTMLResponse)
+async def wiki_productivity(request: Request):
+    """Productivity dashboard — live activity data from tracker."""
+    wiki = _get_wiki()
+    data = wiki.render_productivity()
+    return templates.TemplateResponse(request, "wiki_productivity.html", data)
 
 
 # ================================================================

@@ -35,6 +35,7 @@ from retrieval.tree_resolver import TreeResolver
 from retrieval.predictive import PredictiveRetriever
 from retrieval.epistemic import EpistemicScorer
 from claude_integration.prompt_composer import compose_system_prompt, compose_status_report
+from core.diagnostics import DiagnosticCapture
 
 
 class OrchestratorResult:
@@ -225,6 +226,8 @@ class Orchestrator:
                     "source": m.get("_source", "broad"),
                     "content_preview": m.get("content", "")[:150],
                     "node_level": m.get("level"),
+                    "value_score": m.get("value_score"),
+                    "value_multiplier": m.get("value_multiplier"),
                 }
                 for i, m in enumerate(result.retrieved_memories)
             ],
@@ -249,6 +252,91 @@ class Orchestrator:
                 for p in (result.predictive_memories or [])
             ],
         })
+
+        # --- 7. DIAGNOSTICS (end-to-end instrumentation) ---
+        try:
+            diag = DiagnosticCapture(
+                conversation_id=session.conversation_id,
+                turn_number=result.turn_number,
+            )
+
+            # Embedding stage
+            diag.mark_embedding_done(
+                model=self.hp.get("local_embedding_model", "nomic-embed-text")
+                if self.hp.get("use_local", True)
+                else self.hp.get("embedding_model", "text-embedding-3-small"),
+                dim=len(query_embedding) if query_embedding is not None else 0,
+            )
+
+            # Surprise stage (Phase 1: includes precision components + K-nearest metadata)
+            if ingestion_result.surprise_result:
+                sr = ingestion_result.surprise_result
+                diag.mark_surprise(
+                    raw_surprise=sr.raw_surprise,
+                    cluster_precision=sr.cluster_precision,
+                    effective_surprise=sr.effective_surprise,
+                    is_orphan_territory=getattr(sr, "is_orphan_territory", False),
+                    anchor_factor=getattr(sr, "precision_anchor_factor", 0.0),
+                    recency_factor=getattr(sr, "precision_recency_factor", 0.0),
+                    consistency_factor=getattr(sr, "precision_consistency_factor", 0.0),
+                )
+                diag.mark_nearest_context(
+                    ctx_id=sr.nearest_context_id or "",
+                    ctx_name=sr.nearest_context_name or "",
+                    distance=sr.nearest_distance if hasattr(sr, "nearest_distance") else sr.raw_surprise,
+                    second_distance=getattr(sr, "second_nearest_distance", 0.0),
+                    contexts_searched=getattr(sr, "contexts_searched", 0),
+                )
+
+            # Gamma stage (Phase 1: includes raw gamma + session boost)
+            if ingestion_result.gamma_result:
+                gr = ingestion_result.gamma_result
+                diag.mark_gamma(
+                    gamma_final=gr.gamma,
+                    mode=gr.mode_label,
+                    input_surprise=ingestion_result.surprise_result.effective_surprise if ingestion_result.surprise_result else 0.0,
+                    temperature=self.hp.get("gamma_temperature", 6.0),
+                    bias=self.hp.get("gamma_bias", 0.3),
+                    gamma_raw=getattr(gr, "gamma_raw", 0.0),
+                    session_boost=getattr(gr, "session_boost", 0.0),
+                    override_active=(
+                        getattr(session, "gamma_override", None) is not None
+                        and getattr(session, "gamma_override_turns_remaining", 0) > 0
+                    ),
+                )
+
+            # Tree resolution
+            diag.mark_tree_resolution(
+                tree_id=result.active_tree or "",
+            )
+
+            # Retrieval results
+            diag.mark_retrieval_params(
+                narrow_k=max(3, int(10 * 1.5 * (ingestion_result.gamma_result.gamma if ingestion_result.gamma_result else 0.5))),
+                narrow_threshold=self.hp.get("retrieval_narrow_threshold", 0.82),
+                broad_k=max(3, int(10 * 1.5 * (1.0 - (ingestion_result.gamma_result.gamma if ingestion_result.gamma_result else 0.5)))),
+                broad_threshold=self.hp.get("retrieval_broad_threshold", 0.45),
+            )
+            diag.mark_retrieval_results(result.retrieved_memories)
+
+            # Storage
+            diag.mark_storage(
+                action=result.storage_action or "skip",
+                node_id=result.stored_node_id or "",
+            )
+
+            # Epistemic & predictive
+            diag.mark_epistemic(result.epistemic_questions or [])
+            diag.mark_predictive(result.predictive_memories or [])
+
+            # Finalize with session state
+            row = diag.finalize(session)
+            self.db.log_diagnostics(row)
+
+        except Exception as e:
+            # Diagnostics should NEVER break the pipeline
+            import logging
+            logging.getLogger("pmis.diagnostics").warning(f"Diagnostic capture failed: {e}")
 
         return result
 

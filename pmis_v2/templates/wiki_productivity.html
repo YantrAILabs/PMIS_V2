@@ -1,0 +1,127 @@
+{% extends "wiki_base.html" %}
+{% block title %}Productivity — memory{% endblock %}
+
+{% block content %}
+<h1>Productivity Dashboard</h1>
+<p>Live activity data from the productivity tracker.</p>
+
+{% if not has_data %}
+<p style="color:var(--fg3); margin-top:20px;">No productivity tracker data found.</p>
+{% else %}
+
+<!-- Summary Cards -->
+<div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:12px; margin:20px 0;">
+  <div style="background:var(--bg2); border:1px solid var(--border); border-radius:8px; padding:16px; text-align:center;">
+    <div style="font-size:28px; font-weight:700; color:var(--fg);">{{ "%.0f"|format(total_duration_mins) }}<span style="font-size:14px; color:var(--fg3);">m</span></div>
+    <div style="font-size:11px; color:var(--fg3); margin-top:4px;">TOTAL TIME</div>
+  </div>
+  <div style="background:var(--bg2); border:1px solid var(--border); border-radius:8px; padding:16px; text-align:center;">
+    <div style="font-size:28px; font-weight:700; color:var(--green);">{{ "%.0f"|format(productive_mins) }}<span style="font-size:14px; color:var(--fg3);">m</span></div>
+    <div style="font-size:11px; color:var(--fg3); margin-top:4px;">PRODUCTIVE</div>
+  </div>
+  <div style="background:var(--bg2); border:1px solid var(--border); border-radius:8px; padding:16px; text-align:center;">
+    <div style="font-size:28px; font-weight:700; color:var(--blue);">{{ "%.0f"|format(human_mins) }}<span style="font-size:14px; color:var(--fg3);">m</span></div>
+    <div style="font-size:11px; color:var(--fg3); margin-top:4px;">HUMAN</div>
+  </div>
+  <div style="background:var(--bg2); border:1px solid var(--border); border-radius:8px; padding:16px; text-align:center;">
+    <div style="font-size:28px; font-weight:700; color:var(--purple);">{{ "%.0f"|format(ai_mins) }}<span style="font-size:14px; color:var(--fg3);">m</span></div>
+    <div style="font-size:11px; color:var(--fg3); margin-top:4px;">AI-ASSISTED</div>
+  </div>
+</div>
+
+<!-- Weekly Trend -->
+{% if weekly_trend %}
+<h2>Weekly Trend</h2>
+<div style="display:flex; align-items:flex-end; gap:8px; height:120px; margin:16px 0; padding:0 4px;">
+  {% for day in weekly_trend %}
+  <div style="flex:1; display:flex; flex-direction:column; align-items:center;">
+    <div style="background:{% if day.is_today %}var(--blue){% else %}var(--bg3){% endif %}; width:100%; border-radius:4px 4px 0 0; height:{{ (day.mins / max_weekly_mins * 100)|int }}px; min-height:2px;"></div>
+    <div style="font-size:10px; color:var(--fg3); margin-top:4px;">{{ day.label }}</div>
+    <div style="font-size:10px; color:var(--fg2); font-weight:600;">{{ "%.0f"|format(day.mins) }}m</div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- Time by Application (non-zero only) -->
+{% if by_window %}
+<h2>Time by Application</h2>
+<div style="margin:16px 0;">
+  {% for item in by_window %}
+  <div style="display:flex; align-items:center; gap:12px; margin:8px 0;">
+    <div style="width:200px; font-size:13px; color:var(--fg); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ item.window[:40] }}</div>
+    <div style="flex:1; height:24px; background:var(--bg3); border-radius:4px; overflow:hidden;">
+      <div style="height:100%; width:{{ (item.mins / max_window_mins * 100)|int }}%; background:linear-gradient(90deg, var(--blue), var(--purple)); border-radius:4px; display:flex; align-items:center; padding-left:8px;">
+        {% if item.mins > max_window_mins * 0.15 %}<span style="font-size:11px; color:#fff; font-weight:600;">{{ "%.1f"|format(item.mins) }}m</span>{% endif %}
+      </div>
+    </div>
+    <div style="width:50px; text-align:right; font-size:12px; color:var(--fg2); font-weight:600;">{{ "%.1f"|format(item.mins) }}m</div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- Hourly Activity Heatmap -->
+{% if hourly %}
+<h2>Hourly Activity</h2>
+<div style="display:flex; gap:4px; margin:16px 0; align-items:flex-end; height:80px;">
+  {% for h in hourly %}
+  <div style="flex:1; display:flex; flex-direction:column; align-items:center;">
+    <div style="width:100%; background:{% if h.mins > 0 %}var(--blue){% else %}var(--bg3){% endif %}; border-radius:3px; height:{{ (h.mins / max_hourly_mins * 70)|int if h.mins > 0 else 2 }}px; opacity:{{ (0.3 + 0.7 * h.mins / max_hourly_mins)|round(2) if h.mins > 0 else 0.2 }};"></div>
+    <div style="font-size:9px; color:var(--fg3); margin-top:3px;">{{ h.hour }}</div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- Input Activity (from context_2) -->
+{% if input_stats %}
+<h2>Input Activity</h2>
+<div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:12px; margin:16px 0;">
+  <div style="background:var(--bg2); border:1px solid var(--border); border-radius:8px; padding:12px; text-align:center;">
+    <div style="font-size:22px; font-weight:700;">{{ input_stats.total_frames }}</div>
+    <div style="font-size:11px; color:var(--fg3);">FRAMES CAPTURED</div>
+  </div>
+  <div style="background:var(--bg2); border:1px solid var(--border); border-radius:8px; padding:12px; text-align:center;">
+    <div style="font-size:22px; font-weight:700;">{{ input_stats.keyboard_frames }}</div>
+    <div style="font-size:11px; color:var(--fg3);">KEYBOARD ACTIVE</div>
+  </div>
+  <div style="background:var(--bg2); border:1px solid var(--border); border-radius:8px; padding:12px; text-align:center;">
+    <div style="font-size:22px; font-weight:700;">{{ input_stats.mouse_frames }}</div>
+    <div style="font-size:11px; color:var(--fg3);">MOUSE ACTIVE</div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Recent Activity Feed -->
+{% if recent_frames %}
+<h2>Recent Activity</h2>
+<div style="margin:16px 0;">
+  {% for frame in recent_frames %}
+  <div style="display:flex; gap:8px; padding:6px 0; border-bottom:1px solid var(--bg3); font-size:13px;">
+    <span style="color:var(--fg3); font-size:11px; min-width:90px;">{{ frame.timestamp[11:16] }}</span>
+    <span style="min-width:50px; font-size:10px; padding:2px 6px; border-radius:3px; background:{% if frame.worker == 'human' %}#dbeafe{% else %}#f3e8ff{% endif %}; color:{% if frame.worker == 'human' %}var(--blue){% else %}var(--purple){% endif %};">{{ frame.worker }}</span>
+    <span style="color:var(--fg);">{{ frame.summary[:80] }}</span>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- Time by Knowledge Branch (post-consolidation) -->
+{% if branch_time %}
+<h2>Time by Knowledge Branch</h2>
+<p style="font-size:12px; color:var(--fg3);">Assigned after nightly consolidation</p>
+<table>
+<tr><th>Branch</th><th>Minutes</th><th>Segments</th></tr>
+{% for bt in branch_time %}
+<tr>
+  <td><a href="/wiki/node/{{ bt.node_id }}">{{ bt.node_content[:50] }}</a></td>
+  <td>{{ "%.1f"|format(bt.total_duration_mins) }}</td>
+  <td>{{ bt.segment_count }}</td>
+</tr>
+{% endfor %}
+</table>
+{% endif %}
+
+{% endif %}
+{% endblock %}

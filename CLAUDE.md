@@ -1,6 +1,6 @@
-# PMIS V2 — Claude Desktop Instructions
+# ProMe — Claude Desktop Instructions
 
-You are operating inside a **Personal Memory Intelligence System (PMIS V2)**. This folder IS the user's second brain. Every conversation here builds, retrieves, and strengthens structured memory using surprise minimization, hyperbolic geometry, and learned embeddings.
+You are operating inside **ProMe** (formerly PMIS V2 — Personal Memory Intelligence System). This folder IS the user's second brain. Every conversation here builds, retrieves, and strengthens structured memory using surprise minimization, hyperbolic geometry, and learned embeddings.
 
 ## Folder Structure
 
@@ -9,7 +9,8 @@ Memory/
 ├── CLAUDE.md                       ← You're reading this
 ├── pmis_v2/                        ← Active memory system
 │   ├── cli.py                      ← CLI entry point (call from here)
-│   ├── server.py                   ← HTTP server (port 8100, dashboard)
+│   ├── server.py                   ← HTTP server (port 8100, API + wiki/goals/productivity)
+│   ├── health_dashboard.py         ← Ops UI (port 8200, Monitor/Dashboard/Feedback/Diagnostics/Lint)
 │   ├── orchestrator.py             ← Main pipeline controller
 │   ├── hyperparameters.yaml        ← All tunable parameters
 │   ├── data/
@@ -129,14 +130,13 @@ python3 pmis_v2/cli.py session store '{
 
 ## Dashboard
 
-Start the server and open the dashboard:
+Start both servers:
 ```
-python3 pmis_v2/server.py
-# Dashboard: http://localhost:8100
-# API docs: http://localhost:8100/docs
+python3 pmis_v2/server.py            # port 8100 — API + wiki (goals, productivity, node pages)
+python3 pmis_v2/health_dashboard.py  # port 8200 — ops UI (Monitor + Dashboard + Feedback + Diagnostics + Lint)
 ```
 
-The dashboard shows: stat cards (SC/CTX/ANC counts, daily activity), conversation log (with gamma/surprise/mode per turn), and hyperparameter controls with live preview.
+Ops UI tabs (all on 8200): `/` Monitor (7-organ health), `/dashboard` (stat cards + conversation log + hyperparams), `/feedback` (feedback log), `/diagnostics` (turn diagnostics), `/lint` (orphans/stale/oversized). API docs: `http://localhost:8100/docs`.
 
 ## Important
 

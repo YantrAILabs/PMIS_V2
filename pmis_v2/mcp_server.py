@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-PMIS V2 MCP Server
+ProMe MCP Server
 
 Exposes memory tools via the Model Context Protocol for:
 - Claude Web (claude.ai) via SSE/streamable-http transport
 - Claude Desktop App via stdio transport
 
-Each tool calls the PMIS HTTP server at localhost:8100 internally.
+Each tool calls the ProMe HTTP server at localhost:8100 internally.
 
 Usage:
     # Stdio transport (Claude Desktop):
@@ -289,7 +289,7 @@ def run_sse(port: int = 8101):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="PMIS V2 MCP Server")
+    parser = argparse.ArgumentParser(description="ProMe MCP Server")
     parser.add_argument("--transport", choices=["stdio", "sse"], default="stdio")
     parser.add_argument("--port", type=int, default=8101)
     args = parser.parse_args()

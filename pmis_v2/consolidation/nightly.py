@@ -38,114 +38,117 @@ class NightlyConsolidation:
         self.actions_log: List[Dict[str, Any]] = []
 
     def run(self) -> Dict[str, List[Dict[str, Any]]]:
-        """Execute all five consolidation passes. Returns summary."""
-        self.actions_log = []
-        results = {
-            "compressed": self._pass_compress(),
-            "promoted": self._pass_promote(),
-            "birthed": self._pass_birth(),
-            "pruned": self._pass_prune(),
-            "rsgd": self._pass_rsgd(),
-        }
+        """
+        Execute consolidation passes in order.
 
-        # Log all actions to database
+        The order was reshaped on 2026-04-20: activity-derived ANCs are now
+        created *before* graph maintenance so they participate in COMPRESS /
+        PROMOTE / BIRTH / CELL-DIVISION / PRUNE just like any other anchor.
+        Previously they were injected after maintenance and so never had a
+        chance to form new contexts or be merged with redundant siblings.
+
+        Pass order:
+          1.  ACTIVITY MERGE       — create today's activity-derived anchors
+          2.  BACKFILL EMBEDDINGS  — ensure every node has a row in embeddings
+          3.  COMPRESS             — merge redundant anchors (incl. today's)
+          4.  PROMOTE              — adopt accessed orphans
+          5.  BIRTH                — create contexts from orphan clusters
+          6.  CELL DIVISION        — split oversized contexts
+          7.  PRUNE                — soft-delete low-value anchors
+          8.  HGCN TRAIN           — learn Poincare embeddings on final graph
+          9.  PROJECT MATCHING     — tagged-session inherit + semantic match
+          10. TIME ASSIGNMENT      — assign activity time to tree + projects
+          11. REFRESH CTX STATS    — materialize cached context stats
+          12. REINDEX              — rebuild ChromaDB ANN index
+          13. WIKI REGEN           — invalidate changed wiki pages
+        """
+        self.actions_log = []
+        results: Dict[str, List[Dict[str, Any]]] = {}
+
+        # 1. Activity merge — today's raw activity segments become ANCs
+        results["activity_merged"] = self._pass_activity_merge()
+
+        # 2. Backfill embeddings — safety net so new ANCs (and any other
+        #    batch-inserted node) have embeddings before maintenance runs.
+        results["embeddings_backfilled"] = self._pass_backfill_embeddings()
+
+        # 3-7. Graph maintenance — now operates on the full node set including
+        #      today's activity anchors.
+        results["compressed"] = self._pass_compress()
+        results["promoted"] = self._pass_promote()
+        results["birthed"] = self._pass_birth()
+        results["cell_divided"] = self._pass_cell_division()
+        results["pruned"] = self._pass_prune()
+
+        # 8. HGCN train on the now-stable graph.
+        hgcn_result = self._pass_hgcn_train()
+        results["hgcn"] = [hgcn_result] if hgcn_result else []
+
+        # 9. Project matching (tagged-session inherit + semantic for untagged).
+        results["project_matches"] = self._pass_project_matching()
+
+        # 10. Time assignment.
+        results["time_assigned"] = self._pass_time_assignment()
+
+        # Persist all collected actions.
         for action in self.actions_log:
             self.db.log_consolidation(action)
 
-        # P2a: Refresh all materialized context stats after bulk changes
+        # 11. Refresh materialized context stats after bulk changes.
         total_actions = sum(len(v) for v in results.values())
         if total_actions > 0:
             self._refresh_all_context_stats()
 
-            # P1a: Rebuild ChromaDB ANN index if nodes were added/removed
-            if self.db.has_ann_index and self.db._chroma:
-                self.db._chroma.rebuild_from_db(self.db)
+        # 12. Reindex ANN.
+        if self.db.has_ann_index and self.db._chroma:
+            self.db._chroma.rebuild_from_db(self.db)
+
+        # 12.5. Restructure red-flagged content — LLM regen of anchors/contexts
+        #       whose materialized value_feedback dropped below the red-flag
+        #       threshold. Honors is_user_edited. Runs AFTER reindex so ANN
+        #       returns the old embeddings while deciding what to rewrite, and
+        #       AFTER value_score was recomputed in its own Phase 3 pass. The
+        #       regen itself re-embeds each rewritten node + syncs ChromaDB.
+        results["restructured"] = self._pass_restructure()
+
+        # 13. Invalidate changed wiki pages.
+        self._pass_wiki_regen()
 
         return results
 
-    def _pass_rsgd(self) -> List[Dict[str, Any]]:
+    # -------------------------------------------------------------------
+    # PASS 12.5: RESTRUCTURE (audit-fix Item 7)
+    # -------------------------------------------------------------------
+
+    def _pass_restructure(self) -> List[Dict[str, Any]]:
         """
-        Pass 5: RSGD — Refine hyperbolic embeddings using parent-child edges.
-        Runs after prune so we don't train on about-to-be-deleted nodes.
+        Enqueue red-flagged nodes (value_feedback < redflag_threshold) and
+        drain the queue with LLM regen. Skips is_user_edited=1 nodes.
         """
-        results = []
+        try:
+            from consolidation.restructure import Restructurer
+        except Exception as e:
+            logger = __import__("logging").getLogger("pmis.nightly")
+            logger.warning(f"Restructure pass unavailable: {e}")
+            return []
 
-        # Load edges and embeddings
-        edges = self.db.get_child_of_edges()
-        if len(edges) < 2:
-            return results
+        rs = Restructurer(self.db, self.hp)
+        enq = rs.enqueue_red_flags()
+        actions = rs.run(max_jobs=self.hp.get("restructure_max_jobs_per_run", 50))
+        for a in actions:
+            self.actions_log.append(a)
+        if enq.get("enqueued"):
+            self.actions_log.append({
+                "action": "restructure_enqueue",
+                "reason": f"value_feedback<{enq.get('redflag_threshold')}",
+                "details": enq,
+            })
+        return actions
 
-        embeddings = self.db.get_all_hyperbolic()
-        node_levels = self.db.get_node_levels()
-
-        if len(embeddings) < 2:
-            return results
-
-        # Configure trainer from hyperparameters
-        from core.rsgd import RSGDTrainer
-        trainer = RSGDTrainer(
-            dim=self.hp.get("poincare_dimensions", 32),
-            learning_rate=self.hp.get("rsgd_learning_rate", 0.01),
-            neg_samples=self.hp.get("rsgd_neg_samples", 10),
-            margin=self.hp.get("rsgd_margin", 1.0),
-            max_norm=self.hp.get("rsgd_max_norm", 0.95),
-            norm_reg_weight=self.hp.get("rsgd_norm_reg_weight", 0.1),
-            cross_branch_neg_ratio=self.hp.get("rsgd_cross_branch_neg_ratio", 0.5),
-        )
-
-        # Train
-        rsgd_result = trainer.train(
-            embeddings=embeddings,
-            edges=edges,
-            node_levels=node_levels,
-            epochs=self.hp.get("rsgd_epochs_nightly", 50),
-            burn_in_epochs=self.hp.get("rsgd_burn_in_epochs", 10),
-            burn_in_lr=self.hp.get("rsgd_burn_in_lr", 0.1),
-        )
-
-        # Write back updated embeddings
-        self.db.batch_update_hyperbolic(rsgd_result.updated_embeddings)
-
-        # Recompute Frechet mean centroids for all Contexts
-        ctx_nodes = self.db.get_nodes_by_level("CTX")
-        for ctx in ctx_nodes:
-            children = self.db.get_children(ctx["id"])
-            child_hyps = []
-            for child in children:
-                emb = self.db.get_embeddings(child["id"])
-                if emb.get("hyperbolic") is not None:
-                    child_hyps.append(emb["hyperbolic"])
-            if child_hyps:
-                centroid = trainer.frechet_mean(child_hyps)
-                self.db.store_centroid(ctx["id"], centroid, len(child_hyps))
-
-        # Log the run
-        self.db.log_rsgd_run({
-            "run_type": "nightly",
-            "epochs": rsgd_result.epochs_run,
-            "final_loss": rsgd_result.final_loss,
-            "nodes_updated": rsgd_result.nodes_updated,
-            "edges_used": rsgd_result.edges_used,
-            "learning_rate": self.hp.get("rsgd_learning_rate", 0.01),
-            "wall_time_seconds": rsgd_result.wall_time_seconds,
-        })
-
-        action = {
-            "action": "rsgd",
-            "reason": f"Trained {rsgd_result.epochs_run} epochs on {rsgd_result.edges_used} edges",
-            "source_node_ids": [],
-            "details": {
-                "epochs": rsgd_result.epochs_run,
-                "final_loss": rsgd_result.final_loss,
-                "nodes_updated": rsgd_result.nodes_updated,
-                "wall_time": rsgd_result.wall_time_seconds,
-                "converged": rsgd_result.converged,
-            },
-        }
-        self.actions_log.append(action)
-        results.append(action)
-
-        return results
+    # NOTE: RSGD was removed on 2026-04-20. HGCN (pass 8) is its successor and
+    # handles hyperbolic refinement with richer signals (co-retrieval + feedback
+    # edges, not just parent-child). The rsgd_runs table is retained as a
+    # historical log; no new rows are written.
 
     def _refresh_all_context_stats(self):
         """P2a: Recompute cached stats for all Context nodes after consolidation."""
@@ -302,6 +305,207 @@ class NightlyConsolidation:
             actions.append(action)
             self.actions_log.append(action)
 
+        return actions
+
+    # -------------------------------------------------------------------
+    # PASS 6: DAILY ACTIVITY MERGE
+    # -------------------------------------------------------------------
+
+    def _pass_activity_merge(self) -> List[Dict[str, Any]]:
+        """Create memories from today's activity tracker data."""
+        try:
+            from daily_activity_merge import DailyActivityMerger
+            merger = DailyActivityMerger(self.db, self.hp)
+            actions = merger.run()
+            self.actions_log.extend(actions)
+            return actions
+        except Exception as e:
+            import logging
+            logging.getLogger("pmis.consolidation").warning(f"Activity merge failed: {e}")
+            return []
+
+    # -------------------------------------------------------------------
+    # PASS 8: PROJECT MATCHING
+    # -------------------------------------------------------------------
+
+    def _pass_project_matching(self) -> List[Dict[str, Any]]:
+        """Score today's activity anchors against active deliverables and
+        write rows to project_work_match_log for surfacing on the Goals page."""
+        try:
+            from retrieval.project_matcher import ProjectMatcher
+            matcher = ProjectMatcher(self.db, self.hp)
+            actions = matcher.run()
+            self.actions_log.extend(actions)
+            return actions
+        except Exception as e:
+            import logging
+            logging.getLogger("pmis.consolidation").warning(
+                f"Project matching failed: {e}"
+            )
+            return []
+
+    # -------------------------------------------------------------------
+    # PASS 9: TIME ASSIGNMENT
+    # -------------------------------------------------------------------
+
+    def _pass_time_assignment(self) -> List[Dict[str, Any]]:
+        """Assign activity time to knowledge tree branches and projects."""
+        try:
+            from time_assignment import TimeAssignment
+            assigner = TimeAssignment(self.db, self.hp)
+            actions = assigner.run()
+            self.actions_log.extend(actions)
+            return actions
+        except Exception as e:
+            import logging
+            logging.getLogger("pmis.consolidation").warning(f"Time assignment failed: {e}")
+            return []
+
+    # -------------------------------------------------------------------
+    # PASS 10: WIKI REGEN
+    # -------------------------------------------------------------------
+
+    def _pass_wiki_regen(self):
+        """Invalidate wiki page cache for nodes changed in this consolidation."""
+        try:
+            import sqlite3
+            changed_ids = set()
+            for action in self.actions_log:
+                for key in ["new_context_id", "new_node_id", "node_id", "memory_node_id",
+                             "matched_ctx_id", "matched_sc_id"]:
+                    if action.get(key):
+                        changed_ids.add(action[key])
+                for key in ["orphan_ids", "source_node_ids"]:
+                    if action.get(key):
+                        changed_ids.update(action[key])
+
+            if not changed_ids:
+                return
+
+            conn = sqlite3.connect(self.db.db_path)
+            for node_id in changed_ids:
+                conn.execute("DELETE FROM wiki_page_cache WHERE node_id = ?", (node_id,))
+                # Also invalidate parents
+                parents = conn.execute(
+                    "SELECT target_id FROM relations WHERE source_id=? AND relation_type='child_of'",
+                    (node_id,)
+                ).fetchall()
+                for p in parents:
+                    conn.execute("DELETE FROM wiki_page_cache WHERE node_id = ?", (p[0],))
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            import logging
+            logging.getLogger("pmis.consolidation").warning(f"Wiki regen failed: {e}")
+
+    # -------------------------------------------------------------------
+    # PASS 6b: BACKFILL MISSING EMBEDDINGS
+    # -------------------------------------------------------------------
+
+    def _pass_backfill_embeddings(self) -> List[Dict[str, Any]]:
+        """
+        Find any non-deleted memory_node that lacks an embeddings row, generate
+        its euclidean embedding from content, and insert. Guards against batch
+        insert scripts that bypass the normal ingestion pipeline.
+        """
+        import sqlite3
+        conn = sqlite3.connect(self.db.db_path)
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute("""
+            SELECT m.id, m.content, m.level
+            FROM memory_nodes m
+            LEFT JOIN embeddings e ON e.node_id = m.id
+            WHERE m.is_deleted = 0
+              AND e.node_id IS NULL
+              AND m.content IS NOT NULL
+              AND length(m.content) > 0
+        """).fetchall()
+        if not rows:
+            conn.close()
+            return []
+
+        try:
+            from ingestion.embedder import Embedder
+            embedder = Embedder(self.hp)
+            texts = [r["content"] for r in rows]
+            vectors = embedder.batch_embed_texts(texts)
+        except Exception as e:
+            import logging
+            logging.getLogger("pmis.consolidation").warning(
+                f"Embedding backfill failed: {e}"
+            )
+            conn.close()
+            return []
+
+        actions = []
+        for r, vec in zip(rows, vectors):
+            blob = vec.astype(np.float32).tobytes()
+            conn.execute(
+                "INSERT INTO embeddings (node_id, euclidean, is_learned) VALUES (?, ?, 0)",
+                (r["id"], blob),
+            )
+            actions.append({
+                "action": "embedding_backfill",
+                "node_id": r["id"],
+                "level": r["level"],
+            })
+        conn.commit()
+        conn.close()
+        for a in actions:
+            self.actions_log.append(a)
+        return actions
+
+    # -------------------------------------------------------------------
+    # PASS 8: HGCN TRAIN
+    # -------------------------------------------------------------------
+
+    def _pass_hgcn_train(self) -> Optional[Dict[str, Any]]:
+        """
+        Train Hyperbolic GCN on graph structure + co-retrieval + feedback.
+        This is the sole hyperbolic-training pass (RSGD was removed
+        2026-04-20). Always runs — co-retrieval data grows daily.
+        """
+        try:
+            from core.hgcn import HGCNTrainer
+            trainer = HGCNTrainer(self.db, self.hp)
+            result = trainer.train()
+
+            action = {
+                "action": "hgcn_train",
+                "nodes_trained": result.get("nodes_trained", 0),
+                "structural_edges": result.get("structural_edges", 0),
+                "co_retrieval_edges": result.get("co_retrieval_edges", 0),
+                "feedback_edges": result.get("feedback_pos_edges", 0) + result.get("feedback_neg_edges", 0),
+                "epochs": result.get("epochs_run", 0),
+                "final_loss": result.get("final_loss"),
+                "wall_time": result.get("wall_time_seconds"),
+            }
+            self.actions_log.append(action)
+            return result
+        except Exception as e:
+            import logging
+            logging.getLogger("pmis.consolidation").error(f"HGCN training failed: {e}")
+            return {"error": str(e)}
+
+    # -------------------------------------------------------------------
+    # PASS 3b: CELL DIVISION
+    # -------------------------------------------------------------------
+
+    def _pass_cell_division(self) -> List[Dict[str, Any]]:
+        """
+        Split oversized CTX/SC nodes recursively.
+        Runs after BIRTH (new contexts exist) and before PRUNE.
+        """
+        from consolidation.cell_division import CellDivision
+
+        divider = CellDivision(
+            db=self.db,
+            hyperparams=self.hp,
+            projection=self.projection,
+            generate_summary_fn=self._generate_context_summary,
+        )
+        actions = divider.run()
+        self.actions_log.extend(actions)
         return actions
 
     # -------------------------------------------------------------------

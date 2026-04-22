@@ -6,19 +6,28 @@ precision_recency_halflife: 720
 precision_weight_anchors: 0.4
 precision_weight_recency: 0.35
 precision_weight_consistency: 0.25
-gamma_temperature: 3.0
-gamma_bias: 0.5
+gamma_temperature: 6.0
+gamma_bias: 0.3
 gamma_staleness_penalty: 1.5
 staleness_window: 10
 staleness_threshold: 0.15
 retrieval_narrow_threshold: 0.82
 retrieval_broad_threshold: 0.45
 retrieval_max_results: 10
-score_weight_semantic: 0.4
-score_weight_hierarchy: 0.3
+score_weight_semantic: 0.55  # was 0.4 — empirical: semantic carries hierarchy info too (3x better ancestor recall)
+score_weight_hierarchy: 0.15  # was 0.3 — hyperbolic underperforming on ancestor finding; reduce until replaced
 score_weight_temporal: 0.15
 score_weight_precision: 0.15
-poincare_dimensions: 32
+# Value-score multiplier (audit-fix): final = base * (1 + alpha * clip(value_score, min, max))
+# Wires materialized G+F+U+R (core.value_score) into ranking. Asymmetric clip
+# keeps red-flagged nodes surfaceable instead of disappearing entirely.
+value_multiplier_alpha: 0.3
+value_clip_min: -0.5
+value_clip_max: 1.0
+# Max restructure jobs to drain per nightly pass — caps LLM spend if many
+# nodes red-flag at once.
+restructure_max_jobs_per_run: 50
+poincare_dimensions: 16
 poincare_curvature: -1.0
 poincare_sc_norm_min: 0.05
 poincare_sc_norm_max: 0.2
@@ -44,10 +53,18 @@ prune_max_precision: 0.15
 prune_max_access_count: 2
 prune_max_surprise: 0.15
 prune_min_age_days: 14
-embedding_model: text-embedding-3-small
-embedding_dimensions: 1536
-local_embedding_model: nomic-embed-text
-local_embedding_dimensions: 768
+division_threshold: 25
+division_min_cluster_size: 3
+division_k_range: [2, 3]
+# Embeddings — dual config. `use_local` picks which path runs.
+# When use_local=true (default), embedder hits local Ollama with
+# `local_embedding_model` (nomic-embed-text, 768d). When false, it uses
+# OpenAI with `embedding_model`. Current active model is tracked in the
+# `system_meta` SQLite table on first use (rebuild chroma if it changes).
+embedding_model: text-embedding-3-small    # OpenAI fallback (use_local=false)
+embedding_dimensions: 1536                 # OpenAI fallback dim
+local_embedding_model: nomic-embed-text    # local via Ollama (use_local=true)
+local_embedding_dimensions: 768            # local dim — matches stored vectors
 use_local: true
 consolidation_model: claude-sonnet-4-20250514
 consolidation_model_local: qwen2.5:14b
@@ -65,3 +82,68 @@ rsgd_burn_in_lr: 0.1
 rsgd_burn_in_epochs: 10
 rsgd_cross_branch_neg_ratio: 0.5
 session_surprise_buffer_size: 50
+hgcn_hidden_dim: 128
+hgcn_output_dim: 16
+hgcn_epochs: 100
+hgcn_lr: 0.01
+hgcn_margin: 1.0
+hgcn_neg_samples: 10
+hgcn_curvature_init: -1.0
+hgcn_patience: 30  # was 10 — was killing runs before target-distance loss could spread the ball
+hgcn_structural_weight: 0.6
+hgcn_coretrieval_weight: 0.3
+hgcn_feedback_weight: 0.1
+hgcn_norm_reg: 0.1  # weight of overall norm-spread regularizer (avoid boundary collapse)
+hgcn_target_pc_dist: 0.5  # target geodesic distance parent ↔ child; prevents collapse to same point
+hgcn_hierarchy_weight: 1.0  # separate weight for child_norm > parent_norm enforcement
+hgcn_hierarchy_margin: 0.15  # required norm gap; must be > natural noise std (~0.05)
+# Per-level shell prior: pulls each node's norm toward a target (soft replacement
+# for old ProjectionManager hard buckets). Gives absolute radial pressure that
+# the per-edge regularizer can't.
+hgcn_shell_weight: 5.0  # moderate; structural distance loss resists strong shell separation
+hgcn_shell_target_sc: 0.15
+hgcn_shell_target_ctx: 0.50
+hgcn_shell_target_anc: 0.80
+hgcn_infonce_temperature: 0.5  # softmax temperature for InfoNCE loss; lower = sharper ranking
+
+# Phase 1 additions
+precision_established_floor: 0.7
+precision_established_min_anchors: 15
+precision_established_min_access: 10
+surprise_k_nearest: 5
+gamma_session_boost_alpha: 0.3
+gamma_session_boost_threshold: 0.6
+gamma_session_boost_factor: 0.15
+gamma_session_boost_min_turns: 3
+
+# Project matcher — triangulated scoring of work anchors → deliverable anchors
+# combined = semantic^alpha * hyperbolic^beta * temporal^gamma
+matcher_alpha: 1.0            # semantic exponent
+matcher_beta: 1.0             # hyperbolic exponent
+matcher_gamma: 1.0            # temporal exponent
+matcher_tau_high: 0.75        # >= this → auto-surface on Goals page (is_correct = -1 pending)
+matcher_tau_low: 0.45         # < this → discard; between low..high queued for review
+matcher_top_n_log: 5          # trace depth written to project_work_match_log per work anchor
+matcher_temporal_decay_days: 14  # temporal score halves this many days past deadline
+matcher_poincare_max_dist: 4.0   # normalizer for hyperbolic → [0,1]; ~diameter of unit ball in curvature=1
+
+# Match-feedback edges consumed by HGCN's feedback loss term.
+# Older thumbs are excluded because the tree has likely reshaped.
+match_feedback_max_age_days: 90
+
+# ── Phase 3: unified value_score on every memory_node ─────────────────
+# value_score(n) = w_g·G(n) + w_f·F(n) + w_u·U(n) + w_r·R(n)
+# G: goal achievement (0..1), F: feedback in [-1,1] internal (clipped at 0 for display),
+# U: log-normalized 30d retrievals, R: exp(-age_days/τ_r)
+value_weight_goal: 0.4
+value_weight_feedback: 0.3
+value_weight_usage: 0.2
+value_weight_recency: 0.1
+value_feedback_halflife_days: 30
+value_feedback_floor: 0.2    # feedback-decay floor; older feedback retains this min weight
+value_recency_tau_days: 60
+value_usage_window_days: 30
+value_goal_propagation: 0.5  # 50% attenuation per hop when goal ratio flows up the tree
+value_display_clip: 0.0      # clip value_score at this for display; red-flag when F < -0.3
+value_feedback_redflag: -0.3
+value_brief_blend: 0.35      # how much value_score biases BriefComposer ranking (0=ignore, 1=dominant)

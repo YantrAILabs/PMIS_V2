@@ -1,5 +1,5 @@
 #!/bin/bash
-# PMIS V2 Server Launch Script
+# ProMe Server Launch Script
 # Called by launchd to start the persistent memory server
 
 set -e

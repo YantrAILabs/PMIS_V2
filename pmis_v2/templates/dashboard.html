@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PMIS V2 Dashboard</title>
+<title>ProMe Dashboard</title>
 <style>
 :root {
   --bg: #0a0a0f; --bg2: #12121a; --bg3: #1c1c24;
@@ -14,7 +14,13 @@
   --sc: #ff6b6b; --ctx: #ffd93d; --anc: #6bcb77;
 }
 * { margin:0; padding:0; box-sizing:border-box; }
-body { font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:var(--fg); display:flex; min-height:100vh; }
+body { font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:var(--fg); display:flex; flex-direction:column; min-height:100vh; }
+.app-nav { background:#1a1a2e; border-bottom:1px solid var(--border); padding:12px 24px; display:flex; align-items:center; gap:18px; position:sticky; top:0; z-index:50; }
+.app-nav .brand { color:#4ade80; font-weight:700; font-size:15px; text-decoration:none; }
+.app-nav a { color:#e0e0e0; text-decoration:none; font-size:13px; }
+.app-nav a:hover { color:#fff; }
+.app-nav a.active { color:#4ade80; font-weight:600; }
+.app-body { display:flex; flex:1; min-height:0; }
 
 /* SIDEBAR */
 .sidebar { width:260px; background:var(--bg2); border-right:1px solid var(--border); padding:16px; overflow-y:auto; flex-shrink:0; }
@@ -113,6 +119,20 @@ body { font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:var
 </style>
 </head>
 <body>
+
+<nav class="app-nav">
+  <a href="/" class="brand" style="white-space:nowrap;display:inline-flex;align-items:center;gap:8px;" title="ProMe — Personal Memory Intelligence">
+    <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" width="22" height="22" style="flex-shrink:0"><circle cx="16" cy="16" r="13" fill="none" stroke="currentColor" stroke-width="2"/><path d="M 5 12 Q 16 22 27 12" fill="none" stroke="currentColor" stroke-width="1.3" opacity="0.55"/><path d="M 5 20 Q 16 10 27 20" fill="none" stroke="currentColor" stroke-width="1.3" opacity="0.55"/><circle cx="16" cy="16" r="2.4" fill="currentColor"/><circle cx="9" cy="16" r="1.4" fill="currentColor" opacity="0.8"/><circle cx="23" cy="16" r="1.4" fill="currentColor" opacity="0.8"/></svg>
+    <span>ProMe Health Monitor</span>
+  </a>
+  <a href="/">Monitor</a>
+  <a href="/dashboard" class="active">Dashboard</a>
+  <a href="/feedback">Feedback</a>
+  <a href="/diagnostics">Diagnostics</a>
+  <a href="/lint">Lint</a>
+</nav>
+
+<div class="app-body">
 
 <!-- SIDEBAR -->
 <div class="sidebar">
@@ -240,7 +260,7 @@ body { font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:var
 <!-- MAIN CONTENT -->
 <div class="main">
   <div class="header">
-    <h1>PMIS V2 <span>Dashboard</span></h1>
+    <h1>ProMe <span>Dashboard</span></h1>
     <div class="date-picker">
       <input type="date" id="dateFilter" onchange="loadDashboard()">
       <button onclick="document.getElementById('dateFilter').value='';loadDashboard()">All Time</button>
@@ -266,18 +286,16 @@ body { font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:var
 <div class="toast" id="toast"></div>
 
 <script>
-const API = '';
+// API base — dashboard is served from 8200 but endpoints stay on 8100
+const API = 'http://localhost:8100';
 let hyperparams = {};
 let pendingChanges = {};
 
-// ============================================================
-// DATA LOADING
-// ============================================================
 async function loadDashboard() {
   const date = document.getElementById('dateFilter').value;
 
   // Stats
-  const statsUrl = date ? `/api/stats/daily?date=${date}` : '/api/stats/daily';
+  const statsUrl = date ? `${API}/api/stats/daily?date=${date}` : `${API}/api/stats/daily`;
   const stats = await (await fetch(statsUrl)).json();
   document.getElementById('stat-sc').textContent = stats.super_contexts || 0;
   document.getElementById('stat-ctx').textContent = stats.contexts || 0;
@@ -287,12 +305,12 @@ async function loadDashboard() {
   document.getElementById('stat-updated').textContent = stats.updated_nodes_today || 0;
 
   // Conversations
-  const convUrl = date ? `/api/conversations?date=${date}&limit=50` : '/api/conversations?limit=50';
+  const convUrl = date ? `${API}/api/conversations?date=${date}&limit=50` : `${API}/api/conversations?limit=50`;
   const convData = await (await fetch(convUrl)).json();
   renderConversations(convData.conversations || []);
 
   // Hyperparams
-  hyperparams = await (await fetch('/api/hyperparams')).json();
+  hyperparams = await (await fetch(`${API}/api/hyperparams`)).json();
   populateParams();
 }
 
@@ -337,7 +355,7 @@ async function toggleConv(header, convId) {
   body.classList.add('open');
   body.innerHTML = '<div style="padding:12px;color:var(--fg3);font-size:12px">Loading...</div>';
 
-  const data = await (await fetch(`/api/conversation/${convId}`)).json();
+  const data = await (await fetch(`${API}/api/conversation/${convId}`)).json();
   body.innerHTML = (data.turns || []).map(t => renderTurn(t)).join('')
     || '<div style="padding:8px;color:var(--fg3);font-size:11px">No turns recorded.</div>';
 }
@@ -530,7 +548,7 @@ async function applyChanges() {
     showToast('No changes to apply');
     return;
   }
-  const resp = await fetch('/api/hyperparams', {
+  const resp = await fetch(`${API}/api/hyperparams`, {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({updates: pendingChanges}),
@@ -542,7 +560,7 @@ async function applyChanges() {
 
 async function runConsolidation() {
   showToast('Running consolidation...');
-  const resp = await fetch('/api/consolidate', {method:'POST'});
+  const resp = await fetch(`${API}/api/consolidate`, {method:'POST'});
   const data = await resp.json();
   showToast(data.result || 'Consolidation complete');
   loadDashboard();
@@ -561,5 +579,7 @@ function showToast(msg) {
 document.getElementById('dateFilter').value = new Date().toISOString().split('T')[0];
 loadDashboard();
 </script>
+
+</div><!-- /.app-body -->
 </body>
 </html>

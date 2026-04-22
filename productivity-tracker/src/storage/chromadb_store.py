@@ -1,6 +1,10 @@
 """
 ChromaDB embedding store — handles vector storage for memory hierarchy.
 Supports both productivity-specific and central PMIS v2 collections.
+
+Embedding provider is configurable via settings.yaml memory.embedding_provider:
+  - "ollama" (default): local nomic-embed-text via http://localhost:11434
+  - "openai":           OpenAI embeddings API (requires OPENAI_API_KEY)
 """
 
 import json
@@ -13,7 +17,8 @@ try:
     _HAS_CHROMADB = True
 except ImportError:
     _HAS_CHROMADB = False
-from openai import OpenAI
+
+import httpx
 
 logger = logging.getLogger("tracker.chromadb_store")
 
@@ -25,6 +30,11 @@ class ChromaDBStore:
     COLLECTION_DAILY = "productivity_daily"
     COLLECTION_DELIVERABLES = "productivity_deliverables"
 
+    DEFAULT_PROVIDER = "ollama"
+    DEFAULT_OLLAMA_MODEL = "nomic-embed-text"
+    DEFAULT_OPENAI_MODEL = "text-embedding-3-small"
+    DEFAULT_OLLAMA_URL = "http://localhost:11434"
+
     def __init__(self, config: dict = None):
         db_path = os.environ.get(
             "CHROMADB_PATH",
@@ -33,10 +43,25 @@ class ChromaDBStore:
         Path(db_path).mkdir(parents=True, exist_ok=True)
 
         self.client = chromadb.PersistentClient(path=db_path)
-        self.openai = OpenAI()
-        self.embedding_model = (
-            config["memory"]["embedding_model"]
-            if config else "text-embedding-3-small"
+
+        mem_cfg = (config or {}).get("memory", {}) if config else {}
+        self.embedding_provider = mem_cfg.get("embedding_provider", self.DEFAULT_PROVIDER).lower()
+
+        if self.embedding_provider == "openai":
+            from openai import OpenAI  # lazy import — only when actually needed
+            self.openai = OpenAI()
+            self.embedding_model = mem_cfg.get("embedding_model", self.DEFAULT_OPENAI_MODEL)
+        else:
+            self.openai = None
+            self.embedding_model = mem_cfg.get("embedding_model", self.DEFAULT_OLLAMA_MODEL)
+
+        ollama_cfg = (config or {}).get("ollama", {}) if config else {}
+        self.ollama_url = ollama_cfg.get("base_url", self.DEFAULT_OLLAMA_URL)
+        self.ollama_timeout = float(ollama_cfg.get("timeout", 60))
+
+        logger.info(
+            "Embedding provider=%s model=%s",
+            self.embedding_provider, self.embedding_model,
         )
 
         # Initialize collections
@@ -45,7 +70,29 @@ class ChromaDBStore:
         self.deliverables = self.client.get_or_create_collection(self.COLLECTION_DELIVERABLES)
 
     def embed_text(self, text: str) -> list[float]:
-        """Generate embedding via OpenAI."""
+        """Generate an embedding via the configured provider."""
+        if self.embedding_provider == "openai":
+            return self._embed_openai(text)
+        return self._embed_ollama(text)
+
+    def _embed_ollama(self, text: str) -> list[float]:
+        """Local embedding via Ollama. Default model: nomic-embed-text (768d)."""
+        response = httpx.post(
+            f"{self.ollama_url}/api/embeddings",
+            json={"model": self.embedding_model, "prompt": text},
+            timeout=self.ollama_timeout,
+        )
+        response.raise_for_status()
+        data = response.json()
+        emb = data.get("embedding")
+        if not emb:
+            raise RuntimeError(
+                f"Ollama returned no embedding for model {self.embedding_model!r}"
+            )
+        return emb
+
+    def _embed_openai(self, text: str) -> list[float]:
+        """Hosted embedding via OpenAI. Requires OPENAI_API_KEY."""
         response = self.openai.embeddings.create(
             model=self.embedding_model,
             input=text,

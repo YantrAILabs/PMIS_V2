@@ -1,6 +1,6 @@
 # Productivity Tracker
 
-A Mac-native productivity tracking system powered by ChatGPT Vision and PMIS v2 memory architecture. Tracks what you're working on, whether you or an agent did the work, and matches it against your deliverables.
+A Mac-native productivity tracking system powered by ChatGPT Vision and the ProMe memory architecture. Tracks what you're working on, whether you or an agent did the work, and matches it against your deliverables.
 
 Managed entirely through Claude Desktop via MCP.
 

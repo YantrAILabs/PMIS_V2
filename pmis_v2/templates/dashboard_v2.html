@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ title|default("ProMe") }}</title>
+<style>
+  :root {
+    --bg:#0a0a0f; --bg2:#12121a; --bg3:#1c1c24; --bg4:#242430;
+    --fg:#e8e6e0; --fg2:#a8a6a0; --fg3:#6a6860;
+    --border:#2a2a32; --border2:#3a3a44;
+    --green:#4ade80; --blue:#60a5fa; --purple:#a78bfa;
+    --orange:#fb923c; --red:#f87171; --yellow:#fbbf24;
+    --sc:#ff6b6b; --ctx:#fbbf24; --anc:#6bcb77;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    font-family:'Inter',system-ui,-apple-system,sans-serif;
+    background:var(--bg); color:var(--fg);
+    display:flex; min-height:100vh; font-size:14px; line-height:1.5;
+  }
+
+  /* ─── SIDEBAR ─── */
+  .sidebar{
+    width:240px; background:var(--bg2); border-right:1px solid var(--border);
+    padding:20px 14px; overflow-y:auto; flex-shrink:0;
+  }
+  .brand{
+    font-size:18px; font-weight:700; letter-spacing:-0.5px;
+    padding:4px 10px 20px; color:var(--fg);
+    display:flex; align-items:center; gap:8px;
+  }
+  .brand .dot{
+    width:8px; height:8px; border-radius:50%;
+    background:var(--green); box-shadow:0 0 8px var(--green);
+  }
+  .section-label{
+    font-size:10px; color:var(--fg3); text-transform:uppercase; letter-spacing:1.4px;
+    padding:14px 10px 6px;
+  }
+  .nav-item{
+    display:flex; align-items:center; gap:10px;
+    padding:8px 10px; margin:1px 0;
+    border-radius:6px; cursor:pointer;
+    color:var(--fg2); font-size:13px;
+    transition:all 0.12s ease;
+  }
+  .nav-item:hover{ background:var(--bg3); color:var(--fg); }
+  .nav-item.active{ background:var(--bg4); color:var(--fg); }
+  .nav-item.active .icon{ color:var(--green); }
+  .nav-item .icon{
+    width:16px; display:inline-block; text-align:center;
+    font-size:14px; color:var(--fg3);
+  }
+  .nav-item.external .icon::after{ content:" ↗"; color:var(--fg3); font-size:10px; }
+
+  /* ─── MAIN ─── */
+  .main{ flex:1; overflow-y:auto; padding:28px 36px; max-width:1200px; }
+  .panel{ display:none; }
+  .panel.active{ display:block; }
+  .panel h1{
+    font-size:22px; font-weight:700; margin-bottom:6px; letter-spacing:-0.3px;
+  }
+  .panel .sub{ color:var(--fg3); font-size:13px; margin-bottom:24px; }
+
+  /* ─── STAT CARDS (home) ─── */
+  .stats-grid{
+    display:grid; grid-template-columns:repeat(auto-fill, minmax(140px,1fr));
+    gap:12px; margin-bottom:24px;
+  }
+  .stat-card{
+    background:var(--bg2); border:1px solid var(--border); border-radius:8px;
+    padding:14px 16px;
+  }
+  .stat-card .val{
+    font-family:'JetBrains Mono', monospace;
+    font-size:22px; font-weight:700; color:var(--fg);
+  }
+  .stat-card .lbl{
+    font-size:11px; color:var(--fg3); margin-top:4px;
+    text-transform:uppercase; letter-spacing:0.8px;
+  }
+  .stat-card.sc .val{ color:var(--sc); }
+  .stat-card.ctx .val{ color:var(--ctx); }
+  .stat-card.anc .val{ color:var(--anc); }
+
+  /* ─── FORMS ─── */
+  .form{ max-width:680px; }
+  .form label{
+    display:block; font-size:11px; color:var(--fg3);
+    margin:14px 0 6px; text-transform:uppercase; letter-spacing:0.8px;
+  }
+  .form textarea, .form input[type=text], .form select, .form input[type=number]{
+    width:100%; background:var(--bg2); border:1px solid var(--border);
+    border-radius:6px; color:var(--fg); padding:10px 12px;
+    font-size:14px; font-family:inherit; line-height:1.4;
+  }
+  .form textarea{ min-height:110px; resize:vertical; font-family:inherit; }
+  .form textarea:focus, .form input:focus, .form select:focus{
+    outline:none; border-color:var(--green);
+  }
+  .form-row{ display:flex; gap:12px; align-items:flex-end; }
+  .form-row > *{ flex:1; }
+
+  .btn{
+    padding:10px 18px; background:var(--bg3); border:1px solid var(--border2);
+    border-radius:6px; color:var(--fg); font-size:13px; font-weight:600;
+    cursor:pointer; transition:all 0.12s ease; margin-top:16px;
+  }
+  .btn:hover{ border-color:var(--green); color:var(--green); }
+  .btn.primary{
+    background:linear-gradient(135deg,#166534,#14532d);
+    border-color:#166534; color:var(--green);
+  }
+  .btn.primary:hover{ background:linear-gradient(135deg,#15803d,#166534); }
+  .btn.danger{ border-color:#7f1d1d; color:var(--red); }
+  .btn.danger:hover{ background:#450a0a; }
+  .btn:disabled{ opacity:0.5; cursor:not-allowed; }
+
+  /* ─── RESULTS ─── */
+  .result{
+    margin-top:20px; background:var(--bg2); border:1px solid var(--border);
+    border-radius:6px; padding:14px; font-family:'JetBrains Mono',monospace;
+    font-size:12px; white-space:pre-wrap; word-break:break-word; color:var(--fg2);
+    max-height:400px; overflow-y:auto;
+  }
+  .result.hidden{ display:none; }
+  .result.ok{ border-left:3px solid var(--green); }
+  .result.err{ border-left:3px solid var(--red); color:var(--red); }
+
+  .hit-list{ margin-top:14px; display:flex; flex-direction:column; gap:8px; }
+  .hit{
+    background:var(--bg2); border:1px solid var(--border); border-radius:6px;
+    padding:10px 14px; font-size:13px;
+  }
+  .hit .head{ display:flex; gap:10px; margin-bottom:4px; font-size:11px; color:var(--fg3); }
+  .hit .head .score{ color:var(--green); font-family:'JetBrains Mono',monospace; font-weight:700; }
+  .hit .head .lvl{ padding:1px 6px; border-radius:3px; background:var(--bg3); font-weight:600; }
+  .hit .head .lvl.SC{ color:var(--sc); }
+  .hit .head .lvl.CTX{ color:var(--ctx); }
+  .hit .head .lvl.ANC{ color:var(--anc); }
+  .hit .content{ color:var(--fg); }
+
+  /* ─── PLACEHOLDER ─── */
+  .placeholder{
+    background:var(--bg2); border:1px dashed var(--border2); border-radius:10px;
+    padding:40px; text-align:center; color:var(--fg3);
+  }
+  .placeholder h3{ font-size:15px; color:var(--fg2); margin-bottom:8px; }
+  .placeholder a{ color:var(--green); text-decoration:none; }
+  .placeholder a:hover{ text-decoration:underline; }
+
+  /* ─── TOAST ─── */
+  .toast{
+    position:fixed; bottom:24px; right:24px;
+    background:var(--bg2); border:1px solid var(--green);
+    border-left-width:3px; border-radius:6px; padding:10px 16px;
+    font-size:13px; color:var(--fg); z-index:100;
+    transform:translateY(60px); opacity:0; transition:all 0.25s ease;
+    max-width:320px;
+  }
+  .toast.show{ transform:translateY(0); opacity:1; }
+  .toast.err{ border-color:var(--red); }
+
+  a{ color:var(--blue); }
+  a:hover{ color:var(--green); }
+  code{
+    font-family:'JetBrains Mono',monospace; background:var(--bg3);
+    padding:2px 6px; border-radius:3px; font-size:12px;
+  }
+</style>
+</head>
+<body>
+
+<!-- ─── SIDEBAR ─── -->
+<aside class="sidebar">
+  <div class="brand" title="ProMe — Personal Memory Intelligence">
+    <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" width="22" height="22" style="flex-shrink:0;color:var(--green);"><circle cx="16" cy="16" r="13" fill="none" stroke="currentColor" stroke-width="2"/><path d="M 5 12 Q 16 22 27 12" fill="none" stroke="currentColor" stroke-width="1.3" opacity="0.55"/><path d="M 5 20 Q 16 10 27 20" fill="none" stroke="currentColor" stroke-width="1.3" opacity="0.55"/><circle cx="16" cy="16" r="2.4" fill="currentColor"/><circle cx="9" cy="16" r="1.4" fill="currentColor" opacity="0.8"/><circle cx="23" cy="16" r="1.4" fill="currentColor" opacity="0.8"/></svg>
+    <span>ProMe</span>
+  </div>
+
+  <div class="nav-item active" data-panel="home"><span class="icon">⌂</span>Home</div>
+
+  <div class="section-label">Actions</div>
+  <div class="nav-item" data-panel="ingest"><span class="icon">⊕</span>Ingest</div>
+  <div class="nav-item" data-panel="attach"><span class="icon">⚯</span>Attach</div>
+  <div class="nav-item" data-panel="retrieve"><span class="icon">⌕</span>Retrieve</div>
+  <div class="nav-item" data-panel="consolidate"><span class="icon">✦</span>Consolidate</div>
+  <div class="nav-item" data-panel="delete"><span class="icon">⌫</span>Delete</div>
+
+  <div class="section-label">Work</div>
+  <div class="nav-item" data-panel="projects"><span class="icon">▦</span>Projects</div>
+  <div class="nav-item" data-panel="goals"><span class="icon">◎</span>Goals</div>
+  <div class="nav-item" data-panel="deliverables"><span class="icon">▣</span>Deliverables</div>
+  <div class="nav-item" data-panel="pulse"><span class="icon">~</span>Pulse log</div>
+
+  <div class="section-label">Mind</div>
+  <div class="nav-item" data-panel="graph"><span class="icon">◈</span>Graph</div>
+  <div class="nav-item" data-panel="timeline"><span class="icon">⋯</span>Timeline</div>
+  <div class="nav-item" data-panel="stats"><span class="icon">▤</span>Stats</div>
+  <div class="nav-item" data-panel="hyperparams"><span class="icon">⚙</span>Hyperparameters</div>
+  <a class="nav-item external" href="/legacy"><span class="icon">↻</span>Full dashboard</a>
+  <a class="nav-item external" href="/docs"><span class="icon">𝒇</span>API docs</a>
+</aside>
+
+<!-- ─── MAIN ─── -->
+<main class="main">
+
+  <!-- Home -->
+  <section class="panel active" id="panel-home">
+    <h1>Home</h1>
+    <p class="sub">Today's ProMe at a glance.</p>
+
+    <div class="stats-grid" id="home-stats">
+      <div class="stat-card sc"><div class="val" data-stat="super_contexts">–</div><div class="lbl">Super Contexts</div></div>
+      <div class="stat-card ctx"><div class="val" data-stat="contexts">–</div><div class="lbl">Contexts</div></div>
+      <div class="stat-card anc"><div class="val" data-stat="anchors">–</div><div class="lbl">Anchors</div></div>
+      <div class="stat-card"><div class="val" data-stat="orphans">–</div><div class="lbl">Orphans</div></div>
+      <div class="stat-card"><div class="val" data-stat="trees">–</div><div class="lbl">Trees</div></div>
+      <div class="stat-card"><div class="val" data-stat="total_nodes">–</div><div class="lbl">Total Nodes</div></div>
+    </div>
+
+    <p class="sub" style="margin-top:20px">
+      Pick an action on the left — <code>Ingest</code>, <code>Retrieve</code>, or run
+      <code>Consolidate</code>. Full dashboard with conversation log and hyperparameter
+      sliders lives at <a href="/legacy">/legacy</a>.
+    </p>
+  </section>
+
+  <!-- Ingest -->
+  <section class="panel" id="panel-ingest">
+    <h1>Ingest</h1>
+    <p class="sub">Embed text. ProMe computes surprise + γ and decides whether to store.</p>
+    <div class="form">
+      <label>Text</label>
+      <textarea id="ingest-text" placeholder="e.g. CISOs respond to threat-intel language 3x over ROI framing"></textarea>
+      <div class="form-row">
+        <div>
+          <label>Conversation ID (optional)</label>
+          <input type="text" id="ingest-conv" placeholder="web">
+        </div>
+        <div>
+          <label>Role</label>
+          <select id="ingest-role"><option>user</option><option>assistant</option></select>
+        </div>
+      </div>
+      <button class="btn primary" onclick="call('ingest')">Ingest</button>
+      <div class="result hidden" id="ingest-result"></div>
+    </div>
+  </section>
+
+  <!-- Attach -->
+  <section class="panel" id="panel-attach">
+    <h1>Attach</h1>
+    <p class="sub">Promote an orphan Anchor into the hierarchy. Leave Node ID empty to attach the most recent orphan.</p>
+    <div class="form">
+      <label>Node ID</label>
+      <input type="text" id="attach-node" placeholder="(most recent orphan)">
+      <label>Project (optional)</label>
+      <input type="text" id="attach-project" placeholder="e.g. B2B Cold Outreach">
+      <button class="btn primary" onclick="call('attach')">Attach</button>
+      <div class="result hidden" id="attach-result"></div>
+    </div>
+  </section>
+
+  <!-- Retrieve -->
+  <section class="panel" id="panel-retrieve">
+    <h1>Retrieve</h1>
+    <p class="sub">γ-blended search across semantic · hyperbolic · temporal · precision.</p>
+    <div class="form">
+      <label>Query</label>
+      <input type="text" id="retrieve-query" placeholder="e.g. cold outreach learnings">
+      <div class="form-row">
+        <div>
+          <label>Mode</label>
+          <select id="retrieve-mode">
+            <option value="auto">auto</option>
+            <option value="associative">associative (γ=0.85)</option>
+            <option value="balanced">balanced (γ=0.5)</option>
+            <option value="predictive">predictive (γ=0.2)</option>
+          </select>
+        </div>
+        <div>
+          <label>k</label>
+          <input type="number" id="retrieve-k" value="8" min="1" max="50">
+        </div>
+      </div>
+      <button class="btn primary" onclick="call('retrieve')">Retrieve</button>
+      <div id="retrieve-hits" class="hit-list"></div>
+      <div class="result hidden" id="retrieve-result"></div>
+    </div>
+  </section>
+
+  <!-- Consolidate -->
+  <section class="panel" id="panel-consolidate">
+    <h1>Consolidate</h1>
+    <p class="sub">Run the nightly 5-pass: compress duplicates · promote stable anchors · birth new contexts · prune dead branches · RSGD/HGCN weight update.</p>
+    <div class="form">
+      <button class="btn primary" onclick="call('consolidate')">Run consolidation now</button>
+      <div class="result hidden" id="consolidate-result"></div>
+    </div>
+  </section>
+
+  <!-- Delete -->
+  <section class="panel" id="panel-delete">
+    <h1>Delete</h1>
+    <p class="sub">Soft-delete a single node or reset the entire store.</p>
+    <div class="form">
+      <label>Node ID</label>
+      <input type="text" id="delete-node" placeholder="node id to soft-delete">
+      <label style="margin-top:20px;display:flex;align-items:center;gap:8px">
+        <input type="checkbox" id="delete-all" style="width:auto"> Reset entire store (careful)
+      </label>
+      <button class="btn danger" onclick="call('delete')">Delete</button>
+      <div class="result hidden" id="delete-result"></div>
+    </div>
+  </section>
+
+  <!-- Work placeholders -->
+  <section class="panel" id="panel-projects"><h1>Projects</h1>
+    <p class="sub">Your projects and their status.</p>
+    <div class="placeholder"><h3>Coming soon</h3>
+      <p>Project management lives in Claude Desktop via MCP for now. See <a href="/legacy">/legacy</a> for stats.</p></div>
+  </section>
+  <section class="panel" id="panel-goals"><h1>Goals</h1>
+    <p class="sub">Outcome signals that reweight memory.</p>
+    <div class="placeholder"><h3>Coming soon</h3>
+      <p>Goal tracking UI in a future release. Thumbs up/down on <a href="/legacy">/legacy</a>.</p></div>
+  </section>
+  <section class="panel" id="panel-deliverables"><h1>Deliverables</h1>
+    <p class="sub">Concrete things you ship.</p>
+    <div class="placeholder"><h3>Coming soon</h3>
+      <p>See <a href="/api/browse">/api/browse</a> to inspect your tree structure.</p></div>
+  </section>
+  <section class="panel" id="panel-pulse"><h1>Pulse log</h1>
+    <p class="sub">Screen pulse capture (≥5 min / 7d = Alive).</p>
+    <div class="placeholder"><h3>Coming soon</h3>
+      <p>Real-time pulse dashboard in a future release.</p></div>
+  </section>
+
+  <!-- Mind sections -->
+  <section class="panel" id="panel-graph"><h1>Graph</h1>
+    <p class="sub">Hyperbolic embedding of your memory.</p>
+    <div class="placeholder"><h3>Coming soon</h3>
+      <p>Interactive Poincaré-disk graph. Meanwhile use <a href="/api/browse">/api/browse</a>.</p></div>
+  </section>
+  <section class="panel" id="panel-timeline"><h1>Timeline</h1>
+    <p class="sub">Conversation log with γ / surprise per turn.</p>
+    <div class="placeholder"><h3>Available on /legacy</h3>
+      <p>The full conversation log lives on <a href="/legacy">/legacy</a>.</p></div>
+  </section>
+  <section class="panel" id="panel-stats"><h1>Stats</h1>
+    <p class="sub">Detailed memory stats and daily activity.</p>
+    <div class="result" id="stats-result">Loading…</div>
+  </section>
+  <section class="panel" id="panel-hyperparams"><h1>Hyperparameters</h1>
+    <p class="sub">50+ tunable knobs — surprise thresholds, γ bias, retrieval weights, consolidation gates.</p>
+    <div class="placeholder"><h3>Live sliders on /legacy</h3>
+      <p>The full hyperparameter sidebar with live sliders is on <a href="/legacy">/legacy</a>. Raw values at <a href="/api/hyperparams">/api/hyperparams</a>.</p></div>
+  </section>
+
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  // Sidebar navigation
+  document.querySelectorAll('.nav-item[data-panel]').forEach(item => {
+    item.addEventListener('click', () => {
+      const panel = item.dataset.panel;
+      document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+      item.classList.add('active');
+      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+      const target = document.getElementById('panel-' + panel);
+      if (target) target.classList.add('active');
+      if (panel === 'home') refreshStats();
+      if (panel === 'stats') loadStats();
+    });
+  });
+
+  // Toast
+  function toast(msg, kind='ok') {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast show' + (kind === 'err' ? ' err' : '');
+    setTimeout(() => t.classList.remove('show'), 2600);
+  }
+
+  // Generic result writer
+  function showResult(panelId, data, kind='ok') {
+    const el = document.getElementById(panelId + '-result');
+    if (!el) return;
+    el.classList.remove('hidden', 'ok', 'err');
+    el.classList.add(kind);
+    el.textContent = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+  }
+
+  // Home stats
+  async function refreshStats() {
+    try {
+      const r = await fetch('/api/stats').then(x => x.json());
+      document.querySelectorAll('[data-stat]').forEach(el => {
+        const k = el.dataset.stat;
+        if (r[k] !== undefined) el.textContent = r[k];
+      });
+    } catch(e) { /* ignore */ }
+  }
+
+  async function loadStats() {
+    try {
+      const [stats, daily] = await Promise.all([
+        fetch('/api/stats').then(x => x.json()),
+        fetch('/api/stats/daily').then(x => x.json()).catch(() => null),
+      ]);
+      const el = document.getElementById('stats-result');
+      el.textContent = JSON.stringify({ stats, daily }, null, 2);
+    } catch(e) {
+      document.getElementById('stats-result').textContent = 'Failed to load: ' + e.message;
+    }
+  }
+
+  // 5-verb dispatch
+  async function call(verb) {
+    let body = {};
+    if (verb === 'ingest') {
+      body = {
+        text: document.getElementById('ingest-text').value,
+        conversation_id: document.getElementById('ingest-conv').value || null,
+        role: document.getElementById('ingest-role').value,
+      };
+      if (!body.text.trim()) return toast('Enter some text first', 'err');
+    }
+    else if (verb === 'attach') {
+      body = {
+        node_id: document.getElementById('attach-node').value || null,
+        project: document.getElementById('attach-project').value || null,
+      };
+    }
+    else if (verb === 'retrieve') {
+      body = {
+        query: document.getElementById('retrieve-query').value,
+        mode: document.getElementById('retrieve-mode').value,
+        k: parseInt(document.getElementById('retrieve-k').value) || 8,
+      };
+      if (!body.query.trim()) return toast('Enter a query first', 'err');
+    }
+    else if (verb === 'consolidate') {
+      body = {};
+    }
+    else if (verb === 'delete') {
+      body = {
+        node_id: document.getElementById('delete-node').value || null,
+        all: document.getElementById('delete-all').checked,
+      };
+      if (!body.node_id && !body.all) return toast('Give a node ID or check Reset All', 'err');
+      if (body.all && !confirm('Reset the entire store? This cannot be easily undone.')) return;
+    }
+
+    try {
+      const resp = await fetch('/api/' + verb, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.detail || resp.statusText);
+
+      // Special rendering for retrieve
+      if (verb === 'retrieve') {
+        const list = document.getElementById('retrieve-hits');
+        list.innerHTML = '';
+        if (!data.hits || data.hits.length === 0) {
+          list.innerHTML = '<div class="placeholder"><h3>No hits</h3></div>';
+        } else {
+          for (const h of data.hits) {
+            const div = document.createElement('div');
+            div.className = 'hit';
+            const lvl = (h.level || '').toString();
+            div.innerHTML = `
+              <div class="head">
+                <span class="lvl ${lvl}">${lvl}</span>
+                <span class="score">${(h.score ?? 0).toFixed(3)}</span>
+                <span>semantic=${(h.semantic ?? 0).toFixed(2)} · hier=${(h.hierarchy ?? 0).toFixed(2)} · temp=${(h.temporal ?? 0).toFixed(2)}</span>
+              </div>
+              <div class="content"></div>`;
+            div.querySelector('.content').textContent = (h.content || '').slice(0, 300);
+            list.appendChild(div);
+          }
+        }
+        document.getElementById('retrieve-result').classList.add('hidden');
+      } else {
+        showResult(verb, data, 'ok');
+      }
+
+      toast(verb + ' ok');
+      if (['ingest','attach','consolidate','delete'].includes(verb)) refreshStats();
+    } catch(e) {
+      showResult(verb, String(e), 'err');
+      toast(verb + ' failed: ' + e.message, 'err');
+    }
+  }
+
+  // Keyboard shortcut: / focuses first input on active panel
+  document.addEventListener('keydown', e => {
+    if (e.key === '/' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+      e.preventDefault();
+      const activePanel = document.querySelector('.panel.active');
+      const firstInput = activePanel && activePanel.querySelector('input, textarea, select');
+      if (firstInput) firstInput.focus();
+    }
+  });
+
+  // Initial load
+  refreshStats();
+</script>
+
+</body>
+</html>
