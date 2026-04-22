@@ -1,11 +1,11 @@
 """
-session_sim.py — Pure math simulation of the PMIS V2 Session Tree Engine.
+session_sim.py — Pure math simulation of the ProMe Session Tree Engine.
 
 Shadow-mode only: computes what the session engine WOULD do without
 affecting actual retrieval. All functions are stateless pure math.
 The SimulatedSessionEngine class accumulates state across turns.
 
-Reference: PMIS V2 Session Tree Engine Architecture v1.0, Sections 5-8
+Reference: ProMe Session Tree Engine Architecture v1.0, Sections 5-8
 """
 
 import numpy as np

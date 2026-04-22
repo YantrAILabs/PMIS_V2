@@ -1,5 +1,5 @@
 """
-PMIS V2 HTTP Server
+ProMe HTTP Server
 
 FastAPI server on port 8100 with:
 - REST API for memory operations

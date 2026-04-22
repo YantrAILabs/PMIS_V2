@@ -35,7 +35,7 @@ logger = logging.getLogger("pmis.harness.pattern_miner")
 TRACKER_DB = os.path.expanduser("~/.productivity-tracker/tracker.db")
 
 # Tokens to strip from window titles when computing the normalized root.
-_STRIP_TRAILING = re.compile(r"\s*[-–—|·]\s*(?:Google\s*Chrome|Safari|PMIS Wiki|Your Chrome|Rohit).*$", re.IGNORECASE)
+_STRIP_TRAILING = re.compile(r"\s*[-–—|·]\s*(?:Google\s*Chrome|Safari|PMIS Wiki|memory — ProMe|ProMe Health Monitor|Your Chrome|Rohit).*$", re.IGNORECASE)
 _NON_WORD = re.compile(r"[^a-zA-Z0-9\s]+")
 _COLLAPSE_WS = re.compile(r"\s+")
 

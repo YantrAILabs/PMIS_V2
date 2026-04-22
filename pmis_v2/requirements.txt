@@ -1,4 +1,4 @@
-# PMIS V2 dependencies — versions loosened for cross-Python compatibility
+# ProMe dependencies — versions loosened for cross-Python compatibility
 numpy>=1.24.0
 pyyaml>=6.0
 openai>=1.0.0

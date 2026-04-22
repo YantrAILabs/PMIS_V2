@@ -199,17 +199,17 @@ if [[ ${#OPT_SKIPPED[@]} -gt 0 ]]; then
 fi
 ok "Optional packages done (${#OPT_INSTALLED[@]} installed, ${#OPT_SKIPPED[@]} skipped)"
 
-# ── Stage C: Install tracker + PMIS V2 packages ──
+# ── Stage C: Install tracker + ProMe packages ──
 info "Installing productivity-tracker package..."
 cd "$TRACKER_DIR"
 $PIP install -e "." --no-deps -q 2>/dev/null || $PIP install -e "." --no-deps 2>&1 | tail -3
 ok "Productivity tracker installed"
 
-info "Installing PMIS V2 requirements..."
+info "Installing ProMe requirements..."
 if [[ -f "$PMIS_DIR/requirements.txt" ]]; then
-    $PIP install -r "$PMIS_DIR/requirements.txt" -q 2>/dev/null || warn "Some PMIS V2 deps already installed or skipped"
+    $PIP install -r "$PMIS_DIR/requirements.txt" -q 2>/dev/null || warn "Some ProMe deps already installed or skipped"
 fi
-ok "PMIS V2 done"
+ok "ProMe done"
 
 info "Installing platform requirements..."
 if [[ -f "$PLATFORM_DIR/requirements.txt" ]]; then
@@ -328,8 +328,8 @@ print('  Tables: context_1, context_2, hourly_memory, daily_memory, deliverables
 " 2>/dev/null || fail "Tracker DB init failed"
 ok "Tracker DB initialized at $DATA_DIR/tracker.db"
 
-# PMIS V2 DB
-info "Initializing PMIS V2 database..."
+# ProMe DB
+info "Initializing ProMe database..."
 cd "$PMIS_DIR"
 $PYTHON -c "
 import sys
@@ -339,8 +339,8 @@ db = DBManager(db_path='data/memory.db')
 n = db.count_nodes()
 print(f'  Nodes: {n}, Tables: memory_nodes, embeddings, relations, projects, deliverables, ...')
 db.close()
-" 2>/dev/null || fail "PMIS V2 DB init failed"
-ok "PMIS V2 DB initialized at $PMIS_DIR/data/memory.db"
+" 2>/dev/null || fail "ProMe DB init failed"
+ok "ProMe DB initialized at $PMIS_DIR/data/memory.db"
 
 # Platform users DB (auto-init on import)
 info "Initializing platform database..."

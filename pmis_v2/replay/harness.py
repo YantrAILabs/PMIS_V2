@@ -1,7 +1,7 @@
 """
-harness.py — Replay Harness for PMIS V2 Session Tree Engine.
+harness.py — Replay Harness for ProMe Session Tree Engine.
 
-This is the main entry point. It hooks into the PMIS pipeline as a
+This is the main entry point. It hooks into the ProMe pipeline as a
 passive observer, runs the session engine simulation on every turn,
 computes feedback signals, and logs everything to JSONL.
 

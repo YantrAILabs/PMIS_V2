@@ -376,7 +376,7 @@ class Database:
     # ─── Productivity sync queries ─────────────────────────────────────
 
     def get_unsynced_segments(self) -> list[dict]:
-        """Get all segments that haven't been synced to PMIS V2 memory."""
+        """Get all segments that haven't been synced to ProMe memory."""
         with self.get_session() as s:
             rows = (
                 s.query(Context1)
@@ -402,7 +402,7 @@ class Database:
                             context_node_id: str = '', anchor_node_id: str = '',
                             match_score: float = 0.0, is_productive: int = -1,
                             project_id: str = '', deliverable_id: str = ''):
-        """Mark a segment as synced to PMIS V2 with resolved node IDs."""
+        """Mark a segment as synced to ProMe with resolved node IDs."""
         with self.get_session() as s:
             row = (
                 s.query(Context1)

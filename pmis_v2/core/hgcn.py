@@ -1,5 +1,5 @@
 """
-Hyperbolic Graph Convolutional Network (HGCN) for PMIS V2.
+Hyperbolic Graph Convolutional Network (HGCN) for ProMe.
 
 Learns Poincare embeddings from the knowledge graph structure.
 Phase 4a: structural edges only (Nickel & Kiela 2017 formulation).

@@ -1,5 +1,5 @@
 """
-Co-Retrieval Graph Builder for PMIS V2.
+Co-Retrieval Graph Builder for ProMe.
 
 Builds edge lists from turn_retrieved_memories:
 - Co-retrieval pairs: nodes retrieved together in the same turn

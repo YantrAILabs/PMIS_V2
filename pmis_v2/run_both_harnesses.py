@@ -381,7 +381,7 @@ def generate_unified_report(
     """Combine both harness results into one actionable report."""
     lines = []
     lines.append("=" * 80)
-    lines.append("PMIS V2 UNIFIED HARNESS REPORT")
+    lines.append("ProMe UNIFIED HARNESS REPORT")
     lines.append(f"Generated: {datetime.now().isoformat()}")
     lines.append(f"Data: {len(turns)} turns, "
                  f"{len(set(t['conversation_id'] for t in turns))} conversations")
@@ -525,7 +525,7 @@ def generate_unified_report(
 
 def main():
     import argparse
-    parser = argparse.ArgumentParser(description="Unified PMIS V2 Harness Runner")
+    parser = argparse.ArgumentParser(description="Unified ProMe Harness Runner")
     parser.add_argument("--recent", type=int, help="Only analyze last N turns")
     parser.add_argument("--daily-log", action="store_true", help="Save to daily log")
     args = parser.parse_args()

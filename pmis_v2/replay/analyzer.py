@@ -528,6 +528,6 @@ if __name__ == "__main__":
 
     report = run_full_diagnostic(log_dir)
     print("\n" + "=" * 60)
-    print("PMIS V2 SESSION TREE ENGINE — DIAGNOSTIC REPORT")
+    print("ProMe SESSION TREE ENGINE — DIAGNOSTIC REPORT")
     print("=" * 60 + "\n")
     print_report(report)

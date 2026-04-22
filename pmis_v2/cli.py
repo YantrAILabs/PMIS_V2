@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-PMIS V2 CLI Bridge
+ProMe CLI Bridge
 
 Single entry point for Claude Desktop and external tools.
 All output is JSON to stdout. All errors to stderr.
@@ -501,7 +501,7 @@ def cmd_command(args):
 def build_parser():
     parser = argparse.ArgumentParser(
         prog="pmis_v2",
-        description="PMIS V2 Memory System CLI",
+        description="ProMe Memory System CLI",
     )
     subparsers = parser.add_subparsers(dest="command", help="Command to run")
 

@@ -1,5 +1,5 @@
 """
-Full PMIS V2 memory pipeline sync for productivity segments.
+Full ProMe memory pipeline sync for productivity segments.
 
 Runs the complete pipeline: SQL → Vector → Hyperbolic → Project Matching → RSGD.
 Called every 30 minutes by the tracker daemon when new frames exist.
@@ -14,14 +14,14 @@ from typing import Dict, List, Any, Optional
 
 logger = logging.getLogger("tracker.pipeline_sync")
 
-# Add PMIS V2 to path
+# Add ProMe (pmis_v2) to path
 PMIS_V2_DIR = Path(__file__).resolve().parents[3] / "pmis_v2"
 if str(PMIS_V2_DIR) not in sys.path:
     sys.path.insert(0, str(PMIS_V2_DIR))
 
 
 class ProductivityPipelineSync:
-    """Runs full PMIS V2 pipeline on unsynced productivity segments."""
+    """Runs full ProMe pipeline on unsynced productivity segments."""
 
     def __init__(self, db_manager, chroma_store, embedder, poincare_pm,
                  rsgd_trainer, nightly_consolidation, tracker_db,
@@ -37,7 +37,7 @@ class ProductivityPipelineSync:
 
     @classmethod
     def from_config(cls, config: dict) -> "ProductivityPipelineSync":
-        """Factory method — creates all PMIS V2 components from tracker config."""
+        """Factory method — creates all ProMe components from tracker config."""
         import yaml
 
         hyper_path = PMIS_V2_DIR / "hyperparameters.yaml"

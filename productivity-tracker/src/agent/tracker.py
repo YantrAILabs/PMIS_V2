@@ -429,7 +429,7 @@ class ProductivityTracker:
 
 
     async def _thirty_min_sync(self):
-        """Run full PMIS V2 memory pipeline sync every 30 minutes.
+        """Run full ProMe memory pipeline sync every 30 minutes.
 
         Only triggers if new unique frame numbers were added in the last 30 minutes.
         Uses the same store/dedup logic as the nightly update — SQL → Vector → Hyperbolic → Matching → RSGD.
