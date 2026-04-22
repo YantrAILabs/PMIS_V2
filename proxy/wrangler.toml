@@ -7,12 +7,11 @@ compatibility_date = "2026-04-01"
 ALLOWED_MODELS = "gpt-4o-mini"
 ALLOWED_ENDPOINTS = "/v1/chat/completions"
 
-# Per-user monthly spend counters. Create with:
-#   wrangler kv:namespace create USAGE_KV
-# then paste the returned id below.
+# Per-user monthly spend counters. Created live; if you need to recreate in
+# a new account, run: wrangler kv:namespace create USAGE_KV  and replace id.
 [[kv_namespaces]]
 binding = "USAGE_KV"
-id = "REPLACE_WITH_KV_NAMESPACE_ID"
+id = "eed6606f0cb64a6597754b111185f356"
 
 # Secrets (NOT committed — set via `wrangler secret put`):
 #   OPENAI_MASTER_KEY
