@@ -567,7 +567,7 @@ def main():
     if args.daily_log:
         date_str = datetime.now().strftime("%Y-%m-%d")
         report_path = os.path.join(LOG_DIR, f"unified_{date_str}.txt")
-        with open(report_path, "w") as f:
+        with open(report_path, "w", encoding="utf-8") as f:
             f.write(report)
         print(f"\nSaved to {report_path}")
 
@@ -593,7 +593,7 @@ def main():
             } if isinstance(session_results.get("report"), dict) else {},
         }
         metrics_path = os.path.join(LOG_DIR, f"metrics_{date_str}.json")
-        with open(metrics_path, "w") as f:
+        with open(metrics_path, "w", encoding="utf-8") as f:
             json.dump(metrics, f, indent=2, default=str)
         print(f"Saved metrics to {metrics_path}")
 

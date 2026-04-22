@@ -98,7 +98,7 @@ def _macos_install() -> tuple[bool, str]:
         stderr_log=paths.DATA_DIR / "tracker-stderr.log",
     )
     paths.LAUNCH_AGENT_PLIST.parent.mkdir(parents=True, exist_ok=True)
-    paths.LAUNCH_AGENT_PLIST.write_text(plist_content)
+    paths.LAUNCH_AGENT_PLIST.write_text(plist_content, encoding="utf-8")
 
     subprocess.run(
         ["launchctl", "load", str(paths.LAUNCH_AGENT_PLIST)],
@@ -171,7 +171,8 @@ def _windows_install() -> tuple[bool, str]:
     wrapper_bat.write_text(
         "@echo off\r\n"
         f'cd /d "{paths.TRACKER_DIR}"\r\n'
-        f'"{paths.VENV_PYTHON}" -m src.agent.tracker >> "{stdout_log}" 2>> "{stderr_log}"\r\n'
+        f'"{paths.VENV_PYTHON}" -m src.agent.tracker >> "{stdout_log}" 2>> "{stderr_log}"\r\n',
+        encoding="utf-8",
     )
 
     create = subprocess.run(

@@ -23,7 +23,7 @@ def load_config(path: str = None) -> Dict[str, Any]:
     if not config_path.exists():
         raise FileNotFoundError(f"Config not found: {config_path}")
 
-    with open(config_path, "r") as f:
+    with open(config_path, "r", encoding="utf-8") as f:
         _CONFIG = yaml.safe_load(f)
 
     _validate_config(_CONFIG)

@@ -27,7 +27,7 @@ logger = logging.getLogger("tracker.mcp")
 # ─── Initialize ─────────────────────────────────────────────────────────
 
 import yaml
-with open("config/settings.yaml") as f:
+with open("config/settings.yaml", encoding="utf-8") as f:
     config = yaml.safe_load(f)
 
 db = Database()

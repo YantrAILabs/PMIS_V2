@@ -613,7 +613,7 @@ def save_daily_log(report: str):
     os.makedirs(LOG_DIR, exist_ok=True)
     date_str = datetime.now().strftime("%Y-%m-%d")
     log_path = os.path.join(LOG_DIR, f"replay_{date_str}.txt")
-    with open(log_path, "w") as f:
+    with open(log_path, "w", encoding="utf-8") as f:
         f.write(report)
     print(f"Daily log saved to {log_path}")
     return log_path
@@ -660,7 +660,7 @@ def save_json_metrics(turns, component_reports, ablation_results, score_contribu
             "top3_rate": float(np.mean(s["top3"])),
         }
 
-    with open(metrics_path, "w") as f:
+    with open(metrics_path, "w", encoding="utf-8") as f:
         json.dump(metrics, f, indent=2)
     print(f"JSON metrics saved to {metrics_path}")
     return metrics_path

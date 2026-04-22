@@ -426,7 +426,7 @@ class ReviewProposals:
             gy = Path.home() / "Desktop" / "memory" / "productivity-tracker" / "config" / "goals.yaml"
             if not gy.exists():
                 return []
-            with open(gy) as f:
+            with open(gy, encoding="utf-8") as f:
                 raw = yaml.safe_load(f) or {}
             for g in raw.get("goals") or []:
                 for p in g.get("projects") or []:

@@ -41,7 +41,7 @@ class DBManager:
         """Initialize database with schema if tables don't exist."""
         schema_path = Path(__file__).parent / "schema.sql"
         if schema_path.exists():
-            schema_sql = schema_path.read_text()
+            schema_sql = schema_path.read_text(encoding="utf-8")
             # Strip comment-only lines that precede the first CREATE
             # and use executescript for reliable multi-statement execution
             try:

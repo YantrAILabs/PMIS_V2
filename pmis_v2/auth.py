@@ -18,14 +18,14 @@ KEYS_FILE = DATA_DIR / ".api_keys.json"
 
 def _load_keys() -> dict:
     if KEYS_FILE.exists():
-        with open(KEYS_FILE) as f:
+        with open(KEYS_FILE, encoding="utf-8") as f:
             return json.load(f)
     return {"keys": {}}
 
 
 def _save_keys(data: dict):
     DATA_DIR.mkdir(exist_ok=True)
-    with open(KEYS_FILE, "w") as f:
+    with open(KEYS_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
 
 

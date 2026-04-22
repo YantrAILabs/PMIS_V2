@@ -74,7 +74,7 @@ def _is_stale(p: Path) -> bool:
 
 def _read_holder(p: Path) -> Dict:
     try:
-        data = json.loads(p.read_text())
+        data = json.loads(p.read_text(encoding="utf-8"))
         if isinstance(data, dict):
             return data
     except Exception:
@@ -154,7 +154,7 @@ def consolidation_lock(scope: str, kind: Optional[str] = None):
         "pid": os.getpid(),
         "acquired_at": datetime.now().isoformat(timespec="seconds"),
     }
-    our_path.write_text(json.dumps(payload))
+    our_path.write_text(json.dumps(payload), encoding="utf-8")
 
     released = [False]
 

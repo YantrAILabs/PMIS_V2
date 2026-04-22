@@ -37,7 +37,7 @@ class ProductivityTracker:
 
     def __init__(self, config_path: str = "config/settings.yaml"):
         import yaml
-        with open(config_path) as f:
+        with open(config_path, encoding="utf-8") as f:
             self.config = yaml.safe_load(f)
 
         # Subsystems
@@ -340,7 +340,7 @@ class ProductivityTracker:
         import yaml
         import re
         try:
-            with open("config/privacy.yaml") as f:
+            with open("config/privacy.yaml", encoding="utf-8") as f:
                 privacy = yaml.safe_load(f)
         except FileNotFoundError:
             return False

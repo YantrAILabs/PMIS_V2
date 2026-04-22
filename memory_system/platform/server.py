@@ -888,14 +888,14 @@ async def api_daemon_status(user=Depends(get_current_user)):
 async def portal_root():
     portal_path = PLATFORM_DIR / "portal" / "index.html"
     if portal_path.exists():
-        return HTMLResponse(portal_path.read_text())
+        return HTMLResponse(portal_path.read_text(encoding="utf-8"))
     return HTMLResponse("<h1>PMIS Platform</h1><p>Portal not built yet.</p>")
 
 @app.get("/health", response_class=HTMLResponse)
 async def health_page():
     health_path = PLATFORM_DIR / "portal" / "health.html"
     if health_path.exists():
-        return HTMLResponse(health_path.read_text())
+        return HTMLResponse(health_path.read_text(encoding="utf-8"))
     return HTMLResponse("<h1>Health page not found</h1>")
 
 app.mount("/portal", StaticFiles(directory=str(PLATFORM_DIR / "portal")), name="portal")
