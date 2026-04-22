@@ -47,7 +47,7 @@ class Context1(Base):
 
     # Memory sync tracking
     synced_to_memory = Column(Integer, default=0)  # 0=pending, 1=synced
-    sc_node_id = Column(String, default='')        # resolved PMIS V2 memory_nodes ID
+    sc_node_id = Column(String, default='')        # resolved ProMe memory_nodes ID
     context_node_id = Column(String, default='')
     anchor_node_id = Column(String, default='')
     match_score = Column(Float, default=0.0)       # combined match % to project tree

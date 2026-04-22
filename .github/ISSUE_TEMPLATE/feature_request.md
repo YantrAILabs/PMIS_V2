@@ -1,6 +1,6 @@
 ---
 name: Feature request
-about: Something you'd like PMIS to do.
+about: Something you'd like ProMe to do.
 title: "[feat] "
 labels: enhancement
 ---
@@ -9,7 +9,7 @@ labels: enhancement
 What can't you do today? Describe the situation, not the solution.
 
 ## Proposed behavior
-How should PMIS behave after this lands? One or two concrete examples.
+How should ProMe behave after this lands? One or two concrete examples.
 
 ## Alternatives you considered
 Workarounds, existing features you tried, why they weren't enough.

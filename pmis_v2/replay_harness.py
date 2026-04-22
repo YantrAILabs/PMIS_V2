@@ -1,5 +1,5 @@
 """
-Replay Harness for PMIS V2.
+Replay Harness for ProMe.
 
 Replays historical sessions through ablated scoring pipelines to measure
 the actual contribution of each component (semantic, hierarchy, temporal, precision).
@@ -451,7 +451,7 @@ def generate_report(
     """Generate human-readable analysis report."""
     lines = []
     lines.append("=" * 72)
-    lines.append(f"PMIS V2 REPLAY HARNESS — COMPONENT ANALYSIS REPORT")
+    lines.append(f"ProMe REPLAY HARNESS — COMPONENT ANALYSIS REPORT")
     lines.append(f"Generated: {datetime.now().isoformat()}")
     lines.append(f"Turns analyzed: {len(turns)}")
     lines.append(f"Total retrievals analyzed: {sum(len(t.items) for t in turns)}")
@@ -668,7 +668,7 @@ def save_json_metrics(turns, component_reports, ablation_results, score_contribu
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="PMIS V2 Replay Harness")
+    parser = argparse.ArgumentParser(description="ProMe Replay Harness")
     parser.add_argument("--recent", type=int, help="Only analyze last N turns")
     parser.add_argument("--daily-log", action="store_true", help="Save to daily log file")
     parser.add_argument("--json", action="store_true", help="Also save JSON metrics")

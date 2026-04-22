@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PMIS V2 Dashboard</title>
+<title>ProMe Dashboard</title>
 <style>
 :root {
   --bg: #0a0a0f; --bg2: #12121a; --bg3: #1c1c24;
@@ -121,7 +121,10 @@ body { font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:var
 <body>
 
 <nav class="app-nav">
-  <a href="/" class="brand" style="white-space:nowrap;">PMIS Health Monitor</a>
+  <a href="/" class="brand" style="white-space:nowrap;display:inline-flex;align-items:center;gap:8px;" title="ProMe — Personal Memory Intelligence">
+    <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" width="22" height="22" style="flex-shrink:0"><circle cx="16" cy="16" r="13" fill="none" stroke="currentColor" stroke-width="2"/><path d="M 5 12 Q 16 22 27 12" fill="none" stroke="currentColor" stroke-width="1.3" opacity="0.55"/><path d="M 5 20 Q 16 10 27 20" fill="none" stroke="currentColor" stroke-width="1.3" opacity="0.55"/><circle cx="16" cy="16" r="2.4" fill="currentColor"/><circle cx="9" cy="16" r="1.4" fill="currentColor" opacity="0.8"/><circle cx="23" cy="16" r="1.4" fill="currentColor" opacity="0.8"/></svg>
+    <span>ProMe Health Monitor</span>
+  </a>
   <a href="/">Monitor</a>
   <a href="/dashboard" class="active">Dashboard</a>
   <a href="/feedback">Feedback</a>
@@ -257,7 +260,7 @@ body { font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:var
 <!-- MAIN CONTENT -->
 <div class="main">
   <div class="header">
-    <h1>PMIS V2 <span>Dashboard</span></h1>
+    <h1>ProMe <span>Dashboard</span></h1>
     <div class="date-picker">
       <input type="date" id="dateFilter" onchange="loadDashboard()">
       <button onclick="document.getElementById('dateFilter').value='';loadDashboard()">All Time</button>

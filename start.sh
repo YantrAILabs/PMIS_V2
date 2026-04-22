@@ -1,5 +1,5 @@
 #!/bin/bash
-# Start the PMIS Platform portal
+# Start the ProMe platform portal
 # Usage: ./start.sh
 
 REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -12,7 +12,7 @@ if [[ ! -f "$PYTHON" ]]; then
 fi
 
 echo ""
-echo "  Starting PMIS Platform..."
+echo "  Starting ProMe..."
 echo "  Portal:  http://localhost:8000"
 echo "  API:     http://localhost:8000/docs"
 echo "  Press Ctrl+C to stop"

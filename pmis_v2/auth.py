@@ -1,5 +1,5 @@
 """
-PMIS V2 API Key Authentication
+ProMe API Key Authentication
 
 Simple API key management for platform authentication.
 Keys stored in data/.api_keys.json (gitignored).

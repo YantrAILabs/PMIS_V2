@@ -1,4 +1,4 @@
-# Contributing to PMIS
+# Contributing to ProMe
 
 Thanks for considering a contribution.
 

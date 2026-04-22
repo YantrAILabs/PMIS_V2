@@ -1,5 +1,5 @@
 """
-PMIS V2 Replay Harness — Shadow-mode session tree engine with feedback.
+ProMe Replay Harness — Shadow-mode session tree engine with feedback.
 
 Modules:
     session_sim  — Pure math simulation of session engine

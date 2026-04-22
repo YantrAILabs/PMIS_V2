@@ -1,4 +1,4 @@
-# PMIS V2 Redesign — Learned Poincare + Dynamic Hierarchy + Wiki + Goals
+# ProMe (PMIS V2) Redesign — Learned Poincare + Dynamic Hierarchy + Wiki + Goals
 
 **Date:** 2026-04-14 (updated)
 **Status:** Approved, Phase 0 complete

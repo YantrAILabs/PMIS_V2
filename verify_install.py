@@ -2,7 +2,7 @@
 """
 YantrAI Memory System — End-to-End Installation Verification
 
-Runs a quick pipeline test: insert test segment → sync to PMIS V2 → verify node → cleanup.
+Runs a quick pipeline test: insert test segment → sync to ProMe → verify node → cleanup.
 Called by install.sh after DB init.
 Exit code 0 = all passed, 1 = failures.
 """
@@ -62,18 +62,18 @@ def main():
     except Exception as e:
         check("Tracker schema migrated", False, str(e))
 
-    # ── Test 3: PMIS V2 DB imports and connects ──
+    # ── Test 3: ProMe DB imports and connects ──
     try:
         from db.manager import DBManager
         pmis_db = DBManager(db_path=str(PMIS_DIR / "data" / "memory.db"))
         node_count = pmis_db.count_nodes()
-        check("PMIS V2 DB connects", True)
-        check(f"PMIS V2 has {node_count} nodes", node_count >= 0)
+        check("ProMe DB connects", True)
+        check(f"ProMe has {node_count} nodes", node_count >= 0)
     except Exception as e:
-        check("PMIS V2 DB connects", False, str(e))
+        check("ProMe DB connects", False, str(e))
         return 1
 
-    # ── Test 4: PMIS V2 has productivity tables ──
+    # ── Test 4: ProMe has productivity tables ──
     try:
         tables = [r[0] for r in pmis_db._conn.execute(
             "SELECT name FROM sqlite_master WHERE type='table'"

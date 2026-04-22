@@ -38,7 +38,7 @@ sys.path.insert(0, str(PMIS_DIR))
 PMIS_DB = str(PMIS_DIR / "data" / "memory.db")
 TRACKER_DB = os.path.expanduser("~/.productivity-tracker/tracker.db")
 
-app = FastAPI(title="PMIS Health Dashboard")
+app = FastAPI(title="ProMe Health Dashboard")
 templates = Jinja2Templates(directory=str(PMIS_DIR / "templates"))
 
 logger = logging.getLogger("pmis.health")
@@ -451,7 +451,7 @@ def _wiki():
 
 @app.get("/dashboard", response_class=HTMLResponse)
 async def page_dashboard(request: Request):
-    return templates.TemplateResponse(request, "dashboard.html", {"title": "PMIS V2 Dashboard"})
+    return templates.TemplateResponse(request, "dashboard.html", {"title": "ProMe Dashboard"})
 
 
 @app.get("/feedback", response_class=HTMLResponse)

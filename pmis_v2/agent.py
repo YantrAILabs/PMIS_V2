@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-PMIS V2 Desktop Agent — CLI entry point
+ProMe Desktop Agent — CLI entry point
 
 Commands:
     python3 pmis_v2/agent.py start       # Start server via launchd
@@ -107,7 +107,7 @@ def cmd_status():
     launchd_ok = _launchd_loaded()
 
     print(f"\n{'='*50}")
-    print(f"  PMIS V2 Agent Status")
+    print(f"  ProMe Agent Status")
     print(f"{'='*50}")
     print(f"  Server:     {'RUNNING' if server_ok else 'STOPPED'}")
     print(f"  LaunchAgent: {'LOADED' if launchd_ok else 'NOT LOADED'}")

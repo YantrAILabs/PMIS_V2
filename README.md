@@ -1,8 +1,10 @@
-# PMIS
+# ProMe
 
 ### A personal operating system for work that ships.
 
-Surprise-gated memory + project tracking + work sessions + goal-driven learning, in one stack. Every anchor lives under a project; every project has a goal; every goal's success signal reweights memory via a nightly HGCN pass. Storage isn't passive — PMIS *learns which memories predict which deliverables ship*.
+Surprise-gated memory + project tracking + work sessions + goal-driven learning, in one stack. Every anchor lives under a project; every project has a goal; every goal's success signal reweights memory via a nightly HGCN pass. Storage isn't passive — ProMe *learns which memories predict which deliverables ship*.
+
+> ProMe is the product name (formerly **PMIS** — Personal Memory Intelligence System). The repository slug `PMIS_V2` and the Python package `pmis` keep the legacy identifiers for on-disk compatibility.
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org)
@@ -26,13 +28,13 @@ Surprise-gated memory + project tracking + work sessions + goal-driven learning,
    HGCN (nightly) ─► outcome-driven weight update
 ```
 
-Most memory libraries stop at the bottom layer. Most PM tools stop at the top two. PMIS does all five, and they feed back into each other.
+Most memory libraries stop at the bottom layer. Most PM tools stop at the top two. ProMe does all five, and they feed back into each other.
 
 ---
 
 ## What makes it different
 
-| | Typical memory library | Typical PM tool | **PMIS** |
+| | Typical memory library | Typical PM tool | **ProMe** |
 |---|---|---|---|
 | Storage | Everything | — | Surprise-gated (Free Energy Principle) |
 | Structure | Flat vector store | Flat DB | Hyperbolic hierarchy with cell division |
@@ -79,7 +81,7 @@ Full walkthrough: [examples/quickstart.py](examples/quickstart.py).
 
 ```bash
 ./install.sh              # installs tracker daemon + Claude Desktop MCP config
-./start.sh                # launches PMIS servers on :8100 and :8200
+./start.sh                # launches ProMe servers on :8100 and :8200
 ```
 
 Then in Claude Desktop:
@@ -112,7 +114,7 @@ All async. See [pmis/api.py](pmis/api.py).
 
 ## The PM layer (REST)
 
-The memory engine is one half; PMIS also exposes a full work-management surface:
+The memory engine is one half; ProMe also exposes a full work-management surface:
 
 | Endpoint | Purpose |
 |---|---|
@@ -133,7 +135,7 @@ Full interactive spec at `http://localhost:8100/docs`.
 
 ## Servers & dashboards
 
-PMIS runs **two** FastAPI servers side by side:
+ProMe runs **two** FastAPI servers side by side:
 
 | Port | Server | What's on it |
 |---|---|---|
@@ -224,8 +226,8 @@ Apache 2.0 — see [LICENSE](LICENSE).
 ## Citation
 
 ```bibtex
-@software{pmis_2026,
-  title = {PMIS: A Personal Operating System for Work That Ships},
+@software{prome_2026,
+  title = {ProMe: A Personal Operating System for Work That Ships},
   author = {YantrAI Labs},
   year = {2026},
   url = {https://github.com/YantrAILabs/PMIS_V2}
