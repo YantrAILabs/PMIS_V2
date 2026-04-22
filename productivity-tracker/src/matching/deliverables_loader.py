@@ -27,7 +27,7 @@ class DeliverablesLoader:
     def load_from_yaml(self, path: str = "config/deliverables.yaml"):
         """Load deliverables from YAML config file."""
         try:
-            with open(path) as f:
+            with open(path, encoding="utf-8") as f:
                 data = yaml.safe_load(f)
         except FileNotFoundError:
             logger.warning(f"Deliverables file not found: {path}")

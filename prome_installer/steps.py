@@ -311,7 +311,7 @@ def step4_env() -> None:
 
     skip_prompt = False
     if paths.ENV_FILE.is_file():
-        existing = paths.ENV_FILE.read_text()
+        existing = paths.ENV_FILE.read_text(encoding="utf-8")
         has_placeholder = any(
             m in existing
             for m in (_TOKEN_PLACEHOLDER, _PROXY_PLACEHOLDER_OLD)
@@ -370,7 +370,7 @@ def step4_env() -> None:
     # Copy .env.example -> .env and substitute placeholders
     if not paths.ENV_EXAMPLE.is_file():
         ui.fail(f".env.example not found at {paths.ENV_EXAMPLE}")
-    content = paths.ENV_EXAMPLE.read_text()
+    content = paths.ENV_EXAMPLE.read_text(encoding="utf-8")
     content = content.replace(_TOKEN_PLACEHOLDER, access_token)
     # Substitute whichever proxy URL is currently in .env.example (old placeholder
     # or the yantrai.workers.dev default) with the user's chosen URL.
@@ -378,7 +378,7 @@ def step4_env() -> None:
     content = content.replace(_PROXY_DEFAULT, proxy_url)
     content = content.replace("__HOME__", str(Path.home()))
     content = content.replace("__REPO__", str(paths.REPO_DIR))
-    paths.ENV_FILE.write_text(content)
+    paths.ENV_FILE.write_text(content, encoding="utf-8")
     ui.ok(".env created")
 
 
@@ -504,7 +504,7 @@ def _write_claude_launch_json() -> None:
             }
         ],
     }
-    paths.CLAUDE_LAUNCH_JSON.write_text(json.dumps(config, indent=2))
+    paths.CLAUDE_LAUNCH_JSON.write_text(json.dumps(config, indent=2), encoding="utf-8")
     ui.ok(".claude/launch.json generated")
 
 
@@ -519,7 +519,7 @@ def _write_mcp_config_json() -> None:
             }
         }
     }
-    paths.MCP_CONFIG_JSON.write_text(json.dumps(config, indent=2))
+    paths.MCP_CONFIG_JSON.write_text(json.dumps(config, indent=2), encoding="utf-8")
     ui.ok("MCP config generated")
 
 

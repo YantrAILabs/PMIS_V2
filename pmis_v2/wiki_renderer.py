@@ -212,7 +212,7 @@ class WikiRenderer:
             }
 
         try:
-            with open(goals_path) as f:
+            with open(goals_path, encoding="utf-8") as f:
                 raw = yaml.safe_load(f) or {}
         except Exception:
             raw = {}
@@ -222,7 +222,7 @@ class WikiRenderer:
         deliv_ix: Dict[str, Dict] = {}
         if deliv_path.exists():
             try:
-                with open(deliv_path) as f:
+                with open(deliv_path, encoding="utf-8") as f:
                     d_raw = yaml.safe_load(f) or {}
                 for d in d_raw.get("deliverables", []) or []:
                     deliv_ix[d["id"]] = {
@@ -488,7 +488,7 @@ class WikiRenderer:
             cg["projects"] = projects
             clean_goals.append(cg)
 
-        with open(goals_path, "w") as f:
+        with open(goals_path, "w", encoding="utf-8") as f:
             yaml.safe_dump({"goals": clean_goals}, f,
                            sort_keys=False, default_flow_style=False)
         return self._render_pm_projects()
@@ -502,7 +502,7 @@ class WikiRenderer:
         if not deliv_path.exists():
             return out
         try:
-            with open(deliv_path) as f:
+            with open(deliv_path, encoding="utf-8") as f:
                 raw = yaml.safe_load(f) or {}
             for d in raw.get("deliverables", []) or []:
                 out.append({
@@ -531,7 +531,7 @@ class WikiRenderer:
         raw: Dict[str, Any] = {}
         if deliv_path.exists():
             try:
-                with open(deliv_path) as f:
+                with open(deliv_path, encoding="utf-8") as f:
                     raw = yaml.safe_load(f) or {}
             except Exception:
                 raw = {}
@@ -565,7 +565,7 @@ class WikiRenderer:
 
         items.append(row)
         raw["deliverables"] = items
-        with open(deliv_path, "w") as f:
+        with open(deliv_path, "w", encoding="utf-8") as f:
             yaml.safe_dump(raw, f, sort_keys=False, default_flow_style=False)
 
         return {

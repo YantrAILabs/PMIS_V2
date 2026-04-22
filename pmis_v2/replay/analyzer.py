@@ -50,7 +50,7 @@ def load_logs(log_dir: str) -> Tuple[List[Dict], List[Dict], List[Dict]]:
     log_path = Path(log_dir)
 
     for f in log_path.glob("turns_*.jsonl"):
-        with open(f) as fh:
+        with open(f, encoding="utf-8") as fh:
             for line in fh:
                 entry = json.loads(line.strip())
                 if entry["type"] == "turn":
@@ -60,7 +60,7 @@ def load_logs(log_dir: str) -> Tuple[List[Dict], List[Dict], List[Dict]]:
 
     summary_file = log_path / "summaries.jsonl"
     if summary_file.exists():
-        with open(summary_file) as fh:
+        with open(summary_file, encoding="utf-8") as fh:
             for line in fh:
                 summaries.append(json.loads(line.strip()))
 
@@ -489,7 +489,7 @@ def run_full_diagnostic(log_dir: str) -> Dict:
 
     # Save
     output_path = Path(log_dir) / "diagnostic_report.json"
-    with open(output_path, "w") as f:
+    with open(output_path, "w", encoding="utf-8") as f:
         json.dump(report, f, indent=2, default=str)
     print(f"Diagnostic report written to {output_path}")
 

@@ -52,7 +52,7 @@ def _load_config() -> dict:
             "path": str(CONFIG_PATH)
         }))
         sys.exit(1)
-    with open(CONFIG_PATH) as f:
+    with open(CONFIG_PATH, encoding="utf-8") as f:
         cfg = yaml.safe_load(f)
     if not cfg.get("bot_token") or cfg["bot_token"] == "YOUR_BOT_TOKEN":
         print(json.dumps({"error": "bot_token not configured. Run: python3 pmis_v2/approve.py setup"}))
@@ -389,7 +389,7 @@ def cmd_setup(args):
         "timeout": 300
     }
     CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with open(CONFIG_PATH, "w") as f:
+    with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         f.write("# Telegram Approval Bot Config\n")
         f.write(f"bot_token: \"{token}\"\n")
         f.write(f"chat_id: {chat_id}\n")

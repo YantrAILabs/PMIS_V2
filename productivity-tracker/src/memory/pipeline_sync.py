@@ -43,7 +43,7 @@ class ProductivityPipelineSync:
         hyper_path = PMIS_V2_DIR / "hyperparameters.yaml"
         hyperparams = {}
         if hyper_path.exists():
-            with open(hyper_path) as f:
+            with open(hyper_path, encoding="utf-8") as f:
                 hyperparams = yaml.safe_load(f) or {}
 
         from db.manager import DBManager

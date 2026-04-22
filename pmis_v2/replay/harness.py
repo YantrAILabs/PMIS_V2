@@ -432,7 +432,7 @@ class ReplayHarness:
 
         # Write report
         report_path = self.log_dir / "daily_report.json"
-        with open(report_path, "w") as f:
+        with open(report_path, "w", encoding="utf-8") as f:
             json.dump(report, f, indent=2, default=str)
         logger.info(f"Report written to {report_path}")
 
@@ -496,7 +496,7 @@ class ReplayHarness:
             "user_message_preview": user_message[:100],
             **asdict(result),
         }
-        with open(path, "a") as f:
+        with open(path, "a", encoding="utf-8") as f:
             f.write(json.dumps(entry, default=str) + "\n")
 
     def _log_extended_feedback(
@@ -510,7 +510,7 @@ class ReplayHarness:
             "conversation_id": conversation_id,
             **asdict(fb),
         }
-        with open(path, "a") as f:
+        with open(path, "a", encoding="utf-8") as f:
             f.write(json.dumps(entry, default=str) + "\n")
 
     def _log_summary(
@@ -518,5 +518,5 @@ class ReplayHarness:
     ) -> None:
         path = self.log_dir / "summaries.jsonl"
         entry = {"type": "summary", **summary}
-        with open(path, "a") as f:
+        with open(path, "a", encoding="utf-8") as f:
             f.write(json.dumps(entry, default=str) + "\n")

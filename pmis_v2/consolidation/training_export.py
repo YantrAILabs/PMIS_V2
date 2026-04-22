@@ -97,7 +97,7 @@ class TrainingCorpusExporter:
             # We dedupe by `id` when reading back, and the exported_to_training
             # flag prevents us from writing the same event twice in non-backfill
             # runs anyway.
-            with open(path, "a") as f:
+            with open(path, "a", encoding="utf-8") as f:
                 for e in events:
                     line = self._format_event(e)
                     f.write(json.dumps(line, ensure_ascii=False) + "\n")
@@ -145,7 +145,7 @@ class TrainingCorpusExporter:
             files = sorted(etype_dir.glob("*.jsonl"))
             line_count = 0
             for f in files:
-                with open(f) as fh:
+                with open(f, encoding="utf-8") as fh:
                     line_count += sum(1 for _ in fh)
             disk[etype] = {
                 "files": len(files),
@@ -219,7 +219,7 @@ class TrainingCorpusExporter:
         existing: Dict[str, Any] = {}
         if manifest_path.exists():
             try:
-                existing = json.loads(manifest_path.read_text())
+                existing = json.loads(manifest_path.read_text(encoding="utf-8"))
             except Exception:
                 existing = {}
         runs = existing.get("runs", [])
@@ -231,4 +231,4 @@ class TrainingCorpusExporter:
         existing["runs"] = runs[-50:]
         existing["last_run_at"] = runs[-1]["at"]
         existing["corpus_root"] = str(self.corpus_root)
-        manifest_path.write_text(json.dumps(existing, indent=2))
+        manifest_path.write_text(json.dumps(existing, indent=2), encoding="utf-8")
