@@ -1,0 +1,19 @@
+name = "prome-openai-proxy"
+main = "worker.js"
+compatibility_date = "2026-04-01"
+
+# Non-secret config. Override per-environment if needed.
+[vars]
+ALLOWED_MODELS = "gpt-4o-mini"
+ALLOWED_ENDPOINTS = "/v1/chat/completions"
+
+# Per-user monthly spend counters. Create with:
+#   wrangler kv:namespace create USAGE_KV
+# then paste the returned id below.
+[[kv_namespaces]]
+binding = "USAGE_KV"
+id = "REPLACE_WITH_KV_NAMESPACE_ID"
+
+# Secrets (NOT committed — set via `wrangler secret put`):
+#   OPENAI_MASTER_KEY
+#   EMPLOYEE_TOKENS

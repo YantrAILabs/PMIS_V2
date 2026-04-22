@@ -85,3 +85,8 @@ yantrai_social_media_advisory.html
 
 # Approval bot secrets
 pmis_v2/approval_config.yaml
+
+# OpenAI proxy — live token map (contains all employee tokens)
+proxy/tokens.json
+proxy/node_modules/
+proxy/.wrangler/

@@ -1,0 +1,7 @@
+{
+  "COMMENT": "Copy to tokens.json (gitignored), generate random tokens for each employee, then load into the Worker with: wrangler secret put EMPLOYEE_TOKENS < tokens.json",
+  "_suggested_token_format": "prome_<random-32-hex>",
+  "prome_REPLACE_WITH_RANDOM_HEX_32CHARS_A": { "user": "alice",    "cap_usd": 25 },
+  "prome_REPLACE_WITH_RANDOM_HEX_32CHARS_B": { "user": "bob",      "cap_usd": 25 },
+  "prome_REPLACE_WITH_RANDOM_HEX_32CHARS_C": { "user": "charlie",  "cap_usd": 25 }
+}
