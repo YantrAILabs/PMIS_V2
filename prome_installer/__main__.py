@@ -30,7 +30,7 @@ def main() -> int:
         steps.step5_databases()
         steps.step6_verify()
         steps.step7_daemon()
-        steps.step8_summary(perm_issues=ctx["perm_issues"])
+        steps.step8_launch(perm_issues=ctx["perm_issues"])
     except KeyboardInterrupt:
         print()
         ui.warn("Interrupted by user. Re-run ./install.sh (or install.bat) to resume.")
