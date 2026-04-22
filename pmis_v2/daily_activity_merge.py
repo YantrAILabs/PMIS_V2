@@ -400,10 +400,17 @@ class DailyActivityMerger:
         `project_id` and `match_source` are populated when the segment fell
         inside a user-tagged work_session — lets the project matcher skip
         semantic matching for these rows.
+
+        INSERT OR IGNORE respects the UNIQUE(segment_id, date) guard so an
+        earlier writer (typically manual consolidation) keeps its row and its
+        match_source. Nightly is authoritative only for segments no one else
+        has claimed; tagging defaults to 'nightly' when left blank.
         """
+        if not match_source:
+            match_source = "nightly"
         conn = sqlite3.connect(self.db.db_path)
         conn.execute("""
-            INSERT INTO activity_time_log
+            INSERT OR IGNORE INTO activity_time_log
             (segment_id, memory_node_id, matched_ctx_id, matched_sc_id,
              duration_seconds, date, project_id, match_source)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)

@@ -34,6 +34,7 @@ class Context1(Base):
     target_segment_id = Column(String(20), unique=True, nullable=False)
     target_segment_length_secs = Column(Integer)
     worker = Column(String(10), default="human")  # "human" or "ai"
+    short_title = Column(Text, default='')          # 10-word human-readable title
     detailed_summary = Column(Text)
 
     # Human/AI frame classification
@@ -51,6 +52,10 @@ class Context1(Base):
     context_node_id = Column(String, default='')
     anchor_node_id = Column(String, default='')
     match_score = Column(Float, default=0.0)       # combined match % to project tree
+
+    # Artifact paths — where the raw screenshots for this segment live on disk
+    segment_dir = Column(Text, default='')         # directory containing all frames for this segment
+    frame_paths_json = Column(Text, default='')    # JSON array of per-frame paths at segment close
 
     # Relationships
     frames = relationship("Context2", back_populates="segment", cascade="all, delete-orphan")
@@ -78,6 +83,9 @@ class Context2(Base):
     # Keyboard/mouse activity detection per frame
     has_keyboard_activity = Column(Boolean, default=False)
     has_mouse_activity = Column(Boolean, default=False)
+
+    # Artifact path — where the raw screenshot JPEG lives on disk
+    screenshot_path = Column(Text, default='')
 
     segment = relationship("Context1", back_populates="frames")
 
