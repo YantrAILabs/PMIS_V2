@@ -1177,95 +1177,130 @@ async def wiki_goals(request: Request):
 # confirm / reassign / reject each one. On confirm, is_correct flips to 1 and
 # source becomes 'manual'. On reject, is_correct flips to 0.
 
-def _review_pending_count() -> int:
-    """Count distinct anchors with at least one pending review row today."""
-    import sqlite3
+def _review_proposals():
+    """Build the ReviewProposals service — lazy so imports stay cheap."""
+    from review.proposals import ReviewProposals
     from core import config as _cfg
-    db_path = _cfg.get("db_path", "data/memory.db")
-    conn = sqlite3.connect(db_path)
+    from db.manager import DBManager as _DB
+    db = _DB(_cfg.get("db_path", "data/memory.db"))
+    return ReviewProposals(db, _cfg.get_all()), db
+
+
+def _review_pending_count() -> int:
+    """Count unconsolidated segments + active drafts — drives the Goals badge."""
     try:
-        n = conn.execute(
-            """SELECT COUNT(DISTINCT segment_id) FROM project_work_match_log
-               WHERE is_correct = -1 AND source = 'semantic'"""
-        ).fetchone()[0]
-    finally:
-        conn.close()
-    return int(n or 0)
+        rp, _ = _review_proposals()
+        return len(rp.list_unconsolidated(None)) + len(rp.list_drafts(None))
+    except Exception:
+        return 0
 
 
 def _review_payload() -> Dict[str, Any]:
-    """Assemble the wiki_review.html context dict."""
-    import sqlite3
-    from core import config as _cfg
-    db_path = _cfg.get("db_path", "data/memory.db")
-    hp = _cfg.get_all()
-    tau_high = float(hp.get("matcher_tau_high", 0.75))
-    tau_low = float(hp.get("matcher_tau_low", 0.45))
+    """Assemble the wiki_review.html context dict for the two-state UI:
+    raw unconsolidated segments + active draft proposals."""
+    try:
+        rp, _ = _review_proposals()
+        unconsolidated = rp.list_unconsolidated(None)
+        drafts = rp.list_drafts(None)
+    except Exception as e:
+        import logging
+        logging.getLogger("pmis.server").warning(f"review_payload failed: {e}")
+        unconsolidated = []
+        drafts = []
 
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-
-    # Group pending top-rank rows by anchor. Rank is implicit in
-    # combined_match_pct; show top 3 candidates per anchor.
-    rows = conn.execute(
-        """
-        SELECT pwm.id AS match_id, pwm.segment_id AS anchor_id,
-               pwm.project_id, pwm.deliverable_id,
-               pwm.combined_match_pct AS combined,
-               pwm.matched_at,
-               n.content AS anchor_content,
-               p.name   AS project_name,
-               d.name   AS deliverable_name
-        FROM project_work_match_log pwm
-        LEFT JOIN memory_nodes n ON n.id = pwm.segment_id
-        LEFT JOIN projects     p ON p.id = pwm.project_id
-        LEFT JOIN deliverables d ON d.id = pwm.deliverable_id
-        WHERE pwm.is_correct = -1 AND pwm.source = 'semantic'
-        ORDER BY pwm.segment_id, pwm.combined_match_pct DESC
-        """
-    ).fetchall()
-
-    auto_today = conn.execute(
-        """SELECT COUNT(*) FROM project_work_match_log
-           WHERE is_correct = 1 AND source IN ('semantic','session_tag')
-           AND DATE(matched_at) = DATE('now')"""
-    ).fetchone()[0]
-    conn.close()
-
-    # Group by anchor, keep top-3
-    grouped: Dict[str, Dict[str, Any]] = {}
-    for r in rows:
-        aid = r["anchor_id"]
-        if aid not in grouped:
-            grouped[aid] = {
-                "anchor_id": aid,
-                "content": (r["anchor_content"] or "(anchor content unavailable)")[:400],
-                "when": (r["matched_at"] or "")[:16],
-                "top_score": r["combined"] or 0.0,
-                "candidates": [],
-            }
-        if len(grouped[aid]["candidates"]) < 3:
-            grouped[aid]["candidates"].append({
-                "match_id": r["match_id"],
-                "project_id": r["project_id"],
-                "project_name": r["project_name"],
-                "deliverable_id": r["deliverable_id"],
-                "deliverable_name": r["deliverable_name"],
-                "combined": r["combined"] or 0.0,
-            })
+    # Surface the active-projects catalog so per-group pickers can offer
+    # "tag to something else" from the same flat list. Reuses the same
+    # merger the scorer uses for symmetry.
+    try:
+        rp2, _ = _review_proposals()
+        projects_catalog = rp2._list_active_projects()
+    except Exception:
+        projects_catalog = []
 
     return {
-        "pending": list(grouped.values()),
-        "auto_confirmed_today": int(auto_today or 0),
-        "tau_high": tau_high,
-        "tau_low": tau_low,
+        "unconsolidated": unconsolidated,
+        "drafts": drafts,
+        "projects_catalog": [
+            {"id": p["id"], "name": p.get("name") or p["id"]}
+            for p in projects_catalog
+        ],
+        "unconsolidated_count": len(unconsolidated),
+        "draft_count": len(drafts),
     }
 
 
 @app.get("/wiki/review", response_class=HTMLResponse)
 async def wiki_review(request: Request):
-    """Review pending project matches."""
+    """Review page — two-state: raw unconsolidated segments + draft proposals."""
     return templates.TemplateResponse(request, "wiki_review.html", _review_payload())
+
+
+# ─── Phase 3 — review_proposals flow ──────────────────────────────────
+
+
+class ReviewConsolidatePayload(BaseModel):
+    date: Optional[str] = None
+
+
+class ReviewProposalConfirmPayload(BaseModel):
+    project_id: str
+    deliverable_id: Optional[str] = ""
+
+
+class ReviewProposalAssignPayload(BaseModel):
+    project_id: Optional[str] = ""
+    deliverable_id: Optional[str] = ""
+
+
+@app.get("/api/review/unconsolidated")
+async def api_review_unconsolidated(date: Optional[str] = None):
+    rp, _ = _review_proposals()
+    return {"segments": rp.list_unconsolidated(date)}
+
+
+@app.post("/api/review/consolidate")
+async def api_review_consolidate(payload: ReviewConsolidatePayload):
+    rp, _ = _review_proposals()
+    proposals = rp.consolidate(payload.date)
+    return {"ok": True, "proposals": proposals}
+
+
+@app.get("/api/review/proposals")
+async def api_review_proposals(date: Optional[str] = None):
+    rp, _ = _review_proposals()
+    return {"proposals": rp.list_drafts(date)}
+
+
+@app.post("/api/review/proposals/{proposal_id}/confirm")
+async def api_review_proposal_confirm(proposal_id: str, payload: ReviewProposalConfirmPayload):
+    rp, _ = _review_proposals()
+    result = rp.confirm(proposal_id, payload.project_id, payload.deliverable_id or "")
+    if not result.get("ok"):
+        status = 503 if result.get("error") == "consolidation_locked" else 400
+        raise HTTPException(status_code=status, detail=result)
+    return result
+
+
+@app.post("/api/review/proposals/{proposal_id}/reject")
+async def api_review_proposal_reject(proposal_id: str):
+    rp, _ = _review_proposals()
+    result = rp.reject(proposal_id)
+    if not result.get("ok"):
+        raise HTTPException(status_code=404, detail=result)
+    return result
+
+
+@app.patch("/api/review/proposals/{proposal_id}")
+async def api_review_proposal_assign(proposal_id: str, payload: ReviewProposalAssignPayload):
+    rp, _ = _review_proposals()
+    return rp.set_assignment(
+        proposal_id, payload.project_id or "", payload.deliverable_id or ""
+    )
+
+
+# ─── Legacy review endpoints (old is_correct=-1 flow) ─────────────────
+# Kept for now so any in-flight semantic-match prompts still clear; the
+# new review_proposals flow above is the source of truth going forward.
 
 
 class ReviewConfirmPayload(BaseModel):

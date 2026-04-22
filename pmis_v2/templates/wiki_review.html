@@ -1,5 +1,5 @@
 {% extends "wiki_base.html" %}
-{% block title %}Review — Project Matches{% endblock %}
+{% block title %}Review — Activity Consolidation{% endblock %}
 
 {% block content %}
 <style>
@@ -11,52 +11,98 @@
   .rv-topbar-left { display:flex; align-items:baseline; gap:14px; }
   .rv-meta { font-size:12px; color:var(--fg3); }
   .rv-btn {
-    background:transparent; border:1px dashed var(--border);
-    color:var(--fg2); font-size:12px; padding:5px 12px;
+    background:transparent; border:1px solid var(--border);
+    color:var(--fg2); font-size:12px; padding:6px 14px;
     border-radius:5px; cursor:pointer; transition:all 0.15s;
     text-decoration:none; display:inline-block;
   }
   .rv-btn:hover { color:var(--fg); border-color:var(--accent,#8b5cf6); }
+  .rv-btn.primary {
+    background:var(--accent,#8b5cf6); color:white; border-color:var(--accent,#8b5cf6);
+  }
+  .rv-btn.primary:hover { opacity:0.9; color:white; }
+  .rv-btn:disabled { opacity:0.4; cursor:not-allowed; }
 
-  .rv-card {
+  .rv-section {
+    margin-bottom:28px; padding:16px;
     border:1px solid var(--border); border-radius:8px;
-    padding:14px 16px; margin-bottom:12px;
     background:var(--bg2, rgba(255,255,255,0.02));
   }
-  .rv-card-head {
-    display:flex; justify-content:space-between; gap:12px;
-    margin-bottom:8px; font-size:11px; color:var(--fg3);
+  .rv-section-head {
+    display:flex; justify-content:space-between; align-items:center;
+    margin-bottom:12px;
   }
-  .rv-card-body {
+  .rv-section-head h2 {
+    margin:0; font-size:14px; font-weight:600; color:var(--fg);
+    text-transform:uppercase; letter-spacing:0.4px;
+  }
+  .rv-section-count {
+    font-size:11px; color:var(--fg3); font-family:monospace;
+  }
+
+  .rv-segment {
+    display:grid; grid-template-columns: 75px 1fr 90px;
+    gap:10px; align-items:center;
+    padding:6px 10px; border-radius:4px; font-size:12px;
+    color:var(--fg2); border-bottom:1px solid rgba(255,255,255,0.04);
+  }
+  .rv-segment:last-child { border-bottom:none; }
+  .rv-segment-time { color:var(--fg3); font-family:monospace; font-size:11px; }
+  .rv-segment-title { color:var(--fg); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .rv-segment-meta { color:var(--fg3); font-size:11px; text-align:right; }
+
+  .rv-proposal {
+    border:1px solid var(--border); border-radius:6px;
+    padding:12px 14px; margin-bottom:10px;
+    background:var(--bg, #0a0a0f);
+  }
+  .rv-proposal-content {
     font-size:13px; color:var(--fg); line-height:1.45; margin-bottom:10px;
   }
-  .rv-candidates {
-    display:flex; flex-direction:column; gap:6px; margin-bottom:10px;
+  .rv-proposal-meta {
+    font-size:11px; color:var(--fg3); margin-bottom:10px;
+    display:flex; gap:14px; flex-wrap:wrap;
   }
+  .rv-candidates { display:flex; flex-direction:column; gap:6px; margin-bottom:10px; }
   .rv-candidate {
     display:flex; align-items:center; justify-content:space-between;
-    padding:8px 10px; border:1px solid var(--border); border-radius:5px;
-    font-size:12px; background:var(--bg, #0a0a0f);
+    padding:7px 10px; border:1px solid var(--border); border-radius:5px;
+    font-size:12px; background:var(--bg2, rgba(255,255,255,0.02));
   }
-  .rv-cand-left { display:flex; flex-direction:column; gap:2px; }
   .rv-cand-title { color:var(--fg); font-weight:500; }
-  .rv-cand-sub { color:var(--fg3); font-size:11px; }
   .rv-cand-score {
     font-family:monospace; font-size:11px; color:var(--fg2);
     background:rgba(139,92,246,0.1); padding:2px 6px; border-radius:3px;
+    min-width:44px; text-align:center;
   }
-  .rv-actions { display:flex; gap:8px; justify-content:flex-end; }
+  .rv-picker {
+    display:flex; gap:8px; align-items:center;
+    padding:7px 10px; border:1px dashed var(--border); border-radius:5px;
+    font-size:12px; margin-top:4px;
+  }
+  .rv-picker select {
+    flex:1; background:transparent; color:var(--fg2); border:none;
+    font-size:12px; outline:none;
+  }
+  .rv-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:6px; }
   .rv-action-btn {
     background:transparent; border:1px solid var(--border);
-    color:var(--fg2); font-size:11px; padding:4px 10px;
+    color:var(--fg2); font-size:11px; padding:5px 12px;
     border-radius:4px; cursor:pointer;
   }
   .rv-action-btn.confirm:hover { border-color:#22c55e; color:#22c55e; }
   .rv-action-btn.reject:hover  { border-color:#ef4444; color:#ef4444; }
+
   .rv-empty {
-    text-align:center; padding:40px 20px; color:var(--fg3);
-    border:1px dashed var(--border); border-radius:8px;
+    text-align:center; padding:28px 16px; color:var(--fg3);
+    font-size:12px;
   }
+  .rv-banner {
+    padding:10px 14px; border-radius:6px; font-size:12px;
+    margin-bottom:12px;
+  }
+  .rv-banner.error { background:rgba(239,68,68,0.1); color:#fca5a5; border:1px solid rgba(239,68,68,0.3); }
+  .rv-banner.ok    { background:rgba(34,197,94,0.1);  color:#86efac; border:1px solid rgba(34,197,94,0.3); }
 </style>
 
 <div class="rv">
@@ -64,83 +110,174 @@
     <div class="rv-topbar-left">
       <h1 style="margin:0;">Review</h1>
       <div class="rv-meta">
-        {{ pending|length }} pending match{% if pending|length != 1 %}es{% endif %} · auto-confirmed: {{ auto_confirmed_today }} today
+        {{ unconsolidated_count }} unconsolidated · {{ draft_count }} proposed group{% if draft_count != 1 %}s{% endif %}
       </div>
     </div>
-    <div class="pk-actions" style="display:flex;gap:8px;align-items:center;">
-      <!-- Same toggle as Goals, with Review selected -->
+    <div style="display:flex;gap:8px;align-items:center;">
       <div class="pk-toggle" role="tablist" aria-label="View switch"
            style="display:inline-flex;border:1px solid var(--border);border-radius:6px;overflow:hidden;">
         <a href="/wiki/goals" role="tab" aria-selected="false"
            style="padding:5px 12px;font-size:12px;color:var(--fg2);text-decoration:none;">Projects</a>
         <a href="/wiki/review" role="tab" aria-selected="true"
            style="padding:5px 12px;font-size:12px;background:var(--accent,#8b5cf6);color:white;text-decoration:none;">
-          Review{% if pending|length %}
-          <span style="background:#f59e0b;color:#0a0a0f;border-radius:9px;padding:0 6px;font-size:10px;margin-left:4px;">{{ pending|length }}</span>
+          Review{% if unconsolidated_count or draft_count %}
+          <span style="background:#f59e0b;color:#0a0a0f;border-radius:9px;padding:0 6px;font-size:10px;margin-left:4px;">{{ unconsolidated_count + draft_count }}</span>
           {% endif %}
         </a>
       </div>
+      <button id="rv-consolidate-btn" class="rv-btn primary"
+        {% if not unconsolidated %}disabled{% endif %}>Consolidate</button>
     </div>
   </div>
 
-  <div id="rv-list">
-    {% if pending %}
-      {% for item in pending %}
-      <div class="rv-card" data-anchor-id="{{ item.anchor_id }}">
-        <div class="rv-card-head">
-          <span>{{ item.when }} · anchor {{ item.anchor_id[:8] }}</span>
-          <span>top score: {{ "%.0f"|format(item.top_score * 100) }}%</span>
+  <div id="rv-banner"></div>
+
+  <div class="rv-section" id="rv-unconsolidated-section">
+    <div class="rv-section-head">
+      <h2>Unconsolidated activity</h2>
+      <span class="rv-section-count">{{ unconsolidated_count }} segment{% if unconsolidated_count != 1 %}s{% endif %}</span>
+    </div>
+    <div id="rv-unconsolidated-list">
+      {% if unconsolidated %}
+        {% for s in unconsolidated[:50] %}
+        <div class="rv-segment">
+          <div class="rv-segment-time">{{ s.timestamp_start[:16] }}</div>
+          <div class="rv-segment-title" title="{{ s.detailed_summary }}">{{ s.short_title }}</div>
+          <div class="rv-segment-meta">{{ (s.duration_secs / 60)|round|int }}m · {{ s.window[:20] }}</div>
         </div>
-        <div class="rv-card-body">{{ item.content }}</div>
-        <div class="rv-candidates">
-          {% for c in item.candidates %}
-          <div class="rv-candidate" data-match-id="{{ c.match_id }}">
-            <div class="rv-cand-left">
-              <span class="rv-cand-title">{{ c.project_name or c.project_id }}</span>
-              <span class="rv-cand-sub">{{ c.deliverable_name or '' }}</span>
-            </div>
-            <div style="display:flex;gap:6px;align-items:center;">
-              <span class="rv-cand-score">{{ "%.0f"|format(c.combined * 100) }}%</span>
-              <button class="rv-action-btn confirm"
-                      onclick="rvConfirm('{{ item.anchor_id }}', '{{ c.match_id }}')">Confirm</button>
-            </div>
+        {% endfor %}
+        {% if unconsolidated|length > 50 %}
+        <div class="rv-segment-meta" style="text-align:center;padding:8px;">
+          + {{ unconsolidated|length - 50 }} more
+        </div>
+        {% endif %}
+      {% else %}
+        <div class="rv-empty">Nothing unconsolidated. New segments will appear here as they're captured.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="rv-section" id="rv-proposals-section">
+    <div class="rv-section-head">
+      <h2>Proposed groups</h2>
+      <span class="rv-section-count">{{ draft_count }} group{% if draft_count != 1 %}s{% endif %}</span>
+    </div>
+    <div id="rv-proposals-list">
+      {% if drafts %}
+        {% for p in drafts %}
+        <div class="rv-proposal" data-proposal-id="{{ p.id }}">
+          <div class="rv-proposal-content">{{ p.proposed_content }}</div>
+          <div class="rv-proposal-meta">
+            <span>{{ p.segment_count }} segment{% if p.segment_count != 1 %}s{% endif %}</span>
+            <span>{{ p.duration_mins }} min</span>
+            {% if p.windows %}<span>{{ p.windows|join(' · ') }}</span>{% endif %}
           </div>
-          {% endfor %}
+          {% if p.project_probs %}
+          <div class="rv-candidates">
+            {% for c in p.project_probs %}
+            <div class="rv-candidate" data-project-id="{{ c.project_id }}">
+              <span class="rv-cand-title">{{ c.project_name }}</span>
+              <span style="display:flex;gap:6px;align-items:center;">
+                <span class="rv-cand-score">{{ "%.0f"|format(c.score * 100) }}%</span>
+                <button class="rv-action-btn confirm"
+                        onclick="rvConfirmProposal('{{ p.id }}', '{{ c.project_id }}')">Tag</button>
+              </span>
+            </div>
+            {% endfor %}
+          </div>
+          {% endif %}
+          <div class="rv-picker">
+            <span style="color:var(--fg3);">Or tag to:</span>
+            <select id="rv-picker-{{ p.id }}">
+              <option value="">— choose project —</option>
+              {% for proj in projects_catalog %}
+              <option value="{{ proj.id }}">{{ proj.name }}</option>
+              {% endfor %}
+            </select>
+            <button class="rv-action-btn confirm"
+                    onclick="rvConfirmFromPicker('{{ p.id }}')">Tag</button>
+          </div>
+          <div class="rv-actions">
+            <button class="rv-action-btn reject"
+                    onclick="rvRejectProposal('{{ p.id }}')">Reject group</button>
+          </div>
         </div>
-        <div class="rv-actions">
-          <button class="rv-action-btn reject" onclick="rvReject('{{ item.anchor_id }}')">Reject all</button>
+        {% endfor %}
+      {% else %}
+        <div class="rv-empty">
+          No active proposals. Click <strong>Consolidate</strong> above to group the unconsolidated segments.
         </div>
-      </div>
-      {% endfor %}
-    {% else %}
-      <div class="rv-empty">
-        No pending matches. All of today's untagged activity was either auto-confirmed (score ≥ {{ "%.0f"|format(tau_high * 100) }}%) or below the review threshold ({{ "%.0f"|format(tau_low * 100) }}%).
-      </div>
-    {% endif %}
+      {% endif %}
+    </div>
   </div>
 </div>
 
 <script>
-async function rvConfirm(anchorId, matchId) {
-  const resp = await fetch(`/api/review/${encodeURIComponent(anchorId)}/confirm`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ match_id: matchId }),
-  });
-  if (resp.ok) {
-    document.querySelector(`.rv-card[data-anchor-id="${anchorId}"]`)?.remove();
-  } else {
-    alert('Confirm failed');
-  }
-}
+(() => {
+  const banner = document.getElementById('rv-banner');
+  const btn = document.getElementById('rv-consolidate-btn');
 
-async function rvReject(anchorId) {
-  const resp = await fetch(`/api/review/${encodeURIComponent(anchorId)}/reject`, { method: 'POST' });
-  if (resp.ok) {
-    document.querySelector(`.rv-card[data-anchor-id="${anchorId}"]`)?.remove();
-  } else {
-    alert('Reject failed');
+  function showBanner(kind, msg) {
+    banner.innerHTML = `<div class="rv-banner ${kind}">${msg}</div>`;
   }
-}
+
+  async function postJSON(url, body, method='POST') {
+    const r = await fetch(url, {
+      method,
+      headers: {'Content-Type': 'application/json'},
+      body: body ? JSON.stringify(body) : null,
+    });
+    let detail = null;
+    try { detail = await r.json(); } catch (_) {}
+    if (!r.ok) {
+      const msg = (detail && (detail.detail?.detail || detail.detail)) || `HTTP ${r.status}`;
+      throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
+    }
+    return detail;
+  }
+
+  btn?.addEventListener('click', async () => {
+    btn.disabled = true;
+    showBanner('ok', 'Clustering segments…');
+    try {
+      const result = await postJSON('/api/review/consolidate', {});
+      const n = (result.proposals || []).length;
+      showBanner('ok', `Created ${n} proposed group${n === 1 ? '' : 's'}. Reloading…`);
+      setTimeout(() => location.reload(), 500);
+    } catch (err) {
+      showBanner('error', `Consolidate failed: ${err.message}`);
+      btn.disabled = false;
+    }
+  });
+
+  window.rvConfirmProposal = async (propId, projectId) => {
+    try {
+      await postJSON(`/api/review/proposals/${encodeURIComponent(propId)}/confirm`,
+                     {project_id: projectId});
+      document.querySelector(`.rv-proposal[data-proposal-id="${propId}"]`)?.remove();
+      showBanner('ok', 'Tagged.');
+    } catch (err) {
+      showBanner('error', `Tag failed: ${err.message}`);
+    }
+  };
+
+  window.rvConfirmFromPicker = (propId) => {
+    const sel = document.getElementById(`rv-picker-${propId}`);
+    const pid = sel?.value;
+    if (!pid) { showBanner('error', 'Pick a project first.'); return; }
+    window.rvConfirmProposal(propId, pid);
+  };
+
+  window.rvRejectProposal = async (propId) => {
+    if (!confirm('Reject this group? Segments return to unconsolidated.')) return;
+    try {
+      await postJSON(`/api/review/proposals/${encodeURIComponent(propId)}/reject`);
+      document.querySelector(`.rv-proposal[data-proposal-id="${propId}"]`)?.remove();
+      showBanner('ok', 'Rejected.');
+    } catch (err) {
+      showBanner('error', `Reject failed: ${err.message}`);
+    }
+  };
+})();
 </script>
 {% endblock %}
