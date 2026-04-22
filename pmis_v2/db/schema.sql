@@ -435,8 +435,14 @@ CREATE TABLE IF NOT EXISTS activity_time_log (
     matched_sc_id TEXT,
     duration_seconds INTEGER,
     date TEXT,
+    project_id TEXT DEFAULT '',
+    match_source TEXT DEFAULT 'nightly',  -- 'nightly'|'manual_consolidation'|'user_review'
     created_at TEXT DEFAULT (datetime('now'))
 );
+-- Phase 1 sync protocol: one row per (segment, date). Prevents manual + nightly
+-- from double-counting under a race. Enforced via INSERT OR IGNORE at callers.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_atl_segment_date
+    ON activity_time_log(segment_id, date);
 
 CREATE TABLE IF NOT EXISTS node_time_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

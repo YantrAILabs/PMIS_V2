@@ -407,6 +407,18 @@
       const cached = JSON.parse(goalEl.dataset.goalJson || '{}');
       // Override title/why/status from the visible editable fields
       const title = $('.pk-goal-title', goalEl)?.textContent?.trim() || cached.title || '';
+      // If a drawer is open for a project in this goal, force-read the live
+      // drawer input so an unsaved project title can't be dropped by a missed
+      // input event or a stale dataset write.
+      if (state.openCardEl && state.openCardEl.closest('.pk-lane') === goalEl) {
+        const pid = state.openCardEl.dataset.projectId;
+        const liveTitle = $('.pk-drawer-title')?.value;
+        if (liveTitle !== undefined && Array.isArray(cached.projects)) {
+          cached.projects = cached.projects.map(p =>
+            p.id === pid ? {...p, title: liveTitle} : p
+          );
+        }
+      }
       return {
         id: goalEl.dataset.goalId,
         title,
@@ -496,6 +508,8 @@
   }
   backdrop.addEventListener('click', closeDrawer);
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDrawer(); });
+  drawer.addEventListener('click', drawerDelegated);
+  drawer.addEventListener('input', drawerInputHandler);
 
   function openDrawer(cardEl) {
     state.openCardEl = cardEl;
@@ -633,10 +647,8 @@
       project.match_patterns = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
       persistDrawer(project, cachedGoal, goalEl);
     });
-    $('.pk-drawer-title').addEventListener('input', (e) => {
-      project.title = e.target.value;
-      persistDrawer(project, cachedGoal, goalEl);
-    });
+    // Note: .pk-drawer-title input is handled by the delegated drawerInputHandler
+    // attached once outside renderDrawer, so it survives any innerHTML refresh.
 
     $('#pk-drawer-picker').addEventListener('change', (e) => {
       const id = e.target.value;
@@ -691,9 +703,6 @@
     newInput.addEventListener('keydown', (ev) => {
       if (ev.key === 'Enter') { ev.preventDefault(); submitNew(); }
     });
-
-    drawer.addEventListener('click', drawerDelegated);
-    drawer.addEventListener('input', drawerLifecycleEdit);
   }
 
   function drawerDelegated(e) {
@@ -726,19 +735,27 @@
     }
   }
 
-  function drawerLifecycleEdit(e) {
-    if (!e.target.matches('.pk-lc-date, .pk-lc-event')) return;
+  function drawerInputHandler(e) {
     const card = state.openCardEl;
     if (!card) return;
     const goalEl = card.closest('.pk-lane');
     const cached = JSON.parse(goalEl.dataset.goalJson || '{}');
-    const project = cached.projects.find(p => p.id === card.dataset.projectId);
-    const row = e.target.closest('.pk-lc-row');
-    const idx = parseInt(row.dataset.lcIdx, 10);
-    project.lifecycle[idx] = project.lifecycle[idx] || {date: '', event: ''};
-    if (e.target.matches('.pk-lc-date'))  project.lifecycle[idx].date  = e.target.value;
-    if (e.target.matches('.pk-lc-event')) project.lifecycle[idx].event = e.target.value;
-    persistDrawer(project, cached, goalEl);
+    const project = (cached.projects || []).find(p => p.id === card.dataset.projectId);
+    if (!project) return;
+
+    if (e.target.matches('.pk-drawer-title')) {
+      project.title = e.target.value;
+      persistDrawer(project, cached, goalEl);
+      return;
+    }
+    if (e.target.matches('.pk-lc-date, .pk-lc-event')) {
+      const row = e.target.closest('.pk-lc-row');
+      const idx = parseInt(row.dataset.lcIdx, 10);
+      project.lifecycle[idx] = project.lifecycle[idx] || {date: '', event: ''};
+      if (e.target.matches('.pk-lc-date'))  project.lifecycle[idx].date  = e.target.value;
+      if (e.target.matches('.pk-lc-event')) project.lifecycle[idx].event = e.target.value;
+      persistDrawer(project, cached, goalEl);
+    }
   }
 
   function persistDrawer(project, cachedGoal, goalEl) {

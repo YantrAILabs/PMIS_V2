@@ -421,6 +421,44 @@ class DBManager:
         except Exception:
             pass
 
+        # Migration (Phase 1 sync protocol): backfill blank match_source to 'nightly'
+        # so pre-existing rows have a non-empty author tag, then enforce uniqueness on
+        # (segment_id, date). This is the DB-level guard that prevents a manual run and
+        # a nightly run from double-counting the same segment on the same date.
+        try:
+            self._conn.execute(
+                "UPDATE activity_time_log SET match_source='nightly' "
+                "WHERE match_source IS NULL OR match_source = ''"
+            )
+            self._conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_atl_segment_date "
+                "ON activity_time_log(segment_id, date)"
+            )
+        except Exception:
+            pass
+
+        # Migration (Phase 3 review redesign): in-flight cluster proposals that
+        # sit between the user clicking Consolidate and confirming/rejecting a
+        # group. status transitions: draft -> confirmed|rejected|superseded.
+        self._conn.executescript("""
+            CREATE TABLE IF NOT EXISTS review_proposals (
+                id TEXT PRIMARY KEY,
+                created_at TEXT DEFAULT (datetime('now')),
+                target_date TEXT NOT NULL,
+                author TEXT NOT NULL DEFAULT 'user',
+                status TEXT NOT NULL DEFAULT 'draft',
+                proposed_content TEXT,
+                segment_ids_json TEXT NOT NULL,
+                project_probs_json TEXT,
+                user_assigned_project_id TEXT DEFAULT '',
+                user_assigned_deliverable_id TEXT DEFAULT '',
+                anchor_node_id TEXT DEFAULT '',
+                confirmed_at TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_rp_date_status
+                ON review_proposals(target_date, status);
+        """)
+
         self._conn.commit()
 
     @contextmanager

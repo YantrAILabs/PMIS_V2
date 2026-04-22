@@ -37,18 +37,21 @@ Frame-by-frame extractions from this segment:
 
 Based on this data, produce:
 
-1. detailed_summary: 2-3 sentence summary of what was accomplished in this segment.
+1. short_title: A single human-readable phrase, 10 words or fewer, naming what the user was doing. No prefix labels, no trailing punctuation. Example: "Drafting CISO outreach email in Gmail".
 
-2. full_text: Complete description of ALL work done during this segment. Include specific details like file names, functions, topics discussed, pages visited. This serves as a permanent record.
+2. detailed_summary: 2-3 sentence summary of what was accomplished in this segment.
 
-3. worker: Based on whether an autonomous agent was running:
+3. full_text: Complete description of ALL work done during this segment. Include specific details like file names, functions, topics discussed, pages visited. This serves as a permanent record.
+
+4. worker: Based on whether an autonomous agent was running:
    - "agent" if the agent flag is true AND the work appears to be agent-generated
    - "human" if the user is actively directing the work
 
-4. medium: One of: browser, terminal, ide, chat, office, other
+5. medium: One of: browser, terminal, ide, chat, office, other
 
 Return ONLY valid JSON with no other text:
 {{
+  "short_title": "...",
   "detailed_summary": "...",
   "full_text": "...",
   "worker": "human|agent",

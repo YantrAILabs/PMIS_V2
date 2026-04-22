@@ -162,11 +162,16 @@ class ContextClassifier:
                 result["worker"] = "agent" if agent_active else "human"
             if "medium" not in result:
                 result["medium"] = "other"
+            if "short_title" not in result or not result.get("short_title"):
+                # Fall back to a truncated detailed_summary so the review UI
+                # always has something human-readable to show.
+                result["short_title"] = (result["detailed_summary"] or "")[:80]
 
             return result
 
         except (json.JSONDecodeError, KeyError, TypeError):
             return {
+                "short_title": (text[:80] if text else "Activity"),
                 "detailed_summary": text[:200] if text else "Activity segment",
                 "full_text": text[:500] if text else "",
                 "worker": "agent" if agent_active else "human",
@@ -185,6 +190,7 @@ class ContextClassifier:
         full_text = ". ".join(t[:100] for t in tasks[:5]) if tasks else summary
 
         return {
+            "short_title": summary[:80],
             "detailed_summary": summary,
             "full_text": full_text,
             "worker": "agent" if agent_active else "human",
