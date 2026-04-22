@@ -1428,7 +1428,7 @@ async def api_pm_deliverable_create(payload: PMDeliverableCreate):
     # Add optional fields straight into deliverables.yaml row
     try:
         import yaml as _yaml
-        pt_root = Path.home() / "Desktop" / "memory" / "productivity-tracker"
+        pt_root = REPO_ROOT / "productivity-tracker"
         deliv_path = pt_root / "config" / "deliverables.yaml"
         if deliv_path.exists():
             raw = _yaml.safe_load(deliv_path.read_text(encoding="utf-8")) or {}
@@ -1447,7 +1447,7 @@ async def api_pm_deliverable_create(payload: PMDeliverableCreate):
     if payload.project_id:
         try:
             import yaml as _yaml
-            pt_root = Path.home() / "Desktop" / "memory" / "productivity-tracker"
+            pt_root = REPO_ROOT / "productivity-tracker"
             goals_path = pt_root / "config" / "goals.yaml"
             if goals_path.exists():
                 g = _yaml.safe_load(goals_path.read_text(encoding="utf-8")) or {}
@@ -1492,7 +1492,7 @@ async def api_pm_project_create(payload: PMProjectCreate):
     if not title:
         raise HTTPException(status_code=400, detail="title required")
 
-    pt_root = Path.home() / "Desktop" / "memory" / "productivity-tracker"
+    pt_root = REPO_ROOT / "productivity-tracker"
     goals_path = pt_root / "config" / "goals.yaml"
     goals_path.parent.mkdir(parents=True, exist_ok=True)
     raw: Dict[str, Any] = {}
@@ -2410,7 +2410,7 @@ async def api_pm_deadlines(limit: int = 3, include_overdue: bool = True):
 
 _TRACKER_LABEL = "com.yantra.productivity-tracker"
 _TRACKER_PLIST = str(Path.home() / "Library" / "LaunchAgents" / f"{_TRACKER_LABEL}.plist")
-_TRACKER_ROOT = Path.home() / "Desktop" / "memory" / "productivity-tracker"
+_TRACKER_ROOT = REPO_ROOT / "productivity-tracker"
 _TRACKER_VENV_PY = _TRACKER_ROOT / ".venv" / "bin" / "python"
 
 
