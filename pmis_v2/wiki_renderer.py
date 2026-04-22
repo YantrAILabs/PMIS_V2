@@ -1218,7 +1218,7 @@ Write a concise knowledge card (100-200 words):
 
         # Related section
         lines.append("\n---\n")
-        lines.append(f"*This page is part of the PMIS knowledge wiki. "
+        lines.append(f"*This page is part of the ProMe memory wiki. "
                      f"It covers {sum(len(c['anchors']) for c in active_ctxs)} knowledge anchors "
                      f"across {len(active_ctxs)} contexts.*")
 

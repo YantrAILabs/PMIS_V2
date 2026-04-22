@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{% block title %}PMIS Wiki{% endblock %}</title>
+<title>{% block title %}memory — ProMe{% endblock %}</title>
 <style>
 :root {
   --bg: #ffffff; --bg2: #f8f9fa; --bg3: #e9ecef;
@@ -21,7 +21,10 @@ body { font-family:'Inter',system-ui,sans-serif; background:var(--bg); color:var
 .wiki-nav { background:var(--nav-bg); border-bottom:1px solid var(--border); padding:12px 24px; display:flex; align-items:center; gap:16px; position:sticky; top:0; z-index:10; }
 .wiki-nav a { color:var(--nav-fg); text-decoration:none; font-size:13px; }
 .wiki-nav a:hover { color:#fff; }
-.wiki-nav .brand { color:var(--nav-brand); font-weight:700; font-size:15px; }
+.wiki-nav .brand { color:var(--nav-brand); font-weight:700; font-size:15px; display:inline-flex; align-items:center; gap:8px; }
+.wiki-nav .brand .wordmark { letter-spacing:-0.3px; }
+.wiki-nav .brand .sub { color:var(--nav-fg); opacity:0.6; font-weight:500; font-size:11px; text-transform:uppercase; letter-spacing:1px; padding-left:4px; border-left:1px solid rgba(255,255,255,0.15); margin-left:2px; }
+.prome-logo { flex-shrink:0; display:block; }
 
 /* CONTENT */
 .wiki-content { max-width:900px; margin:0 auto; padding:32px 24px; }
@@ -187,7 +190,10 @@ tr:hover td { background:#f0f4ff; }
 <body>
 
 <nav class="wiki-nav">
-  <a href="/wiki/" class="brand">PMIS Wiki</a>
+  <a href="/wiki/" class="brand" title="ProMe — Personal Memory Intelligence">
+    <svg class="prome-logo" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" width="22" height="22"><circle cx="16" cy="16" r="13" fill="none" stroke="currentColor" stroke-width="2"/><path d="M 5 12 Q 16 22 27 12" fill="none" stroke="currentColor" stroke-width="1.3" opacity="0.55"/><path d="M 5 20 Q 16 10 27 20" fill="none" stroke="currentColor" stroke-width="1.3" opacity="0.55"/><circle cx="16" cy="16" r="2.4" fill="currentColor"/><circle cx="9" cy="16" r="1.4" fill="currentColor" opacity="0.8"/><circle cx="23" cy="16" r="1.4" fill="currentColor" opacity="0.8"/></svg>
+    <span class="wordmark">ProMe</span><span class="sub">memory</span>
+  </a>
   <a href="/wiki/goals">Goals</a>
   <a href="/wiki/productivity">Productivity</a>
 </nav>
@@ -458,7 +464,7 @@ function wswHarnessBlock() {
   return `
     <div class="wsw-section">
       <h4>Automation Harness</h4>
-      <div class="wsw-sub">PMIS composes a Claude-ready bundle for this deliverable.</div>
+      <div class="wsw-sub">ProMe composes a Claude-ready bundle for this deliverable.</div>
       ${candsBlock}
       ${body}
       <div class="wsw-row" style="margin-top:8px;">

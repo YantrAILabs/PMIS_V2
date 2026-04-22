@@ -131,7 +131,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="PMIS V2 Memory System",
+    title="ProMe Memory System",
     version="2.0",
     lifespan=lifespan,
 )
@@ -929,8 +929,8 @@ async def openapi_actions(request: Request):
     return {
         "openapi": "3.1.0",
         "info": {
-            "title": "PMIS Memory System",
-            "description": "Personal Memory Intelligence System — retrieve and store memories across conversations",
+            "title": "ProMe Memory System",
+            "description": "ProMe — Personal Memory Intelligence System — retrieve and store memories across conversations",
             "version": "2.0"
         },
         "servers": [{"url": base_url}],
@@ -1048,7 +1048,7 @@ async def integrations_page(request: Request):
     template_path = templates_dir / "integrations.html"
     if template_path.exists():
         return templates.TemplateResponse(request, "integrations.html", {
-            "title": "PMIS V2 — Platform Integrations",
+            "title": "ProMe — Platform Integrations",
         })
     return HTMLResponse("<h1>Integration template not found. Run the build step.</h1>")
 
