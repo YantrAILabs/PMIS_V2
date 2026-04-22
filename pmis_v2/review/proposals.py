@@ -37,6 +37,50 @@ logger = logging.getLogger("pmis.review")
 TRACKER_DB = os.path.expanduser("~/.productivity-tracker/tracker.db")
 
 
+# Legacy segments (captured before Phase 2 shipped short_title) all have the
+# same LLM boilerplate opener — "During the segment, ...". Strip those so the
+# derived title leads with real content.
+_BOILERPLATE_OPENERS = (
+    "during the segment,",
+    "during this segment,",
+    "in this segment,",
+    "in the segment,",
+    "the user is ",
+    "the user was ",
+    "a conversation was initiated ",
+)
+
+
+def _derive_short_title(short_title: Optional[str], detailed_summary: Optional[str],
+                        window_name: Optional[str]) -> str:
+    """Produce a readable, one-line title even for legacy rows that never got
+    a short_title. Trims LLM boilerplate and caps at the first sentence or 80
+    chars — whichever comes first."""
+    if short_title:
+        return short_title[:200]
+    s = (detailed_summary or "").strip()
+    if not s:
+        return (window_name or "Activity")[:200]
+    # Peel off stacked openers — LLM output often chains multiple
+    # ("During the segment, a conversation was initiated where...").
+    stripped = True
+    while stripped:
+        stripped = False
+        low = s.lower()
+        for opener in _BOILERPLATE_OPENERS:
+            if low.startswith(opener):
+                s = s[len(opener):].lstrip()
+                stripped = True
+                break
+    for end in (". ", "? ", "! "):
+        idx = s.find(end)
+        if 0 < idx < 80:
+            return s[:idx].rstrip()
+    if len(s) <= 80:
+        return s
+    return s[:79].rstrip() + "…"
+
+
 class ReviewProposals:
     """All state transitions for the review page."""
 
@@ -92,7 +136,9 @@ class ReviewProposals:
             out.append({
                 "id": r["id"],
                 "target_segment_id": r["target_segment_id"],
-                "short_title": (r["short_title"] or r["detailed_summary"] or "")[:200],
+                "short_title": _derive_short_title(
+                    r["short_title"], r["detailed_summary"], r["window_name"]
+                ),
                 "detailed_summary": r["detailed_summary"] or "",
                 "window": r["window_name"] or "",
                 "platform": r["platform"] or "",
