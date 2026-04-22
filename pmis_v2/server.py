@@ -85,9 +85,11 @@ async def lifespan(app: FastAPI):
     try:
         from sync.yaml_to_db import sync_pm_yaml_to_db
         counts = sync_pm_yaml_to_db(_orch.db, embedder=_orch.embedder, hyperparams=_orch.hp)
-        print(f"[PMIS V2] YAML→DB sync: {counts}")
+        # ASCII-only prints: Windows cp1252 stdout (when redirected) can't
+        # encode U+2192 — see commit history for the cascading-crash bug.
+        print(f"[PMIS V2] YAML->DB sync: {counts}")
     except Exception as e:
-        print(f"[PMIS V2] YAML→DB sync skipped: {e}")
+        print(f"[PMIS V2] YAML->DB sync skipped: {e}")
 
     # Start agent health checker background thread
     _agent_thread = threading.Thread(target=_agent_health_loop, daemon=True)

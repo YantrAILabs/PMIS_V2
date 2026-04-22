@@ -200,13 +200,20 @@ def _windows_install() -> tuple[bool, str]:
     wrapper_bat = paths.DATA_DIR / "tracker-run.bat"
     stdout_log = paths.DATA_DIR / "tracker-stdout.log"
     stderr_log = paths.DATA_DIR / "tracker-stderr.log"
-    # PYTHONDONTWRITEBYTECODE=1 prevents Python from reading/writing .pyc
-    # cache files. Fixes a class of bugs where `git pull` leaves stale .pyc
-    # shadowing fresh .py on Windows (filesystem mtime quirk), which silently
-    # regresses cost-critical settings like vision_detail.
+    # Three orthogonal defenses baked into the wrapper:
+    #  - PYTHONDONTWRITEBYTECODE=1  stops Python reading/writing .pyc; avoids
+    #    the Windows bug where `git pull` leaves stale .pyc shadowing fresh
+    #    .py (filesystem-mtime quirk), silently regressing settings.
+    #  - chcp 65001 + PYTHONIOENCODING=utf-8 + PYTHONUTF8=1  keeps stdout/
+    #    stderr on UTF-8 once redirected to a file. Otherwise cp1252 is the
+    #    default and any non-ASCII print() raises UnicodeEncodeError and
+    #    crashes the process (seen on pmis_v2/server.py startup).
     wrapper_bat.write_text(
         "@echo off\r\n"
+        "chcp 65001 > nul\r\n"
         "set PYTHONDONTWRITEBYTECODE=1\r\n"
+        "set PYTHONIOENCODING=utf-8\r\n"
+        "set PYTHONUTF8=1\r\n"
         f'cd /d "{paths.TRACKER_DIR}"\r\n'
         f'"{paths.VENV_PYTHON}" -B -m src.agent.tracker >> "{stdout_log}" 2>> "{stderr_log}"\r\n',
         encoding="utf-8",

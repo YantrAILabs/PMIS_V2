@@ -716,12 +716,21 @@ def _launch_detached(python_exe: Path, script: Path, workdir: Path,
     Stdout/stderr go to a per-server log file in DATA_DIR for debugging."""
     log_path = paths.DATA_DIR / f"server-{port}.log"
     log_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Force UTF-8 stdout/stderr so Python doesn't default to the console's
+    # code page (cp1252 on Windows) when redirected to a log file, which
+    # would UnicodeEncodeError on any non-ASCII print() and crash the server.
+    env = os.environ.copy()
+    env["PYTHONIOENCODING"] = "utf-8"
+    env["PYTHONUTF8"] = "1"
+
     kwargs: dict = {
         "cwd": str(workdir),
         "stdout": open(log_path, "ab"),
         "stderr": subprocess.STDOUT,
         "stdin": subprocess.DEVNULL,
         "close_fds": True,
+        "env": env,
     }
     if sys.platform == "win32":
         CREATE_NO_WINDOW = 0x08000000
