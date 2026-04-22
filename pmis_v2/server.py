@@ -1186,21 +1186,25 @@ def _review_proposals():
     return ReviewProposals(db, _cfg.get_all()), db
 
 
+REVIEW_DEFAULT_DAYS = 2  # window size for the Review page's unconsolidated list
+
+
 def _review_pending_count() -> int:
     """Count unconsolidated segments + active drafts — drives the Goals badge."""
     try:
         rp, _ = _review_proposals()
-        return len(rp.list_unconsolidated(None)) + len(rp.list_drafts(None))
+        return (len(rp.list_unconsolidated(None, days=REVIEW_DEFAULT_DAYS))
+                + len(rp.list_drafts(None)))
     except Exception:
         return 0
 
 
-def _review_payload() -> Dict[str, Any]:
+def _review_payload(days: int = REVIEW_DEFAULT_DAYS) -> Dict[str, Any]:
     """Assemble the wiki_review.html context dict for the two-state UI:
-    raw unconsolidated segments + active draft proposals."""
+    raw unconsolidated segments (bounded window) + active draft proposals."""
     try:
         rp, _ = _review_proposals()
-        unconsolidated = rp.list_unconsolidated(None)
+        unconsolidated = rp.list_unconsolidated(None, days=days)
         drafts = rp.list_drafts(None)
     except Exception as e:
         import logging
@@ -1226,20 +1230,23 @@ def _review_payload() -> Dict[str, Any]:
         ],
         "unconsolidated_count": len(unconsolidated),
         "draft_count": len(drafts),
+        "window_days": days,
     }
 
 
 @app.get("/wiki/review", response_class=HTMLResponse)
-async def wiki_review(request: Request):
-    """Review page — two-state: raw unconsolidated segments + draft proposals."""
-    return templates.TemplateResponse(request, "wiki_review.html", _review_payload())
+async def wiki_review(request: Request, days: int = REVIEW_DEFAULT_DAYS):
+    """Review page — two-state: raw unconsolidated segments + draft proposals.
+    Defaults to a 2-day window (today + yesterday); ?days=N to widen."""
+    return templates.TemplateResponse(request, "wiki_review.html", _review_payload(days=days))
 
 
-# ─── Phase 3 — review_proposals flow ──────────────────────────────────
+# ─── Review_proposals flow ────────────────────────────────────────────
 
 
 class ReviewConsolidatePayload(BaseModel):
     date: Optional[str] = None
+    days: Optional[int] = REVIEW_DEFAULT_DAYS
 
 
 class ReviewProposalConfirmPayload(BaseModel):
@@ -1253,15 +1260,18 @@ class ReviewProposalAssignPayload(BaseModel):
 
 
 @app.get("/api/review/unconsolidated")
-async def api_review_unconsolidated(date: Optional[str] = None):
+async def api_review_unconsolidated(
+    date: Optional[str] = None,
+    days: int = REVIEW_DEFAULT_DAYS,
+):
     rp, _ = _review_proposals()
-    return {"segments": rp.list_unconsolidated(date)}
+    return {"segments": rp.list_unconsolidated(date, days=days), "window_days": days}
 
 
 @app.post("/api/review/consolidate")
 async def api_review_consolidate(payload: ReviewConsolidatePayload):
     rp, _ = _review_proposals()
-    proposals = rp.consolidate(payload.date)
+    proposals = rp.consolidate(payload.date, days=payload.days)
     return {"ok": True, "proposals": proposals}
 
 

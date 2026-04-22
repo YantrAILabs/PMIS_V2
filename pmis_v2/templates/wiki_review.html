@@ -111,6 +111,10 @@
       <h1 style="margin:0;">Review</h1>
       <div class="rv-meta">
         {{ unconsolidated_count }} unconsolidated · {{ draft_count }} proposed group{% if draft_count != 1 %}s{% endif %}
+        · window:
+        <a href="?days=2"  style="color:{% if window_days == 2 %}var(--accent,#8b5cf6){% else %}var(--fg3){% endif %};text-decoration:none;">2d</a>
+        <a href="?days=7"  style="color:{% if window_days == 7 %}var(--accent,#8b5cf6){% else %}var(--fg3){% endif %};text-decoration:none;">7d</a>
+        <a href="?days=30" style="color:{% if window_days == 30 %}var(--accent,#8b5cf6){% else %}var(--fg3){% endif %};text-decoration:none;">30d</a>
       </div>
     </div>
     <div style="display:flex;gap:8px;align-items:center;">
@@ -238,9 +242,12 @@
 
   btn?.addEventListener('click', async () => {
     btn.disabled = true;
-    showBanner('ok', 'Clustering segments…');
+    // Match the list's window so Consolidate acts on exactly what the user sees.
+    const qs = new URLSearchParams(location.search);
+    const days = parseInt(qs.get('days') || '{{ window_days }}', 10) || 2;
+    showBanner('ok', `Clustering segments from the last ${days} day${days === 1 ? '' : 's'}…`);
     try {
-      const result = await postJSON('/api/review/consolidate', {});
+      const result = await postJSON('/api/review/consolidate', {days});
       const n = (result.proposals || []).length;
       showBanner('ok', `Created ${n} proposed group${n === 1 ? '' : 's'}. Reloading…`);
       setTimeout(() => location.reload(), 500);
