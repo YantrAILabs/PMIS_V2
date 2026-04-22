@@ -4,12 +4,12 @@ Daemon installation — platform-branched.
 macOS:   LaunchAgent at ~/Library/LaunchAgents/com.yantra.productivity-tracker.plist,
          loaded with `launchctl`. RunAtLoad + KeepAlive.
 
-Windows: Task Scheduler task "ProMeTracker" registered via `schtasks.exe`.
-         Trigger: at logon of current user. Restart on failure handled by
-         the `/RI 1 /DU 9999:59 /Z` semantics — simpler alternative: let
-         it run once per logon and rely on the tracker's internal
-         resilience. For v0.1 we opt for the simpler "start at logon,
-         auto-restart off" and revisit if crashes become a pattern.
+Windows: Startup folder shortcut at
+         %APPDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\ProMeTracker.lnk.
+         Plus an immediate detached launch so the tracker is running NOW.
+         We chose this over Task Scheduler because corporate-managed Windows
+         machines commonly disable schtasks for non-admin users via Group
+         Policy. Startup folder works on every Windows — no admin required.
 
 Public API used by steps/daemon.py:
     stop_daemon()   -> bool (True if a previous instance was stopped)
@@ -18,7 +18,6 @@ Public API used by steps/daemon.py:
 
 from __future__ import annotations
 
-import getpass
 import os
 import subprocess
 import sys
@@ -130,42 +129,73 @@ def _macos_install() -> tuple[bool, str]:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Windows implementation (Task Scheduler)
+# Windows implementation (Startup folder shortcut + immediate detached launch)
 # ═══════════════════════════════════════════════════════════════════════════
 
-def _windows_stop_if_running() -> bool:
-    """Stop + delete the existing scheduled task, if present."""
-    try:
-        query = subprocess.run(
-            ["schtasks.exe", "/Query", "/TN", paths.TASK_SCHEDULER_NAME],
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-        if query.returncode != 0:
-            return False  # no existing task
-    except Exception:
-        return False
+def _windows_startup_shortcut_path() -> Path:
+    appdata = os.environ.get("APPDATA") or str(Path.home() / "AppData" / "Roaming")
+    return Path(appdata) / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Startup" / "ProMeTracker.lnk"
 
-    # End any currently-running instance, then delete the task so /Create can recreate.
-    subprocess.run(
-        ["schtasks.exe", "/End", "/TN", paths.TASK_SCHEDULER_NAME],
-        capture_output=True,
-    )
-    subprocess.run(
-        ["schtasks.exe", "/Delete", "/TN", paths.TASK_SCHEDULER_NAME, "/F"],
-        capture_output=True,
-    )
-    time.sleep(1)
-    return True
+
+def _windows_stop_if_running() -> bool:
+    """Stop tracker + remove Startup shortcut + clean up any legacy schtasks entry."""
+    stopped = False
+
+    # 1. Kill any running tracker python processes (precise match via cmdline)
+    try:
+        ps_cmd = (
+            "Get-CimInstance Win32_Process -Filter \"Name='python.exe'\" | "
+            "Where-Object { $_.CommandLine -like '*src.agent.tracker*' } | "
+            "ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"
+        )
+        subprocess.run(
+            ["powershell.exe", "-NoProfile", "-Command", ps_cmd],
+            capture_output=True, timeout=10,
+        )
+        stopped = True
+    except Exception:
+        pass
+
+    # 2. Remove Startup folder shortcut if present
+    shortcut = _windows_startup_shortcut_path()
+    if shortcut.exists():
+        try:
+            shortcut.unlink()
+            stopped = True
+        except OSError:
+            pass
+
+    # 3. Clean up any legacy Task Scheduler entry from older installs
+    try:
+        subprocess.run(
+            ["schtasks.exe", "/Query", "/TN", paths.TASK_SCHEDULER_NAME],
+            capture_output=True, timeout=5,
+        )
+        subprocess.run(
+            ["schtasks.exe", "/End", "/TN", paths.TASK_SCHEDULER_NAME],
+            capture_output=True, timeout=5,
+        )
+        subprocess.run(
+            ["schtasks.exe", "/Delete", "/TN", paths.TASK_SCHEDULER_NAME, "/F"],
+            capture_output=True, timeout=5,
+        )
+    except Exception:
+        pass
+
+    if stopped:
+        time.sleep(1)
+    return stopped
 
 
 def _windows_install() -> tuple[bool, str]:
-    # Write a .bat wrapper into DATA_DIR. schtasks /TR points at this.
-    # This handles:
-    #   - cd to TRACKER_DIR so `-m src.agent.tracker` resolves
-    #   - stdout/stderr redirection (Task Scheduler has no equivalent of
-    #     launchd's StandardOutPath / StandardErrorPath keys)
+    """Install the Windows tracker daemon via Startup folder shortcut.
+
+    Works on any Windows (including corporate-managed with Group Policy
+    restrictions) because it requires no admin and no schtasks access.
+    Also immediately launches the tracker as a detached background process
+    so the user doesn't need to log out/in before data starts flowing.
+    """
+    # 1. Write the wrapper .bat — handles cwd + log redirection
     paths.DATA_DIR.mkdir(parents=True, exist_ok=True)
     wrapper_bat = paths.DATA_DIR / "tracker-run.bat"
     stdout_log = paths.DATA_DIR / "tracker-stdout.log"
@@ -177,73 +207,56 @@ def _windows_install() -> tuple[bool, str]:
         encoding="utf-8",
     )
 
-    # Resolve current user in DOMAIN\user or just user form. Without /RU,
-    # schtasks defaults to SYSTEM which requires admin — causing "Access denied"
-    # for non-elevated installs.
-    user = os.environ.get("USERDOMAIN", "") + "\\" + getpass.getuser() \
-        if os.environ.get("USERDOMAIN") else getpass.getuser()
+    # 2. Create the Startup folder shortcut via WScript.Shell (no admin).
+    #    PowerShell is the most reliable host for COM on any Windows edition.
+    shortcut = _windows_startup_shortcut_path()
+    shortcut.parent.mkdir(parents=True, exist_ok=True)
 
-    create = subprocess.run(
-        [
-            "schtasks.exe", "/Create",
-            "/SC", "ONLOGON",          # trigger: at user logon
-            "/TN", paths.TASK_SCHEDULER_NAME,
-            "/TR", f'"{wrapper_bat}"',
-            "/RU", user,               # run as the current user (no admin needed)
-            "/RL", "LIMITED",          # run with user's standard privileges (no UAC)
-            "/F",                      # force overwrite if exists
-        ],
-        capture_output=True,
-        text=True,
+    ps_cmd = (
+        f"$s=(New-Object -COM WScript.Shell).CreateShortcut('{shortcut}'); "
+        f"$s.TargetPath='{wrapper_bat}'; "
+        f"$s.WorkingDirectory='{paths.TRACKER_DIR}'; "
+        f"$s.WindowStyle=7; "
+        f"$s.Save()"
     )
-    if create.returncode != 0:
-        # Fallback: retry without /RU (older Windows builds may not accept it
-        # in combination with /RL LIMITED). This gives the user a clearer
-        # error if both paths fail.
-        retry = subprocess.run(
-            [
-                "schtasks.exe", "/Create",
-                "/SC", "ONLOGON",
-                "/TN", paths.TASK_SCHEDULER_NAME,
-                "/TR", f'"{wrapper_bat}"',
-                "/RL", "LIMITED",
-                "/F",
-            ],
-            capture_output=True,
-            text=True,
+    result = subprocess.run(
+        ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps_cmd],
+        capture_output=True, text=True, timeout=15,
+    )
+    if result.returncode != 0:
+        return False, f"Startup shortcut creation failed: {result.stderr.strip() or result.stdout.strip()}"
+
+    # 3. Launch the tracker NOW as a detached, window-less background process.
+    #    DETACHED_PROCESS + CREATE_NO_WINDOW = no console, survives parent exit.
+    CREATE_NO_WINDOW = 0x08000000
+    DETACHED_PROCESS = 0x00000008
+    try:
+        subprocess.Popen(
+            [str(paths.VENV_PYTHON), "-m", "src.agent.tracker"],
+            cwd=str(paths.TRACKER_DIR),
+            stdout=open(stdout_log, "ab"),
+            stderr=open(stderr_log, "ab"),
+            stdin=subprocess.DEVNULL,
+            creationflags=CREATE_NO_WINDOW | DETACHED_PROCESS,
+            close_fds=True,
         )
-        if retry.returncode != 0:
-            return False, (
-                f"schtasks /Create failed (both with and without /RU).\n"
-                f"  First attempt: {create.stderr.strip() or create.stdout.strip()}\n"
-                f"  Retry: {retry.stderr.strip() or retry.stdout.strip()}\n"
-                f"  Hint: run install.bat in an elevated terminal (Run as administrator), "
-                f"or create the task manually with:\n"
-                f'  schtasks /Create /SC ONLOGON /TN {paths.TASK_SCHEDULER_NAME} '
-                f'/TR "{wrapper_bat}" /RU {user} /RL LIMITED /F'
-            )
+    except Exception as e:
+        return True, f"Startup shortcut installed but immediate launch failed: {e}. Tracker will start on next login."
 
-    # Start immediately (so user doesn't have to log out+in).
-    run = subprocess.run(
-        ["schtasks.exe", "/Run", "/TN", paths.TASK_SCHEDULER_NAME],
-        capture_output=True,
-        text=True,
-    )
-    if run.returncode != 0:
-        return False, f"schtasks /Run failed: {run.stderr.strip() or run.stdout.strip()}"
-
-    # Poll /Query for "Running" status for up to 5 seconds.
+    # 4. Verify a tracker process actually came up (poll up to 5s)
     for _ in range(5):
-        q = subprocess.run(
-            ["schtasks.exe", "/Query", "/TN", paths.TASK_SCHEDULER_NAME, "/FO", "CSV", "/NH"],
-            capture_output=True,
-            text=True,
-        )
-        if q.returncode == 0 and "Running" in q.stdout:
-            return True, "Task Scheduler: ProMeTracker (Running)"
         time.sleep(1)
-    # Not "Running" yet but scheduled — still a success; it'll run next logon.
-    return True, "Task Scheduler: ProMeTracker (scheduled, not yet confirmed running)"
+        check = subprocess.run(
+            ["powershell.exe", "-NoProfile", "-Command",
+             "Get-CimInstance Win32_Process -Filter \"Name='python.exe'\" | "
+             "Where-Object { $_.CommandLine -like '*src.agent.tracker*' } | "
+             "Select-Object -First 1 -ExpandProperty ProcessId"],
+            capture_output=True, text=True, timeout=5,
+        )
+        pid = (check.stdout or "").strip()
+        if pid.isdigit():
+            return True, f"Tracker running (PID {pid}) — Startup shortcut at {shortcut.name}"
+    return True, f"Startup shortcut at {shortcut.name} (will start on next login)"
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -276,11 +289,11 @@ def summary_commands() -> list[tuple[str, str]]:
             ("View logs",    f"tail -f {paths.DATA_DIR}/tracker-stderr.log"),
         ]
     if sys.platform == "win32":
-        tn = paths.TASK_SCHEDULER_NAME
+        wrapper = paths.DATA_DIR / "tracker-run.bat"
         return [
-            ("Check daemon", f'schtasks /Query /TN {tn}'),
-            ("Stop daemon",  f'schtasks /End /TN {tn}'),
-            ("Start daemon", f'schtasks /Run /TN {tn}'),
-            ("View logs",    f'type "{paths.DATA_DIR}\\tracker-stderr.log"'),
+            ("Check tracker", 'Get-Process python | Where-Object { $_.Path -like "*productivity-tracker*" }'),
+            ("Stop tracker",  'Get-CimInstance Win32_Process -Filter "Name=\'python.exe\'" | Where-Object { $_.CommandLine -like "*src.agent.tracker*" } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }'),
+            ("Start tracker", f'Start-Process "{wrapper}" -WindowStyle Hidden'),
+            ("View logs",     f'Get-Content "{paths.DATA_DIR}\\tracker-stderr.log" -Tail 50'),
         ]
     return []

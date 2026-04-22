@@ -13,6 +13,7 @@ import platform
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 from . import paths, service, ui
@@ -487,14 +488,15 @@ def step6_verify() -> None:
 # ═══════════════════════════════════════════════════════════════════════════
 
 def step7_daemon() -> None:
-    label = "LaunchAgent" if sys.platform == "darwin" else "Task Scheduler task"
-    ui.step(7, TOTAL_STEPS, f"Installing daemon ({label})")
+    label = "LaunchAgent" if sys.platform == "darwin" else "Startup folder shortcut"
+    ui.step(7, TOTAL_STEPS, f"Installing tracker daemon ({label})")
 
     started, detail = service.install_daemon()
     if started:
-        ui.ok(f"Daemon running ({detail})")
+        ui.ok(f"Tracker {detail}")
     else:
-        ui.warn(f"Daemon may not have started — {detail}")
+        ui.warn(f"Tracker daemon NOT installed — {detail}")
+        ui.warn("Screenshots will not be captured until you fix this.")
 
     # Step 7b — write dev configs (cross-platform JSON, pathlib handles separators)
     _write_claude_launch_json()
@@ -535,20 +537,96 @@ def _write_mcp_config_json() -> None:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# STEP 8 — Summary
+# STEP 8 — Launch web servers, verify, open browser, summarize
 # ═══════════════════════════════════════════════════════════════════════════
 
-def step8_summary(perm_issues: bool) -> None:
-    ui.step(8, TOTAL_STEPS, "Installation complete")
+_SERVER_PORTS = {
+    "ProMe API + Wiki":   (8100, "pmis_v2",                  "server.py"),
+    "Ops Dashboard":      (8200, "pmis_v2",                  "health_dashboard.py"),
+    "Platform Portal":    (8000, "memory_system/platform",   "server.py"),
+}
 
-    ui.banner("Installation Complete!")
-    start_cmd = "./start.sh" if sys.platform == "darwin" else "start.bat"
-    portal_path = paths.REPO_DIR / ("start.sh" if sys.platform == "darwin" else "start.bat")
-    print(f"  {ui.GREEN}Daemon:{ui.NC}     Running (captures screenshots every 10s)")
-    print(f"  {ui.GREEN}Portal:{ui.NC}     Start with: {start_cmd}")
-    print(f"  {ui.GREEN}Portal URL:{ui.NC} http://localhost:8000")
-    print(f"  {ui.GREEN}Data:{ui.NC}       {paths.DATA_DIR}")
-    print(f"  {ui.GREEN}Logs:{ui.NC}       {paths.DATA_DIR / 'tracker-stderr.log'}")
+
+def step8_launch(perm_issues: bool) -> None:
+    ui.step(8, TOTAL_STEPS, "Starting web servers and opening dashboard")
+
+    # 1. Seed empty YAML files so /wiki/goals renders cleanly on fresh installs
+    _seed_empty_yaml_files()
+
+    # 2. Kill any stale listeners on our ports (idempotent re-install support)
+    _kill_port_listeners([p for p, _, _ in _SERVER_PORTS.values()])
+
+    # 3. Launch all three servers as detached background processes
+    for label, (port, workdir_rel, script) in _SERVER_PORTS.items():
+        workdir = paths.REPO_DIR / workdir_rel
+        script_path = workdir / script
+        if not script_path.exists():
+            ui.warn(f"  {label}: {script_path} not found — skipping")
+            continue
+        try:
+            _launch_detached(paths.VENV_PYTHON, script_path, workdir, port, label)
+            ui.info(f"  Launching {label} on :{port}...")
+        except Exception as e:
+            ui.warn(f"  {label}: launch failed — {e}")
+
+    # 4. Wait for servers to boot, then smoke-test each
+    import urllib.request
+    import urllib.error
+    deadline_per_server = 15  # seconds
+    time.sleep(2)
+
+    all_ok = True
+    for label, (port, _, _) in _SERVER_PORTS.items():
+        url = f"http://127.0.0.1:{port}/"
+        ok = False
+        waited = 0
+        last_err = ""
+        while waited < deadline_per_server:
+            try:
+                with urllib.request.urlopen(url, timeout=2) as resp:
+                    # Any 2xx/3xx/4xx = server is up (some root paths 404, that's fine)
+                    if resp.status < 500:
+                        ok = True
+                        break
+                    last_err = f"HTTP {resp.status}"
+            except urllib.error.HTTPError as e:
+                if e.code < 500:
+                    ok = True
+                    break
+                last_err = f"HTTP {e.code}"
+            except Exception as e:
+                last_err = str(e)
+            time.sleep(2)
+            waited += 2
+        if ok:
+            ui.ok(f"  {label} responding on :{port}")
+        else:
+            ui.warn(f"  {label} not responding on :{port} after {deadline_per_server}s ({last_err})")
+            all_ok = False
+
+    # 5. Open the main dashboard in the default browser
+    main_url = "http://localhost:8100/wiki/goals"
+    try:
+        import webbrowser
+        webbrowser.open(main_url)
+        ui.ok(f"  Opening {main_url} in default browser")
+    except Exception:
+        ui.info(f"  Open manually: {main_url}")
+
+    # 6. Final summary
+    print()
+    ui.banner("ProMe is running!")
+    status_line = (
+        f"  {ui.GREEN}Tracker:{ui.NC}      capturing screenshots in background"
+        if _tracker_is_running()
+        else f"  {ui.YELLOW}Tracker:{ui.NC}      NOT RUNNING — see step 7 warning"
+    )
+    print(status_line)
+    print(f"  {ui.GREEN}Main UI:{ui.NC}      http://localhost:8100/wiki/goals")
+    print(f"  {ui.GREEN}Ops:{ui.NC}          http://localhost:8200/")
+    print(f"  {ui.GREEN}Portal:{ui.NC}       http://localhost:8000/")
+    print(f"  {ui.GREEN}Data:{ui.NC}         {paths.DATA_DIR}")
+    print(f"  {ui.GREEN}Logs:{ui.NC}         {paths.DATA_DIR / 'tracker-stderr.log'}")
     print()
 
     if perm_issues and sys.platform == "darwin":
@@ -560,5 +638,96 @@ def step8_summary(perm_issues: bool) -> None:
     print(f"  {ui.BLUE}Useful commands:{ui.NC}")
     for label, cmd in service.summary_commands():
         print(f"    {label:15s} {cmd}")
-    print(f"    {'Start portal':15s} {start_cmd}")
     print()
+
+    if not all_ok:
+        ui.warn("Some servers are not responding. Check their terminal windows for errors,")
+        ui.warn("or re-run the installer: {}".format(
+            "install.bat" if sys.platform == "win32" else "./install.sh"
+        ))
+
+
+# ── Helpers for step 8 ─────────────────────────────────────────────────────
+
+def _seed_empty_yaml_files() -> None:
+    """Create empty goals.yaml / deliverables.yaml if they don't exist, so the
+    wiki renders cleanly on a fresh install instead of choking on missing files."""
+    config_dir = paths.TRACKER_DIR / "config"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    goals = config_dir / "goals.yaml"
+    deliv = config_dir / "deliverables.yaml"
+    if not goals.exists():
+        goals.write_text("goals: []\n", encoding="utf-8")
+        ui.ok(f"  Seeded empty {goals.name}")
+    if not deliv.exists():
+        deliv.write_text("deliverables: []\n", encoding="utf-8")
+        ui.ok(f"  Seeded empty {deliv.name}")
+
+
+def _kill_port_listeners(ports: list[int]) -> None:
+    """Kill whatever is listening on the given ports. Idempotent."""
+    if sys.platform == "win32":
+        port_list = ",".join(str(p) for p in ports)
+        ps_cmd = (
+            f"Get-NetTCPConnection -LocalPort {port_list} -ErrorAction SilentlyContinue | "
+            f"Where-Object {{ $_.OwningProcess -gt 4 }} | "
+            f"ForEach-Object {{ Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }}"
+        )
+        subprocess.run(
+            ["powershell.exe", "-NoProfile", "-Command", ps_cmd],
+            capture_output=True, timeout=10,
+        )
+    else:
+        for port in ports:
+            subprocess.run(
+                f"lsof -ti :{port} 2>/dev/null | xargs -r kill -9 2>/dev/null",
+                shell=True, capture_output=True, timeout=5,
+            )
+
+
+def _launch_detached(python_exe: Path, script: Path, workdir: Path,
+                     port: int, label: str) -> None:
+    """Start a Python server as a detached background process.
+    Stdout/stderr go to a per-server log file in DATA_DIR for debugging."""
+    log_path = paths.DATA_DIR / f"server-{port}.log"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    kwargs: dict = {
+        "cwd": str(workdir),
+        "stdout": open(log_path, "ab"),
+        "stderr": subprocess.STDOUT,
+        "stdin": subprocess.DEVNULL,
+        "close_fds": True,
+    }
+    if sys.platform == "win32":
+        CREATE_NO_WINDOW = 0x08000000
+        DETACHED_PROCESS = 0x00000008
+        kwargs["creationflags"] = CREATE_NO_WINDOW | DETACHED_PROCESS
+    else:
+        kwargs["start_new_session"] = True
+    subprocess.Popen([str(python_exe), str(script)], **kwargs)
+
+
+def _tracker_is_running() -> bool:
+    """Best-effort check whether the tracker daemon is currently active."""
+    if sys.platform == "darwin":
+        try:
+            r = subprocess.run(
+                ["launchctl", "list", paths.LAUNCH_AGENT_LABEL],
+                capture_output=True, text=True, timeout=3,
+            )
+            return r.returncode == 0 and '"PID"' in r.stdout
+        except Exception:
+            return False
+    if sys.platform == "win32":
+        try:
+            r = subprocess.run(
+                ["powershell.exe", "-NoProfile", "-Command",
+                 "Get-CimInstance Win32_Process -Filter \"Name='python.exe'\" | "
+                 "Where-Object { $_.CommandLine -like '*src.agent.tracker*' } | "
+                 "Select-Object -First 1 -ExpandProperty ProcessId"],
+                capture_output=True, text=True, timeout=5,
+            )
+            return (r.stdout or "").strip().isdigit()
+        except Exception:
+            return False
+    return False
