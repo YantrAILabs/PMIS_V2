@@ -1448,14 +1448,14 @@ async def api_pm_deliverable_create(payload: PMDeliverableCreate):
         pt_root = Path.home() / "Desktop" / "memory" / "productivity-tracker"
         deliv_path = pt_root / "config" / "deliverables.yaml"
         if deliv_path.exists():
-            raw = _yaml.safe_load(deliv_path.read_text()) or {}
+            raw = _yaml.safe_load(deliv_path.read_text(encoding="utf-8")) or {}
             for d in raw.get("deliverables", []) or []:
                 if d.get("id") == created.get("id"):
                     if payload.deadline: d["deadline"] = payload.deadline
                     if payload.description: d["description"] = payload.description
                     if payload.supercontext: d["supercontext"] = payload.supercontext
                     break
-            deliv_path.write_text(_yaml.safe_dump(raw, sort_keys=False, default_flow_style=False))
+            deliv_path.write_text(_yaml.safe_dump(raw, sort_keys=False, default_flow_style=False), encoding="utf-8")
     except Exception:
         pass
 
@@ -1467,14 +1467,14 @@ async def api_pm_deliverable_create(payload: PMDeliverableCreate):
             pt_root = Path.home() / "Desktop" / "memory" / "productivity-tracker"
             goals_path = pt_root / "config" / "goals.yaml"
             if goals_path.exists():
-                g = _yaml.safe_load(goals_path.read_text()) or {}
+                g = _yaml.safe_load(goals_path.read_text(encoding="utf-8")) or {}
                 for goal in g.get("goals", []) or []:
                     for proj in goal.get("projects", []) or []:
                         if proj.get("id") == payload.project_id:
                             dp = proj.setdefault("deliverable_patterns", {})
                             dp.setdefault(created["id"], [payload.name.split()[0] if payload.name else created["id"]])
                             break
-                goals_path.write_text(_yaml.safe_dump(g, sort_keys=False, default_flow_style=False))
+                goals_path.write_text(_yaml.safe_dump(g, sort_keys=False, default_flow_style=False), encoding="utf-8")
         except Exception:
             pass
 
@@ -1515,7 +1515,7 @@ async def api_pm_project_create(payload: PMProjectCreate):
     raw: Dict[str, Any] = {}
     if goals_path.exists():
         try:
-            raw = _yaml.safe_load(goals_path.read_text()) or {}
+            raw = _yaml.safe_load(goals_path.read_text(encoding="utf-8")) or {}
         except Exception:
             raw = {}
     goals_list = raw.get("goals", []) or []
@@ -1570,7 +1570,7 @@ async def api_pm_project_create(payload: PMProjectCreate):
     }
     target_goal.setdefault("projects", []).append(new_project)
 
-    goals_path.write_text(_yaml.safe_dump(raw, sort_keys=False, default_flow_style=False))
+    goals_path.write_text(_yaml.safe_dump(raw, sort_keys=False, default_flow_style=False), encoding="utf-8")
 
     sync_counts: Dict[str, Any] = {}
     try:
@@ -2168,7 +2168,7 @@ async def api_harness_get(harness_id: str):
         import json as _json
         bundle_json = Path(rec["bundle_path"]) / "bundle.json"
         if bundle_json.exists():
-            rec["manifest"] = _json.loads(bundle_json.read_text())
+            rec["manifest"] = _json.loads(bundle_json.read_text(encoding="utf-8"))
     except Exception:
         pass
     return rec

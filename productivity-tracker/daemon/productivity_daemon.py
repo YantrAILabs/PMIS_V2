@@ -200,7 +200,7 @@ class ProductivityDaemon:
         async def monitor_ui():
             ui_path = Path(__file__).parent / "monitor_ui" / "index.html"
             if ui_path.exists():
-                return HTMLResponse(ui_path.read_text())
+                return HTMLResponse(ui_path.read_text(encoding="utf-8"))
             return HTMLResponse("<h1>Pipeline Monitor</h1><p>UI not found.</p>")
 
         return monitor
@@ -228,7 +228,7 @@ def main():
     cred_path = Path.home() / ".productivity-tracker" / "daemon_credentials.json"
     admin_hash = ""
     if cred_path.exists():
-        creds = json.loads(cred_path.read_text())
+        creds = json.loads(cred_path.read_text(encoding="utf-8"))
         admin_hash = creds.get("admin_password_hash", "")
 
     daemon = ProductivityDaemon(config_path, admin_hash)
