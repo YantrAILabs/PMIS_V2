@@ -110,6 +110,12 @@ def step1_preflight() -> dict:
 def step2_venv(python_exe: str) -> None:
     ui.step(2, TOTAL_STEPS, "Python environment + dependencies")
 
+    # Purge stale bytecode caches before anything else — on Windows, `git pull`
+    # occasionally leaves .pyc files with newer mtime than the corresponding
+    # .py, causing Python to run OLD code from the pre-pull revision. Killing
+    # __pycache__/ dirs guarantees the next tracker start compiles from .py.
+    _purge_pycache()
+
     # Auto-fix broken venv (same logic as install.sh)
     if paths.VENV_DIR.is_dir():
         if paths.VENV_PYTHON.exists() and paths.VENV_PIP.exists():
@@ -647,7 +653,26 @@ def step8_launch(perm_issues: bool) -> None:
         ))
 
 
-# ── Helpers for step 8 ─────────────────────────────────────────────────────
+# ── Helpers ────────────────────────────────────────────────────────────────
+
+def _purge_pycache() -> None:
+    """Remove every __pycache__ directory under the repo (excluding .venv).
+    Belt-and-suspenders against stale bytecode on Windows. Idempotent."""
+    skip = {".venv", "venv", "node_modules", ".git"}
+    purged = 0
+    for cache in paths.REPO_DIR.rglob("__pycache__"):
+        if any(part in skip for part in cache.parts):
+            continue
+        try:
+            shutil.rmtree(cache, ignore_errors=True)
+            purged += 1
+        except Exception:
+            pass
+    if purged:
+        ui.ok(f"Purged {purged} stale __pycache__ director{'y' if purged == 1 else 'ies'}")
+
+
+
 
 def _seed_empty_yaml_files() -> None:
     """Create empty goals.yaml / deliverables.yaml if they don't exist, so the
