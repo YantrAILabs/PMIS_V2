@@ -1,59 +1,32 @@
 """
-Prompt templates for Ollama Vision and text analysis.
-Centralized here for easy iteration and tuning.
+Prompt templates for vision + text analysis.
+
+These are intentionally terse. The OpenAI call already passes
+`response_format={"type": "json_object"}` so we don't need to reiterate
+"Return JSON" or show the schema more than once.
 """
 
-# ─── Frame-level analysis (Ollama Vision) ─────────────────────────────
+# ─── Frame-level analysis (vision) ────────────────────────────────────
 
-FRAME_BATCH_PROMPT = """Analyze these {count} consecutive screenshots from a user's work session on macOS.
+FRAME_BATCH_PROMPT = """For each of {count} screenshots, extract:
+- text: key visible content (code/chat/doc text; not exhaustive OCR)
+- app: app or site (e.g. "VS Code", "Chrome/Gmail")
+- task: short phrase of what the user is doing
 
-For EACH frame, extract:
-1. text: Key visible text content (code, chat messages, document text — not exhaustive OCR, just the meaningful content)
-2. app: The application or website visible (e.g., "VS Code", "ChatGPT in Chrome", "Terminal")
-3. task: What specific task the user is performing in this frame (e.g., "Writing a Python function", "Reading API documentation", "Reviewing a pull request")
-
-Return ONLY valid JSON with no other text:
-{{
-  "frames": [
-    {{"text": "...", "app": "...", "task": "..."}},
-    ...
-  ]
-}}
-
-Be concise. Focus on what's actionable, not decorative UI elements."""
+JSON: {{"frames":[{{"text":"...","app":"...","task":"..."}}, ...]}}"""
 
 
-# ─── Segment-level synthesis (Ollama text) ─────────────────────────────
+# ─── Segment-level synthesis (text) ───────────────────────────────────
 
-SEGMENT_SYNTHESIS_PROMPT = """You are analyzing a work session segment from a productivity tracker.
+SEGMENT_SYNTHESIS_PROMPT = """Summarize this work segment.
+Window: {window_name} ({platform}) · Duration: {duration}s · Agent active: {agent_active}
 
-Segment ID: {segment_id}
-Duration: {duration} seconds
-Active window: {window_name} ({platform})
-An autonomous agent was running: {agent_active}
-
-Frame-by-frame extractions from this segment:
+Per-frame extractions:
 {frame_jsons}
 
-Based on this data, produce:
-
-1. short_title: A single human-readable phrase, 10 words or fewer, naming what the user was doing. No prefix labels, no trailing punctuation. Example: "Drafting CISO outreach email in Gmail".
-
-2. detailed_summary: 2-3 sentence summary of what was accomplished in this segment.
-
-3. full_text: Complete description of ALL work done during this segment. Include specific details like file names, functions, topics discussed, pages visited. This serves as a permanent record.
-
-4. worker: Based on whether an autonomous agent was running:
-   - "agent" if the agent flag is true AND the work appears to be agent-generated
-   - "human" if the user is actively directing the work
-
-5. medium: One of: browser, terminal, ide, chat, office, other
-
-Return ONLY valid JSON with no other text:
-{{
-  "short_title": "...",
-  "detailed_summary": "...",
-  "full_text": "...",
-  "worker": "human|agent",
-  "medium": "..."
-}}"""
+Output JSON fields:
+- short_title: ≤10 words, no prefix label, no trailing punctuation (e.g. "Drafting CISO email in Gmail")
+- detailed_summary: 2-3 sentences on what was accomplished
+- full_text: complete record — file names, topics, pages visited
+- worker: "agent" if agent flag true AND work looks agent-driven, else "human"
+- medium: one of browser|terminal|ide|chat|office|other"""

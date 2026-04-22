@@ -1,18 +1,25 @@
 # Productivity Tracker — Main Configuration
 
 tracking:
-  # Screenshot interval in seconds
-  screenshot_interval_active: 10    # When user is active
-  screenshot_interval_idle: 30      # When low activity detected
-  
+  # Screenshot interval in seconds. Tuned for minimal token spend without
+  # losing meaningful activity — a full-focus reading session still gets
+  # analyzed, just coarser (every 15s instead of 10s).
+  screenshot_interval_active: 15    # When user is active
+  screenshot_interval_idle: 60      # When idle — half the capture rate
+
   # Idle detection
-  idle_threshold_secs: 60           # No input for this long = idle
+  idle_threshold_secs: 30           # No input for 30s = idle (was 60)
   idle_gap_new_segment_secs: 300    # 5 min idle = force new segment
-  
+
   # Screenshot processing
-  screenshot_max_width: 1024        # Resize before sending to API (cost optimization)
-  frame_batch_size: 4               # Frames per ChatGPT Vision call
-  skip_similar_threshold: 0.95      # SSIM > this = skip frame (near identical)
+  screenshot_max_width: 1024        # Doesn't affect token cost with vision_detail=low
+                                    # (server downscales to 512x512 anyway)
+  frame_batch_size: 6               # More frames per call amortizes the fixed
+                                    # prompt + output overhead; at ~85 tok/image
+                                    # the extra images are nearly free.
+  skip_similar_threshold: 0.88      # Tighter dedup — skip near-duplicates more
+                                    # aggressively (was 0.95). Typing-in-editor
+                                    # no longer generates vision calls.
 
 segmentation:
   # Visual diff threshold for new segment
