@@ -172,8 +172,19 @@ def step2_venv(python_exe: str) -> None:
             else:
                 ui.warn(f"  {pkg} skipped")
                 opt_skipped.append(pkg)
-    # On Windows, mss/pywin32/pynput come in via `pip install -e .` below
-    # because they're sys_platform-marked deps in tracker's pyproject.toml.
+    elif sys.platform == "win32":
+        # These are ALSO declared in productivity-tracker/pyproject.toml as
+        # sys_platform-marked deps, but installing them explicitly here surfaces
+        # any wheel-build failures with a readable error instead of the silent
+        # skip we saw on at least one Python 3.12 Windows install.
+        win_pkgs = ["mss>=9.0", "pywin32>=306", "pynput>=1.7"]
+        for pkg in win_pkgs:
+            if _pip_install([pkg], quiet=True, raise_on_error=False):
+                ui.ok(f"  {pkg}")
+                opt_installed.append(pkg)
+            else:
+                ui.warn(f"  {pkg} skipped — screenshots/window detection may fail")
+                opt_skipped.append(pkg)
 
     if opt_skipped:
         print()
