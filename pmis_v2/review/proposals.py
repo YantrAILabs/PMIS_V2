@@ -413,52 +413,55 @@ class ReviewProposals:
         return min(0.9, 0.5 + 0.15 * hits)
 
     def _list_active_projects(self) -> List[Dict]:
-        """Merge active projects from PMIS `projects` table AND goals.yaml so
-        the scorer can surface projects even if they only exist in one source.
+        """Goals-page projects only (goals.yaml). The PMIS `projects` table
+        holds historical rows that shouldn't surface in the Review picker —
+        only the current Goals projects are valid tagging targets.
+
+        We still enrich each project with its sc_node_id from the PMIS table
+        when the id matches; that's a lookup, not a widening of the list.
         """
-        merged: Dict[str, Dict] = {}
-
-        # PMIS table (authoritative for sc_node_id)
-        pconn = sqlite3.connect(self.db.db_path)
-        pconn.row_factory = sqlite3.Row
-        try:
-            for r in pconn.execute(
-                "SELECT id, name, sc_node_id FROM projects WHERE status = 'active'"
-            ).fetchall():
-                merged[r["id"]] = {
-                    "id": r["id"],
-                    "name": r["name"],
-                    "sc_node_id": r["sc_node_id"] or "",
-                    "match_patterns": [],
-                }
-        except Exception:
-            pass
-        finally:
-            pconn.close()
-
-        # goals.yaml (authoritative for match_patterns)
+        catalog: Dict[str, Dict] = {}
         try:
             import yaml
             gy = Path.home() / "Desktop" / "memory" / "productivity-tracker" / "config" / "goals.yaml"
-            if gy.exists():
-                with open(gy) as f:
-                    raw = yaml.safe_load(f) or {}
-                for g in raw.get("goals") or []:
-                    for p in g.get("projects") or []:
-                        pid = p.get("id")
-                        if not pid:
-                            continue
-                        entry = merged.setdefault(
-                            pid,
-                            {"id": pid, "name": p.get("title") or pid, "sc_node_id": "", "match_patterns": []},
-                        )
-                        entry["match_patterns"] = list(p.get("match_patterns") or [])
-                        if not entry.get("name") or entry["name"] == pid:
-                            entry["name"] = p.get("title") or entry["name"]
+            if not gy.exists():
+                return []
+            with open(gy) as f:
+                raw = yaml.safe_load(f) or {}
+            for g in raw.get("goals") or []:
+                for p in g.get("projects") or []:
+                    pid = p.get("id")
+                    if not pid:
+                        continue
+                    catalog[pid] = {
+                        "id": pid,
+                        "name": p.get("title") or pid,
+                        "sc_node_id": "",
+                        "match_patterns": list(p.get("match_patterns") or []),
+                    }
         except Exception as e:
-            logger.debug(f"goals.yaml scan failed (non-fatal): {e}")
+            logger.debug(f"goals.yaml scan failed: {e}")
+            return []
 
-        return list(merged.values())
+        if not catalog:
+            return []
+
+        # Enrich with sc_node_id from PMIS table where the id matches.
+        try:
+            pconn = sqlite3.connect(self.db.db_path)
+            pconn.row_factory = sqlite3.Row
+            placeholders = ",".join("?" for _ in catalog)
+            rows = pconn.execute(
+                f"SELECT id, sc_node_id FROM projects WHERE id IN ({placeholders})",
+                list(catalog.keys()),
+            ).fetchall()
+            for r in rows:
+                catalog[r["id"]]["sc_node_id"] = r["sc_node_id"] or ""
+            pconn.close()
+        except Exception:
+            pass
+
+        return list(catalog.values())
 
     # ------------------------------------------------------------------
     # Stage 4: confirm / reject
