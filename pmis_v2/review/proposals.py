@@ -92,38 +92,51 @@ class ReviewProposals:
     # Stage 1: list raw unconsolidated segments
     # ------------------------------------------------------------------
 
-    def list_unconsolidated(self, target_date: Optional[str] = None) -> List[Dict]:
-        """Return context_1 segments up to target_date (inclusive) that are
-        NOT yet recorded in activity_time_log AND not captured by an open
-        draft proposal. Per user preference, target_date=None means 'all
-        unconsolidated up to today'.
+    def list_unconsolidated(
+        self,
+        target_date: Optional[str] = None,
+        days: Optional[int] = 2,
+    ) -> List[Dict]:
+        """Return context_1 segments NOT claimed by activity_time_log AND
+        not in a draft proposal.
+
+        Windowing:
+          target_date='YYYY-MM-DD' → only segments from that exact day.
+          days=N (default 2)       → today + (N-1) prior days.
+          days=None                → no window; returns the full backlog.
+
+        The default is deliberately narrow. Nightly daily_activity_merge
+        skips singleton clusters (size < 2), so over many days the
+        un-clusterable residue piles up. Those segments are nightly's
+        decision to NOT group, not a pending user task — showing the full
+        historical residue on Review floods the UI with noise.
         """
         if not os.path.exists(TRACKER_DB):
             return []
 
-        # Claimed segments: in activity_time_log (any source) OR inside a
-        # draft review_proposal. Claimed segments never surface as raw again.
         claimed = self._claimed_segment_ids()
 
         tconn = sqlite3.connect(TRACKER_DB)
         tconn.row_factory = sqlite3.Row
+        base_cols = ("id, target_segment_id, detailed_summary, short_title, "
+                     "window_name, platform, target_segment_length_secs, "
+                     "worker, timestamp_start")
         if target_date:
             rows = tconn.execute(
-                """SELECT id, target_segment_id, detailed_summary, short_title,
-                          window_name, platform, target_segment_length_secs,
-                          worker, timestamp_start
-                   FROM context_1
-                   WHERE DATE(timestamp_start) <= ?
-                   ORDER BY timestamp_start DESC""",
+                f"SELECT {base_cols} FROM context_1 "
+                f"WHERE DATE(timestamp_start) = ? ORDER BY timestamp_start DESC",
                 (target_date,),
+            ).fetchall()
+        elif days is not None and days > 0:
+            rows = tconn.execute(
+                f"SELECT {base_cols} FROM context_1 "
+                f"WHERE DATE(timestamp_start) >= DATE('now', ?) "
+                f"ORDER BY timestamp_start DESC",
+                (f"-{days - 1} days",),
             ).fetchall()
         else:
             rows = tconn.execute(
-                """SELECT id, target_segment_id, detailed_summary, short_title,
-                          window_name, platform, target_segment_length_secs,
-                          worker, timestamp_start
-                   FROM context_1
-                   ORDER BY timestamp_start DESC"""
+                f"SELECT {base_cols} FROM context_1 ORDER BY timestamp_start DESC"
             ).fetchall()
         tconn.close()
 
@@ -176,13 +189,18 @@ class ReviewProposals:
     # Stage 2: consolidate
     # ------------------------------------------------------------------
 
-    def consolidate(self, target_date: Optional[str] = None) -> List[Dict]:
+    def consolidate(
+        self,
+        target_date: Optional[str] = None,
+        days: Optional[int] = 2,
+    ) -> List[Dict]:
         """Cluster unconsolidated segments + score each cluster against active
-        projects + persist as draft review_proposals. Any previously-draft
-        proposal for this scope is marked 'superseded' first so we don't
-        accumulate stale groups on repeated clicks.
+        projects + persist as draft review_proposals. Uses the same windowing
+        rules as list_unconsolidated (default: today + yesterday). Any
+        previously-draft proposal for this scope is marked 'superseded' first
+        so we don't accumulate stale groups on repeated clicks.
         """
-        segments = self.list_unconsolidated(target_date)
+        segments = self.list_unconsolidated(target_date, days=days)
         if not segments:
             return []
 
