@@ -40,7 +40,9 @@
   <div class="pk-cell" data-col="{{ col }}">
     {% if buckets[col] %}
       {% for p in buckets[col] %}
-      <div class="pk-card col-{{ p.column }}" data-project-id="{{ p.id }}">
+      <div class="pk-card col-{{ p.column }}" data-project-id="{{ p.id }}" data-project-title="{{ p.title|e }}">
+        <button class="pk-card-report" data-action="digest"
+                title="Open project report" aria-label="Open project report">📊</button>
         <div class="pk-card-title">{{ p.title }}</div>
         <div class="pk-card-meta">
           <span>

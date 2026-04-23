@@ -630,3 +630,93 @@ CREATE INDEX IF NOT EXISTS idx_pwm_score ON project_work_match_log(combined_matc
 CREATE INDEX IF NOT EXISTS idx_pwm_date ON project_work_match_log(matched_at);
 CREATE INDEX IF NOT EXISTS idx_psync_type ON productivity_sync_log(sync_type);
 CREATE INDEX IF NOT EXISTS idx_psync_status ON productivity_sync_log(status);
+
+-- ═══════════════════════════════════════════════════════════
+-- WORK PAGES — content layer written by 30-min sync.
+-- Dream (nightly) ingests confirmed pages into memory_nodes as anchors;
+-- pages themselves do NOT live in the SC>CTX>ANC tree, so the shell
+-- prior stays clean.
+-- ═══════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS work_pages (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL DEFAULT 'local',
+    title TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    date_local TEXT NOT NULL,               -- YYYY-MM-DD for quick day grouping
+    sc_id TEXT DEFAULT '',                  -- nearest SC at create time (optional)
+    ctx_id TEXT DEFAULT '',                 -- nearest CTX at create time (optional)
+    project_id TEXT DEFAULT '',             -- set when tagged
+    deliverable_id TEXT DEFAULT '',
+    state TEXT NOT NULL DEFAULT 'open'
+        CHECK(state IN ('open', 'tagged', 'stale', 'archived')),
+    tag_state TEXT DEFAULT ''
+        CHECK(tag_state IN ('', 'proposed', 'confirmed', 'rejected')),
+    tag_source TEXT DEFAULT ''
+        CHECK(tag_source IN ('', 'user', 'dream_proposed', 'dream_confirmed')),
+    rank_score REAL DEFAULT 0,
+    embedding_blob BLOB,                    -- float32 euclidean centroid
+    anchor_node_id TEXT DEFAULT '',         -- filled by Dream when ingested
+    created_at TEXT DEFAULT (datetime('now')),
+    last_sync_at TEXT DEFAULT (datetime('now')),
+    tagged_at TEXT DEFAULT ''
+);
+
+CREATE INDEX IF NOT EXISTS idx_work_pages_date_state
+    ON work_pages(date_local, state);
+CREATE INDEX IF NOT EXISTS idx_work_pages_project
+    ON work_pages(project_id, state);
+CREATE INDEX IF NOT EXISTS idx_work_pages_user_date
+    ON work_pages(user_id, date_local);
+CREATE INDEX IF NOT EXISTS idx_work_pages_tag_state
+    ON work_pages(tag_state);
+
+-- Links a tracker segment to exactly one work_page (PK-enforced).
+-- sync_turn = 1 for first 30-min sync of the day, 2 for second, etc.
+CREATE TABLE IF NOT EXISTS work_page_anchors (
+    page_id TEXT NOT NULL,
+    segment_id TEXT NOT NULL,               -- tracker.db context_1.id (as text)
+    sync_turn INTEGER NOT NULL,
+    weight REAL DEFAULT 1.0,
+    added_at TEXT DEFAULT (datetime('now')),
+    PRIMARY KEY (page_id, segment_id),
+    FOREIGN KEY (page_id) REFERENCES work_pages(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_wpa_segment ON work_page_anchors(segment_id);
+CREATE INDEX IF NOT EXISTS idx_wpa_sync_turn ON work_page_anchors(sync_turn);
+
+-- ═══════════════════════════════════════════════════════════
+-- PROJECT DIGESTS — employee-first per-project window summaries.
+-- Written by Dream (auto_dream) daily + Sunday weekly, or on demand
+-- via the manual endpoint. Schema is pre-segmented by user_id so a
+-- future management UI can aggregate across employees without refactor.
+-- ═══════════════════════════════════════════════════════════
+
+CREATE TABLE IF NOT EXISTS project_digests (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL DEFAULT 'local',
+    project_id TEXT NOT NULL,
+    window_type TEXT NOT NULL
+        CHECK(window_type IN ('day', 'week', 'custom')),
+    window_start TEXT NOT NULL,      -- inclusive YYYY-MM-DD
+    window_end TEXT NOT NULL,        -- inclusive YYYY-MM-DD
+    summary_markdown TEXT NOT NULL,
+    key_points_json TEXT DEFAULT '[]',
+    total_minutes REAL DEFAULT 0,
+    source_page_ids_json TEXT DEFAULT '[]',
+    generated_at TEXT DEFAULT (datetime('now')),
+    generated_by TEXT DEFAULT 'manual'
+        CHECK(generated_by IN ('auto_dream', 'manual', 'scheduled_weekly')),
+    is_stale INTEGER DEFAULT 0,
+    UNIQUE(user_id, project_id, window_type, window_start)
+);
+
+CREATE INDEX IF NOT EXISTS idx_digest_proj_window
+    ON project_digests(project_id, window_type, window_start);
+CREATE INDEX IF NOT EXISTS idx_digest_user_proj
+    ON project_digests(user_id, project_id);
+CREATE INDEX IF NOT EXISTS idx_digest_stale
+    ON project_digests(is_stale);
+CREATE INDEX IF NOT EXISTS idx_digest_generated
+    ON project_digests(generated_at);

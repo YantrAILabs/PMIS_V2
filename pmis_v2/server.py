@@ -1157,6 +1157,132 @@ async def wiki_node_backend(node_id: str):
     return data
 
 
+@app.get("/api/work_pages")
+async def api_list_work_pages(date: Optional[str] = None, state: str = "open"):
+    """List work_pages filtered by date + state. state in {open,tagged,stale,archived}."""
+    from datetime import date as _date
+    target = date or _date.today().isoformat()
+    pages = _orch.db.list_work_pages_by_state(state, date_local=target)
+    for p in pages:
+        p.pop("embedding_blob", None)
+        p["segment_count"] = len(_orch.db.get_page_segments(p["id"]))
+    return {"date": target, "state": state, "count": len(pages), "pages": pages}
+
+
+@app.get("/api/work_pages/{page_id}")
+async def api_get_work_page(page_id: str):
+    page = _orch.db.get_work_page(page_id)
+    if not page:
+        raise HTTPException(status_code=404, detail=f"work_page {page_id} not found")
+    page.pop("embedding_blob", None)
+    page["segments"] = _orch.db.get_page_segments(page_id)
+    return page
+
+
+@app.post("/api/work_pages/{page_id}/tag")
+async def api_tag_work_page(page_id: str, req: Request):
+    """User-tag a page to a project. Body: {project_id, deliverable_id?}."""
+    body = await req.json()
+    project_id = (body.get("project_id") or "").strip()
+    deliverable_id = (body.get("deliverable_id") or "").strip()
+    if not project_id:
+        raise HTTPException(status_code=400, detail="project_id required")
+    page = _orch.db.get_work_page(page_id)
+    if not page:
+        raise HTTPException(status_code=404, detail=f"work_page {page_id} not found")
+    _orch.db.set_work_page_tag(
+        page_id=page_id,
+        project_id=project_id,
+        deliverable_id=deliverable_id,
+        tag_state="confirmed",
+        tag_source="user",
+    )
+    return {
+        "ok": True,
+        "page_id": page_id,
+        "project_id": project_id,
+        "deliverable_id": deliverable_id,
+    }
+
+
+@app.post("/api/work_pages/{page_id}/reject")
+async def api_reject_work_page(page_id: str):
+    """User explicitly rejects a page → archived, not tagged."""
+    page = _orch.db.get_work_page(page_id)
+    if not page:
+        raise HTTPException(status_code=404, detail=f"work_page {page_id} not found")
+    _orch.db.archive_work_page(page_id, tag_state="rejected")
+    return {"ok": True, "page_id": page_id, "state": "archived"}
+
+
+# ─── Project digests ───────────────────────────────────────────────────
+
+def _project_title_for(project_id: str) -> str:
+    """Look up a project's display title from goals.yaml (best-effort)."""
+    try:
+        wiki = _get_wiki()
+        pm = wiki._render_pm_projects()
+        for g in pm.get("goals", []):
+            for p in g.get("projects", []):
+                if p.get("id") == project_id:
+                    return p.get("title", project_id)
+    except Exception:
+        pass
+    return project_id
+
+
+@app.get("/api/project/{project_id}/digests")
+async def api_list_project_digests(
+    project_id: str, window_type: Optional[str] = None, limit: int = 20
+):
+    """Recent digests for a project. Newest first."""
+    digests = _orch.db.list_project_digests(
+        project_id=project_id, window_type=window_type, limit=limit
+    )
+    return {
+        "project_id": project_id,
+        "count": len(digests),
+        "digests": digests,
+    }
+
+
+@app.post("/api/project/{project_id}/digest")
+async def api_generate_project_digest(project_id: str, req: Request):
+    """Compose a digest for a project over a given window.
+
+    Body: {window_start: YYYY-MM-DD, window_end: YYYY-MM-DD, window_type: day|week|custom, model?}
+    Returns the composed digest including the markdown body. Stores to DB
+    (upserts on conflict with same user+project+type+start).
+    """
+    body = await req.json()
+    window_start = (body.get("window_start") or "").strip()
+    window_end = (body.get("window_end") or window_start).strip()
+    window_type = (body.get("window_type") or "day").strip()
+    model = (body.get("model") or "").strip() or None
+
+    if not window_start:
+        raise HTTPException(status_code=400, detail="window_start required (YYYY-MM-DD)")
+    if window_type not in ("day", "week", "custom"):
+        raise HTTPException(status_code=400, detail="window_type in {day, week, custom}")
+
+    from reports.digest_composer import compose_digest
+
+    hp = _orch.hp if hasattr(_orch, "hp") else {}
+    llm_model = model or hp.get("consolidation_model_local", "qwen2.5:14b")
+
+    result = compose_digest(
+        db=_orch.db,
+        project_id=project_id,
+        window_start=window_start,
+        window_end=window_end,
+        window_type=window_type,
+        project_title=_project_title_for(project_id),
+        model=llm_model,
+        generated_by="manual",
+    )
+    return result
+
+
 @app.get("/wiki/goals", response_class=HTMLResponse)
 async def wiki_goals(request: Request):
     """Goals page."""

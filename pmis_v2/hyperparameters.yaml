@@ -131,6 +131,13 @@ matcher_poincare_max_dist: 4.0   # normalizer for hyperbolic → [0,1]; ~diamete
 # Older thumbs are excluded because the tree has likely reshaped.
 match_feedback_max_age_days: 90
 
+# ── 30-min sync (work_pages content layer) ─────────────────────────
+# Kept separate from birth_cluster_threshold because segment-level
+# embeddings (nomic-embed-text is L2-normalized) compress typical
+# distances into ~[0.05, 0.25] — tree-node thresholds overcluster here.
+sync_cluster_threshold: 0.28      # within-sync greedy clustering of segments
+sync_append_distance: 0.15        # runner's append-vs-new decision boundary
+
 # ── Phase 3: unified value_score on every memory_node ─────────────────
 # value_score(n) = w_g·G(n) + w_f·F(n) + w_u·U(n) + w_r·R(n)
 # G: goal achievement (0..1), F: feedback in [-1,1] internal (clipped at 0 for display),

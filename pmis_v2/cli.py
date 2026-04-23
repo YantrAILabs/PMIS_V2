@@ -494,6 +494,54 @@ def cmd_command(args):
     return {"command": cmd_name, "result": result_text}
 
 
+@_safe_output
+def cmd_sync_run(args):
+    """Run one 30-min sync pass: tracker segments → work_pages."""
+    from db.manager import DBManager
+    from core import config
+    from sync.lock import sync_lock, SyncBusy
+    from sync.runner import run_sync
+
+    db_path = str(PMIS_DIR / "data" / "memory.db")
+    db = DBManager(db_path)
+    hp = config.get_all()
+    if getattr(args, "model", None):
+        hp["consolidation_model_local"] = args.model
+    target = args.date if getattr(args, "date", None) else None
+
+    try:
+        with sync_lock():
+            result = run_sync(db, hp, target_date=target)
+    except SyncBusy as e:
+        return {"status": "busy", "detail": str(e)}
+    return result
+
+
+@_safe_output
+def cmd_sync_status(args):
+    """Show last sync watermark and today's open/tagged page counts."""
+    from db.manager import DBManager
+    from datetime import date as _date
+
+    db_path = str(PMIS_DIR / "data" / "memory.db")
+    db = DBManager(db_path)
+    today = _date.today().isoformat()
+
+    watermark = db.get_last_sync_timestamp() or ""
+    open_pages = db.list_work_pages_by_state("open", date_local=today)
+    tagged_pages = db.list_work_pages_by_state("tagged", date_local=today)
+    return {
+        "date": today,
+        "last_watermark": watermark,
+        "open_count": len(open_pages),
+        "tagged_count": len(tagged_pages),
+        "open_preview": [
+            {"id": p["id"], "title": p["title"][:60]}
+            for p in open_pages[:5]
+        ],
+    }
+
+
 # ================================================================
 # ARGUMENT PARSER
 # ================================================================
@@ -535,6 +583,19 @@ def build_parser():
     consolidate_p.add_argument("--today", action="store_true",
                                help="Force-consolidate today even before the 18:00 cutoff")
     subparsers.add_parser("orphans", help="List orphan anchors")
+
+    # sync subcommands (30-min content-layer sync)
+    sync_parser = subparsers.add_parser("sync", help="30-min work_pages sync")
+    sync_sub = sync_parser.add_subparsers(dest="sync_command")
+    sync_run_p = sync_sub.add_parser("run", help="Run one sync pass now")
+    sync_run_p.add_argument(
+        "--date", default=None, help="Target date YYYY-MM-DD (default: today)"
+    )
+    sync_run_p.add_argument(
+        "--model", default=None,
+        help="Override LLM model for title/summary (default: from hyperparameters.yaml)"
+    )
+    sync_sub.add_parser("status", help="Show watermark + today's page counts")
 
     # goal subcommands
     goal_parser = subparsers.add_parser("goal", help="Goal management")
@@ -616,6 +677,13 @@ def main():
         cmd_feedback(args)
     elif args.command == "command":
         cmd_command(args)
+    elif args.command == "sync":
+        if args.sync_command == "run":
+            cmd_sync_run(args)
+        elif args.sync_command == "status":
+            cmd_sync_status(args)
+        else:
+            parser.parse_args(["sync", "--help"])
     else:
         parser.print_help()
         sys.exit(1)
