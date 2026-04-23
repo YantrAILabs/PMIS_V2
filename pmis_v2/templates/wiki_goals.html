@@ -301,6 +301,186 @@
       grid-template-columns: 150px repeat(5, 1fr);
     }
   }
+
+  /* ─── Unassigned lane (today's open work_pages) ─── */
+  .pk-unassigned {
+    margin: 0 0 20px 0;
+    padding: 12px 14px;
+    background: var(--bg2, #12121a);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+  }
+  .pk-unassigned-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-bottom: 10px;
+  }
+  .pk-unassigned-head h2 {
+    margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .02em;
+    color: var(--fg, #e5e5e5);
+  }
+  .pk-unassigned-count {
+    background: #f59e0b; color: #0a0a0f; border-radius: 9px;
+    padding: 0 7px; font-size: 10px; margin-left: 8px; font-weight: 600;
+  }
+  .pk-unassigned-hint { font-size: 11px; color: var(--fg2, #9ca3af); }
+  .pk-unassigned-strip {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 8px;
+    max-height: 340px;
+    overflow-y: auto;
+  }
+  .pk-up-card {
+    background: var(--bg1, #0a0a0f);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 8px 10px 4px 10px;
+    font-size: 12px;
+    transition: opacity .2s, border-color .15s;
+  }
+  .pk-up-card:hover { border-color: var(--accent, #8b5cf6); }
+  .pk-up-card.tagging { opacity: .5; pointer-events: none; }
+  .pk-up-title {
+    font-weight: 600; color: var(--fg, #e5e5e5); margin-bottom: 4px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .pk-up-summary {
+    color: var(--fg2, #9ca3af);
+    font-size: 11px; line-height: 1.35; margin-bottom: 6px;
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .pk-up-meta {
+    display: flex; justify-content: space-between; align-items: center;
+    border-top: 1px solid var(--border); padding-top: 5px;
+  }
+  .pk-up-segs { font-size: 10px; color: var(--fg3, #6b7280); }
+  .pk-up-actions { display: flex; gap: 4px; }
+  .pk-up-tag, .pk-up-reject {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--fg, #e5e5e5);
+    border-radius: 3px; padding: 2px 8px; font-size: 10px; cursor: pointer;
+    line-height: 1.4;
+  }
+  .pk-up-tag:hover {
+    background: var(--accent, #8b5cf6); color: white; border-color: transparent;
+  }
+  .pk-up-reject:hover {
+    background: #991b1b; color: white; border-color: transparent;
+  }
+
+  .pk-up-picker {
+    position: absolute; z-index: 50;
+    background: var(--bg2, #12121a); border: 1px solid var(--border);
+    border-radius: 6px; padding: 4px; min-width: 240px; max-height: 320px;
+    overflow-y: auto; box-shadow: 0 8px 24px rgba(0,0,0,.5);
+  }
+  .pk-up-picker-goal {
+    font-size: 10px; color: var(--fg3, #6b7280);
+    padding: 6px 8px 2px; text-transform: uppercase; letter-spacing: .05em;
+  }
+  .pk-up-picker-item {
+    display: block; width: 100%; text-align: left;
+    background: transparent; border: none; color: var(--fg, #e5e5e5);
+    padding: 6px 10px; font-size: 12px; border-radius: 3px; cursor: pointer;
+  }
+  .pk-up-picker-item:hover { background: var(--accent, #8b5cf6); color: white; }
+  .pk-up-picker-deliv { padding-left: 20px; color: var(--fg2, #9ca3af); font-size: 11px; }
+  .pk-up-picker-empty {
+    padding: 12px; color: var(--fg3, #6b7280); font-size: 11px; text-align: center;
+  }
+
+  /* ─── Project Report button + drawer ─── */
+  .pk-card { position: relative; }
+  .pk-card-report {
+    position: absolute; top: 4px; right: 4px;
+    background: transparent; border: none; cursor: pointer;
+    font-size: 11px; padding: 2px 4px; border-radius: 3px;
+    opacity: 0; transition: opacity .15s, background .15s;
+    line-height: 1;
+  }
+  .pk-card:hover .pk-card-report { opacity: .7; }
+  .pk-card-report:hover { opacity: 1; background: rgba(139, 92, 246, .15); }
+
+  .pk-report-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,.5);
+    z-index: 90; display: none;
+  }
+  .pk-report-backdrop.open { display: block; }
+  .pk-report-drawer {
+    position: fixed; top: 0; right: 0; bottom: 0;
+    width: min(520px, 100%); z-index: 91;
+    background: var(--bg1, #0a0a0f); border-left: 1px solid var(--border);
+    box-shadow: -8px 0 24px rgba(0,0,0,.4);
+    transform: translateX(100%); transition: transform .25s ease;
+    display: flex; flex-direction: column;
+  }
+  .pk-report-drawer.open { transform: translateX(0); }
+  .pk-report-head {
+    padding: 14px 16px; border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+    flex: 0 0 auto;
+  }
+  .pk-report-head h3 { margin: 0; font-size: 14px; font-weight: 600; color: var(--fg, #e5e5e5); }
+  .pk-report-close {
+    background: transparent; border: 1px solid var(--border); color: var(--fg);
+    border-radius: 3px; padding: 3px 8px; font-size: 11px; cursor: pointer;
+  }
+  .pk-report-actions {
+    display: flex; gap: 6px; flex-wrap: wrap;
+    padding: 10px 16px; border-bottom: 1px solid var(--border);
+    flex: 0 0 auto;
+  }
+  .pk-report-btn {
+    background: transparent; border: 1px solid var(--border); color: var(--fg);
+    border-radius: 4px; padding: 4px 10px; font-size: 11px; cursor: pointer;
+  }
+  .pk-report-btn:hover {
+    background: var(--accent, #8b5cf6); color: white; border-color: transparent;
+  }
+  .pk-report-btn.primary {
+    background: var(--accent, #8b5cf6); color: white; border-color: transparent;
+  }
+  .pk-report-custom {
+    display: flex; gap: 4px; align-items: center;
+    margin-left: auto; font-size: 11px; color: var(--fg2, #9ca3af);
+  }
+  .pk-report-custom input[type=date] {
+    background: var(--bg2, #12121a); color: var(--fg);
+    border: 1px solid var(--border); border-radius: 3px;
+    padding: 2px 4px; font-size: 11px;
+  }
+  .pk-report-body {
+    flex: 1 1 auto; overflow-y: auto; padding: 14px 16px;
+    font-size: 12px; line-height: 1.5; color: var(--fg, #e5e5e5);
+  }
+  .pk-report-body h2 { font-size: 15px; margin: 0 0 8px; }
+  .pk-report-body h3 { font-size: 12px; margin: 14px 0 6px;
+                        color: var(--fg2, #9ca3af); text-transform: uppercase;
+                        letter-spacing: .04em; }
+  .pk-report-body ul { margin: 6px 0 10px 16px; padding: 0; }
+  .pk-report-body li { margin-bottom: 3px; }
+  .pk-report-body strong { color: var(--fg, #e5e5e5); }
+  .pk-report-meta {
+    font-size: 10px; color: var(--fg3, #6b7280);
+    margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px dashed var(--border);
+  }
+  .pk-report-list {
+    margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border);
+  }
+  .pk-report-list-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 6px 0; font-size: 11px; cursor: pointer;
+    border-bottom: 1px dotted var(--border);
+  }
+  .pk-report-list-item:hover { color: var(--accent, #8b5cf6); }
+  .pk-report-list-empty {
+    font-size: 11px; color: var(--fg3, #6b7280); padding: 8px 0;
+  }
+  .pk-report-loading {
+    padding: 20px; text-align: center;
+    color: var(--fg2, #9ca3af); font-size: 11px;
+  }
 </style>
 
 <div class="pk"
@@ -337,6 +517,32 @@
     </div>
   </div>
 
+  {% if unassigned_count and unassigned_count > 0 %}
+  <section class="pk-unassigned" id="pk-unassigned">
+    <div class="pk-unassigned-head">
+      <h2>Unassigned
+        <span class="pk-unassigned-count" id="pk-unassigned-count">{{ unassigned_count }}</span>
+      </h2>
+      <div class="pk-unassigned-hint">Today's captured work — tag to a project or archive.</div>
+    </div>
+    <div class="pk-unassigned-strip" id="pk-unassigned-strip">
+      {% for p in unassigned_pages %}
+      <article class="pk-up-card" data-page-id="{{ p.id }}">
+        <div class="pk-up-title" title="{{ p.title }}">{{ p.title }}</div>
+        <div class="pk-up-summary">{{ p.summary[:200] }}</div>
+        <div class="pk-up-meta">
+          <span class="pk-up-segs">{{ p.segment_count }} seg{% if p.segment_count != 1 %}s{% endif %}</span>
+          <div class="pk-up-actions">
+            <button class="pk-up-tag" data-action="tag">Tag</button>
+            <button class="pk-up-reject" data-action="reject" title="Archive">✕</button>
+          </div>
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
   <div id="pk-lanes">
     {% if pm_goals %}
       {% for g in pm_goals %}
@@ -355,6 +561,27 @@
 
 <div class="pk-drawer-backdrop" id="pk-drawer-backdrop"></div>
 <aside class="pk-drawer" id="pk-drawer" aria-hidden="true"></aside>
+
+<div class="pk-report-backdrop" id="pk-report-backdrop"></div>
+<aside class="pk-report-drawer" id="pk-report-drawer" aria-hidden="true">
+  <div class="pk-report-head">
+    <h3 id="pk-report-title">Report</h3>
+    <button class="pk-report-close" id="pk-report-close">Close</button>
+  </div>
+  <div class="pk-report-actions">
+    <button class="pk-report-btn primary" data-range="today">Today</button>
+    <button class="pk-report-btn" data-range="week">This week</button>
+    <div class="pk-report-custom">
+      <input type="date" id="pk-report-start" aria-label="Start date">
+      <span>→</span>
+      <input type="date" id="pk-report-end" aria-label="End date">
+      <button class="pk-report-btn" data-range="custom">Go</button>
+    </div>
+  </div>
+  <div class="pk-report-body" id="pk-report-body">
+    <div class="pk-report-loading">Pick a range above to generate a digest.</div>
+  </div>
+</aside>
 
 <script>
 (() => {
@@ -920,6 +1147,343 @@
   function escapeAttr(s) {
     return escapeHtml(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   }
+})();
+</script>
+
+<script>
+/* ─── Unassigned lane interactions ───────────────────────────────
+   Click [Tag] on a card  → project/deliverable picker popover
+   Click project/deliv    → POST /api/work_pages/{id}/tag → fade+remove
+   Click [✕]              → confirm → POST /api/work_pages/{id}/reject
+   Picker data comes from pk-board[data-initial] (same pm_goals tree). */
+(() => {
+  const strip = document.getElementById('pk-unassigned-strip');
+  if (!strip) return;
+
+  const boardEl = document.getElementById('pk-board');
+  let goals = [];
+  try {
+    const parsed = JSON.parse(boardEl?.dataset?.initial || '{}');
+    goals = parsed.goals || [];
+  } catch (_) {
+    goals = [];
+  }
+
+  let openPicker = null;
+  let pickerDismiss = null;
+
+  function closePicker() {
+    if (openPicker) { openPicker.remove(); openPicker = null; }
+    if (pickerDismiss) {
+      document.removeEventListener('click', pickerDismiss, true);
+      pickerDismiss = null;
+    }
+  }
+
+  function buildPicker(card) {
+    closePicker();
+    const pop = document.createElement('div');
+    pop.className = 'pk-up-picker';
+
+    if (!goals.length) {
+      const empty = document.createElement('div');
+      empty.className = 'pk-up-picker-empty';
+      empty.textContent = 'No projects yet. Add one in goals.yaml.';
+      pop.appendChild(empty);
+    }
+
+    for (const goal of goals) {
+      const projects = goal.projects || [];
+      if (!projects.length) continue;
+      const gh = document.createElement('div');
+      gh.className = 'pk-up-picker-goal';
+      gh.textContent = goal.title || 'Untitled goal';
+      pop.appendChild(gh);
+      for (const proj of projects) {
+        const pbtn = document.createElement('button');
+        pbtn.className = 'pk-up-picker-item';
+        pbtn.textContent = proj.title || proj.id;
+        pbtn.onclick = (ev) => { ev.stopPropagation(); tagPage(card, proj.id, ''); };
+        pop.appendChild(pbtn);
+        for (const deliv of (proj.deliverables || [])) {
+          const dbtn = document.createElement('button');
+          dbtn.className = 'pk-up-picker-item pk-up-picker-deliv';
+          dbtn.textContent = '└ ' + (deliv.name || deliv.id);
+          dbtn.onclick = (ev) => { ev.stopPropagation(); tagPage(card, proj.id, deliv.id); };
+          pop.appendChild(dbtn);
+        }
+      }
+    }
+
+    const tagBtn = card.querySelector('[data-action=tag]');
+    const rect = tagBtn.getBoundingClientRect();
+    pop.style.top  = (rect.bottom + window.scrollY + 4) + 'px';
+    pop.style.left = Math.max(8, rect.right + window.scrollX - 240) + 'px';
+    document.body.appendChild(pop);
+    openPicker = pop;
+
+    pickerDismiss = (ev) => {
+      if (!pop.contains(ev.target)) closePicker();
+    };
+    setTimeout(() => document.addEventListener('click', pickerDismiss, true), 0);
+  }
+
+  async function tagPage(card, projectId, deliverableId) {
+    closePicker();
+    card.classList.add('tagging');
+    const pageId = card.dataset.pageId;
+    try {
+      const r = await fetch(`/api/work_pages/${pageId}/tag`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project_id: projectId, deliverable_id: deliverableId }),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      fadeOut(card);
+    } catch (e) {
+      card.classList.remove('tagging');
+      alert('Failed to tag: ' + e.message);
+    }
+  }
+
+  async function rejectPage(card) {
+    if (!confirm('Archive this page? It will not be used for project matching.')) return;
+    card.classList.add('tagging');
+    const pageId = card.dataset.pageId;
+    try {
+      const r = await fetch(`/api/work_pages/${pageId}/reject`, { method: 'POST' });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      fadeOut(card);
+    } catch (e) {
+      card.classList.remove('tagging');
+      alert('Failed to archive: ' + e.message);
+    }
+  }
+
+  function fadeOut(card) {
+    card.style.transition = 'opacity .25s';
+    card.style.opacity = '0';
+    setTimeout(() => { card.remove(); updateCount(); }, 260);
+  }
+
+  function updateCount() {
+    const section = document.getElementById('pk-unassigned');
+    const badge = document.getElementById('pk-unassigned-count');
+    const n = strip.querySelectorAll('.pk-up-card').length;
+    if (badge) badge.textContent = n;
+    if (n === 0 && section) section.remove();
+  }
+
+  strip.addEventListener('click', (ev) => {
+    const btn = ev.target.closest('[data-action]');
+    if (!btn) return;
+    ev.stopPropagation();
+    const card = btn.closest('.pk-up-card');
+    if (!card) return;
+    if (btn.dataset.action === 'tag') buildPicker(card);
+    else if (btn.dataset.action === 'reject') rejectPage(card);
+  });
+})();
+</script>
+
+<script>
+/* ─── Project Report drawer ──────────────────────────────────────
+   Click 📊 on a project card → open right-side drawer.
+   Today / This week / Custom date range → POST /api/project/{id}/digest
+   List previously generated digests below the current result. */
+(() => {
+  const drawer   = document.getElementById('pk-report-drawer');
+  const backdrop = document.getElementById('pk-report-backdrop');
+  const titleEl  = document.getElementById('pk-report-title');
+  const bodyEl   = document.getElementById('pk-report-body');
+  const closeBtn = document.getElementById('pk-report-close');
+  const startIn  = document.getElementById('pk-report-start');
+  const endIn    = document.getElementById('pk-report-end');
+  if (!drawer) return;
+
+  let currentProjectId = null;
+  let currentProjectTitle = null;
+
+  const todayIso = () => new Date().toISOString().slice(0, 10);
+  const weekStartIso = () => {
+    const d = new Date();
+    d.setDate(d.getDate() - 6);
+    return d.toISOString().slice(0, 10);
+  };
+
+  function open(projectId, projectTitle) {
+    currentProjectId = projectId;
+    currentProjectTitle = projectTitle || projectId;
+    titleEl.textContent = currentProjectTitle;
+    bodyEl.innerHTML = '<div class="pk-report-loading">Pick a range above to generate a digest.</div>';
+    startIn.value = todayIso();
+    endIn.value = todayIso();
+    drawer.classList.add('open');
+    drawer.setAttribute('aria-hidden', 'false');
+    backdrop.classList.add('open');
+    // load existing digests list
+    loadExisting();
+  }
+  function close() {
+    drawer.classList.remove('open');
+    drawer.setAttribute('aria-hidden', 'true');
+    backdrop.classList.remove('open');
+    currentProjectId = null;
+  }
+
+  async function loadExisting() {
+    try {
+      const r = await fetch(`/api/project/${currentProjectId}/digests?limit=10`);
+      const data = await r.json();
+      const list = data.digests || [];
+      if (!list.length) return;
+      const html = ['<div class="pk-report-list">',
+        '<h3>Previous digests</h3>'];
+      for (const d of list) {
+        const label = `${d.window_type} · ${d.window_start}${d.window_start !== d.window_end ? ' → ' + d.window_end : ''}`;
+        const meta  = `${(d.total_minutes || 0).toFixed(0)}m · ${d.generated_by}`;
+        html.push(
+          `<div class="pk-report-list-item" data-window-type="${d.window_type}"`
+          + ` data-window-start="${d.window_start}"`
+          + ` data-window-end="${d.window_end}">`
+          + `<span>${escapeHtml(label)}</span><span style="color:var(--fg3)">${escapeHtml(meta)}</span>`
+          + `</div>`
+        );
+      }
+      html.push('</div>');
+      // append, don't wipe
+      const wrap = document.createElement('div');
+      wrap.innerHTML = html.join('');
+      bodyEl.appendChild(wrap.firstElementChild);
+    } catch (e) {
+      console.warn('loadExisting failed', e);
+    }
+  }
+
+  async function generate(windowType, windowStart, windowEnd) {
+    if (!currentProjectId) return;
+    bodyEl.innerHTML = '<div class="pk-report-loading">Composing digest via local LLM…</div>';
+    try {
+      const r = await fetch(`/api/project/${currentProjectId}/digest`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          window_type: windowType,
+          window_start: windowStart,
+          window_end: windowEnd,
+        }),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const data = await r.json();
+      renderResult(data);
+    } catch (e) {
+      bodyEl.innerHTML = `<div class="pk-report-loading">Failed: ${escapeHtml(e.message)}</div>`;
+    }
+  }
+
+  function renderResult(data) {
+    if (data.status === 'empty') {
+      bodyEl.innerHTML = `<div class="pk-report-loading">`
+        + `No confirmed work_pages in this window. Tag some work to the `
+        + `<strong>${escapeHtml(currentProjectTitle)}</strong> project first.`
+        + `</div>`;
+      return;
+    }
+    const meta = [
+      data.window_label,
+      `${data.page_count} page${data.page_count === 1 ? '' : 's'}`,
+      `${(data.total_minutes || 0).toFixed(1)}m`,
+      `generated ${data.generated_by}`,
+    ].filter(Boolean).join(' · ');
+    const md = renderMarkdown(data.summary_markdown || '');
+    bodyEl.innerHTML = `<div class="pk-report-meta">${escapeHtml(meta)}</div>${md}`;
+    loadExisting();
+  }
+
+  /* Minimal markdown → HTML just enough for our 4-section template. */
+  function renderMarkdown(md) {
+    const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const lines = md.split('\n');
+    const out = [];
+    let inList = false;
+    const closeList = () => { if (inList) { out.push('</ul>'); inList = false; } };
+    for (const raw of lines) {
+      const line = raw.trimEnd();
+      if (!line.trim()) { closeList(); continue; }
+      if (line.startsWith('## ')) { closeList(); out.push(`<h2>${esc(line.slice(3))}</h2>`); continue; }
+      if (line.startsWith('### ')) { closeList(); out.push(`<h3>${esc(line.slice(4))}</h3>`); continue; }
+      if (line.startsWith('- ')) {
+        if (!inList) { out.push('<ul>'); inList = true; }
+        out.push(`<li>${inlineMd(esc(line.slice(2)))}</li>`);
+        continue;
+      }
+      closeList();
+      out.push(`<p>${inlineMd(esc(line))}</p>`);
+    }
+    closeList();
+    return out.join('\n');
+  }
+  function inlineMd(s) {
+    return s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+            .replace(/\*([^*]+)\*/g, '<em>$1</em>');
+  }
+  function escapeHtml(s) {
+    return (s || '').toString()
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;');
+  }
+
+  /* Wiring ─ delegated click on any Report button in the lanes. */
+  document.getElementById('pk-lanes').addEventListener('click', (ev) => {
+    const btn = ev.target.closest('[data-action="digest"]');
+    if (!btn) return;
+    ev.stopPropagation();
+    const card = btn.closest('.pk-card');
+    if (!card) return;
+    open(card.dataset.projectId, card.dataset.projectTitle);
+  });
+
+  closeBtn.addEventListener('click', close);
+  backdrop.addEventListener('click', close);
+
+  drawer.querySelectorAll('[data-range]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const r = btn.dataset.range;
+      if (r === 'today')      generate('day', todayIso(), todayIso());
+      else if (r === 'week')  generate('week', weekStartIso(), todayIso());
+      else if (r === 'custom') {
+        const s = startIn.value, e = endIn.value || startIn.value;
+        if (!s) { alert('Pick a start date'); return; }
+        generate(s === e ? 'day' : 'custom', s, e);
+      }
+    });
+  });
+
+  /* Click a previous-digest row to view it without re-generating. */
+  bodyEl.addEventListener('click', async (ev) => {
+    const item = ev.target.closest('.pk-report-list-item');
+    if (!item) return;
+    const ws = item.dataset.windowStart;
+    const we = item.dataset.windowEnd;
+    const wt = item.dataset.windowType;
+    try {
+      const r = await fetch(`/api/project/${currentProjectId}/digests?limit=50`);
+      const data = await r.json();
+      const found = (data.digests || []).find(d =>
+        d.window_type === wt && d.window_start === ws && d.window_end === we
+      );
+      if (found) {
+        renderResult({
+          status: 'ok',
+          window_label: `${ws}${ws !== we ? ' → ' + we : ''}`,
+          page_count: (found.source_page_ids || []).length,
+          total_minutes: found.total_minutes,
+          generated_by: found.generated_by,
+          summary_markdown: found.summary_markdown,
+        });
+      }
+    } catch (e) { console.warn('fetch digest failed', e); }
+  });
 })();
 </script>
 {% endblock %}

@@ -2129,3 +2129,356 @@ class DBManager:
                 sc_dict["contexts"] = ctx_list
                 result.append(sc_dict)
             return result
+
+    # ═══════════════════════════════════════════════════════════
+    # Work pages — 30-min sync content layer
+    # ═══════════════════════════════════════════════════════════
+
+    def create_work_page(
+        self,
+        title: str,
+        summary: str,
+        date_local: str,
+        sc_id: str = "",
+        ctx_id: str = "",
+        embedding: Optional[np.ndarray] = None,
+        user_id: str = "local",
+    ) -> str:
+        """Create a new open work_page. Returns the generated page_id."""
+        page_id = uuid.uuid4().hex[:16]
+        blob = (
+            embedding.astype(np.float32).tobytes()
+            if embedding is not None
+            else None
+        )
+        self._conn.execute(
+            """
+            INSERT INTO work_pages
+                (id, user_id, title, summary, date_local, sc_id, ctx_id, embedding_blob)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (page_id, user_id, title, summary, date_local, sc_id, ctx_id, blob),
+        )
+        self._conn.commit()
+        return page_id
+
+    def append_to_work_page(
+        self,
+        page_id: str,
+        new_summary: str,
+        new_embedding: Optional[np.ndarray] = None,
+        new_title: Optional[str] = None,
+    ) -> None:
+        """Re-stitch a page after new segments have been added to its cluster."""
+        blob = (
+            new_embedding.astype(np.float32).tobytes()
+            if new_embedding is not None
+            else None
+        )
+        if new_title is not None and blob is not None:
+            self._conn.execute(
+                """UPDATE work_pages SET title=?, summary=?, embedding_blob=?,
+                   last_sync_at=datetime('now') WHERE id=?""",
+                (new_title, new_summary, blob, page_id),
+            )
+        elif new_title is not None:
+            self._conn.execute(
+                """UPDATE work_pages SET title=?, summary=?,
+                   last_sync_at=datetime('now') WHERE id=?""",
+                (new_title, new_summary, page_id),
+            )
+        elif blob is not None:
+            self._conn.execute(
+                """UPDATE work_pages SET summary=?, embedding_blob=?,
+                   last_sync_at=datetime('now') WHERE id=?""",
+                (new_summary, blob, page_id),
+            )
+        else:
+            self._conn.execute(
+                """UPDATE work_pages SET summary=?, last_sync_at=datetime('now')
+                   WHERE id=?""",
+                (new_summary, page_id),
+            )
+        self._conn.commit()
+
+    def add_page_segment(
+        self,
+        page_id: str,
+        segment_id: str,
+        sync_turn: int,
+        weight: float = 1.0,
+    ) -> None:
+        """Attach a tracker segment to a work_page (idempotent on PK)."""
+        self._conn.execute(
+            """INSERT OR IGNORE INTO work_page_anchors
+               (page_id, segment_id, sync_turn, weight) VALUES (?, ?, ?, ?)""",
+            (page_id, segment_id, sync_turn, weight),
+        )
+        self._conn.commit()
+
+    def list_open_work_pages(
+        self, date_local: str, user_id: str = "local"
+    ) -> List[Dict[str, Any]]:
+        """All state=open pages for a day. Decoded embedding on each row."""
+        rows = self._conn.execute(
+            """SELECT id, title, summary, sc_id, ctx_id, embedding_blob,
+                      created_at, last_sync_at
+               FROM work_pages
+               WHERE date_local = ? AND user_id = ? AND state = 'open'
+               ORDER BY last_sync_at DESC""",
+            (date_local, user_id),
+        ).fetchall()
+
+        pages: List[Dict[str, Any]] = []
+        for r in rows:
+            page = dict(r)
+            blob = page.pop("embedding_blob", None)
+            page["embedding"] = (
+                np.frombuffer(blob, dtype=np.float32)
+                if blob is not None
+                else None
+            )
+            pages.append(page)
+        return pages
+
+    def get_work_page(self, page_id: str) -> Optional[Dict[str, Any]]:
+        row = self._conn.execute(
+            "SELECT * FROM work_pages WHERE id = ?", (page_id,)
+        ).fetchone()
+        return dict(row) if row else None
+
+    def list_work_pages_by_state(
+        self,
+        state: str,
+        date_local: Optional[str] = None,
+        user_id: str = "local",
+    ) -> List[Dict[str, Any]]:
+        if date_local:
+            rows = self._conn.execute(
+                """SELECT * FROM work_pages
+                   WHERE state = ? AND date_local = ? AND user_id = ?
+                   ORDER BY created_at DESC""",
+                (state, date_local, user_id),
+            ).fetchall()
+        else:
+            rows = self._conn.execute(
+                """SELECT * FROM work_pages WHERE state = ? AND user_id = ?
+                   ORDER BY created_at DESC""",
+                (state, user_id),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_page_segments(self, page_id: str) -> List[Dict[str, Any]]:
+        rows = self._conn.execute(
+            """SELECT segment_id, sync_turn, weight, added_at
+               FROM work_page_anchors WHERE page_id = ?
+               ORDER BY sync_turn ASC""",
+            (page_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def set_work_page_tag(
+        self,
+        page_id: str,
+        project_id: str,
+        deliverable_id: str = "",
+        tag_state: str = "confirmed",
+        tag_source: str = "user",
+    ) -> None:
+        """Tag a page to a project. state becomes 'tagged' when confirmed."""
+        new_state = "tagged" if tag_state == "confirmed" else "open"
+        self._conn.execute(
+            """UPDATE work_pages
+               SET project_id=?, deliverable_id=?, tag_state=?, tag_source=?,
+                   state=?, tagged_at=datetime('now')
+               WHERE id=?""",
+            (project_id, deliverable_id, tag_state, tag_source, new_state, page_id),
+        )
+        self._conn.commit()
+
+    def get_last_sync_timestamp(
+        self, user_id: str = "local"
+    ) -> Optional[str]:
+        key = f"last_sync_{user_id}"
+        row = self._conn.execute(
+            "SELECT value FROM system_meta WHERE key = ?", (key,)
+        ).fetchone()
+        return row["value"] if row else None
+
+    def set_last_sync_timestamp(
+        self, ts: str, user_id: str = "local"
+    ) -> None:
+        key = f"last_sync_{user_id}"
+        self._conn.execute(
+            """INSERT INTO system_meta (key, value) VALUES (?, ?)
+               ON CONFLICT(key) DO UPDATE SET value = excluded.value""",
+            (key, ts),
+        )
+        self._conn.commit()
+
+    def archive_work_page(
+        self, page_id: str, tag_state: str = "rejected"
+    ) -> None:
+        """Soft-archive a page (user rejected, or TTL-expired). tag_state
+        distinguishes 'rejected' (explicit) from '' (TTL)."""
+        self._conn.execute(
+            """UPDATE work_pages
+               SET state='archived', tag_state=?, tagged_at=datetime('now')
+               WHERE id=?""",
+            (tag_state, page_id),
+        )
+        self._conn.commit()
+
+    def get_next_sync_turn(
+        self, date_local: str, user_id: str = "local"
+    ) -> int:
+        """Next sync_turn ordinal for today (1-indexed)."""
+        row = self._conn.execute(
+            """SELECT COALESCE(MAX(wpa.sync_turn), 0) AS max_turn
+               FROM work_page_anchors wpa
+               JOIN work_pages wp ON wp.id = wpa.page_id
+               WHERE wp.date_local = ? AND wp.user_id = ?""",
+            (date_local, user_id),
+        ).fetchone()
+        return (row["max_turn"] if row else 0) + 1
+
+    # ═══════════════════════════════════════════════════════════
+    # Project digests — employee-first per-project window summaries
+    # ═══════════════════════════════════════════════════════════
+
+    def get_confirmed_pages_for_project_window(
+        self,
+        project_id: str,
+        window_start: str,
+        window_end: str,
+        user_id: str = "local",
+    ) -> List[Dict[str, Any]]:
+        """Confirmed work_pages tagged to a project within the date window.
+        window_start/window_end are inclusive YYYY-MM-DD bounds."""
+        rows = self._conn.execute(
+            """SELECT id, title, summary, date_local, state, tag_state,
+                      project_id, deliverable_id, created_at, tagged_at
+               FROM work_pages
+               WHERE project_id = ? AND user_id = ?
+                 AND state = 'tagged' AND tag_state = 'confirmed'
+                 AND date_local BETWEEN ? AND ?
+               ORDER BY date_local ASC, created_at ASC""",
+            (project_id, user_id, window_start, window_end),
+        ).fetchall()
+        pages: List[Dict[str, Any]] = []
+        for r in rows:
+            page = dict(r)
+            page["segment_count"] = len(self.get_page_segments(page["id"]))
+            pages.append(page)
+        return pages
+
+    def upsert_project_digest(
+        self,
+        project_id: str,
+        window_type: str,
+        window_start: str,
+        window_end: str,
+        summary_markdown: str,
+        key_points: Optional[List[str]] = None,
+        total_minutes: float = 0,
+        source_page_ids: Optional[List[str]] = None,
+        generated_by: str = "manual",
+        user_id: str = "local",
+    ) -> str:
+        """Upsert a digest keyed by (user_id, project_id, window_type, window_start).
+        Returns the digest id (reuses existing on conflict)."""
+        digest_id = uuid.uuid4().hex[:16]
+        self._conn.execute(
+            """INSERT INTO project_digests
+               (id, user_id, project_id, window_type, window_start, window_end,
+                summary_markdown, key_points_json, total_minutes,
+                source_page_ids_json, generated_by, is_stale,
+                generated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, datetime('now'))
+               ON CONFLICT(user_id, project_id, window_type, window_start) DO UPDATE SET
+                   window_end = excluded.window_end,
+                   summary_markdown = excluded.summary_markdown,
+                   key_points_json = excluded.key_points_json,
+                   total_minutes = excluded.total_minutes,
+                   source_page_ids_json = excluded.source_page_ids_json,
+                   generated_by = excluded.generated_by,
+                   is_stale = 0,
+                   generated_at = datetime('now')""",
+            (
+                digest_id, user_id, project_id, window_type,
+                window_start, window_end, summary_markdown,
+                json.dumps(key_points or []),
+                total_minutes,
+                json.dumps(source_page_ids or []),
+                generated_by,
+            ),
+        )
+        self._conn.commit()
+        row = self._conn.execute(
+            """SELECT id FROM project_digests
+               WHERE user_id = ? AND project_id = ?
+                 AND window_type = ? AND window_start = ?""",
+            (user_id, project_id, window_type, window_start),
+        ).fetchone()
+        return row["id"] if row else digest_id
+
+    def list_project_digests(
+        self,
+        project_id: str,
+        window_type: Optional[str] = None,
+        limit: int = 20,
+        user_id: str = "local",
+    ) -> List[Dict[str, Any]]:
+        """Recent digests for a project, newest first."""
+        if window_type:
+            rows = self._conn.execute(
+                """SELECT * FROM project_digests
+                   WHERE project_id = ? AND user_id = ? AND window_type = ?
+                   ORDER BY window_start DESC LIMIT ?""",
+                (project_id, user_id, window_type, limit),
+            ).fetchall()
+        else:
+            rows = self._conn.execute(
+                """SELECT * FROM project_digests
+                   WHERE project_id = ? AND user_id = ?
+                   ORDER BY generated_at DESC LIMIT ?""",
+                (project_id, user_id, limit),
+            ).fetchall()
+        out: List[Dict[str, Any]] = []
+        for r in rows:
+            d = dict(r)
+            try:
+                d["key_points"] = json.loads(d.pop("key_points_json") or "[]")
+            except Exception:
+                d["key_points"] = []
+            try:
+                d["source_page_ids"] = json.loads(d.pop("source_page_ids_json") or "[]")
+            except Exception:
+                d["source_page_ids"] = []
+            out.append(d)
+        return out
+
+    def get_latest_project_digest(
+        self,
+        project_id: str,
+        window_type: str = "day",
+        user_id: str = "local",
+    ) -> Optional[Dict[str, Any]]:
+        rows = self.list_project_digests(
+            project_id, window_type=window_type, limit=1, user_id=user_id
+        )
+        return rows[0] if rows else None
+
+    def mark_project_digests_stale(
+        self, project_id: str, user_id: str = "local"
+    ) -> int:
+        """Flag all digests for a project as stale (call when a source
+        work_page is edited, re-tagged, or archived). Next Dream regenerates."""
+        cur = self._conn.execute(
+            """UPDATE project_digests
+               SET is_stale = 1
+               WHERE project_id = ? AND user_id = ?""",
+            (project_id, user_id),
+        )
+        self._conn.commit()
+        return cur.rowcount or 0

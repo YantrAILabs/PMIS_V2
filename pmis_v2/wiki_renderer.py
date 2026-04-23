@@ -173,6 +173,19 @@ class WikiRenderer:
 
         pm = self._render_pm_projects()
 
+        # Unassigned lane — today's state=open work_pages awaiting user tag.
+        from datetime import date as _date
+        today = _date.today().isoformat()
+        unassigned_pages: List[Dict] = []
+        try:
+            raw_pages = self.db.list_work_pages_by_state("open", date_local=today)
+            for p in raw_pages:
+                p.pop("embedding_blob", None)
+                p["segment_count"] = len(self.db.get_page_segments(p["id"]))
+                unassigned_pages.append(p)
+        except Exception:
+            unassigned_pages = []
+
         return {
             "goals": enriched,
             "total": len(enriched),
@@ -181,6 +194,8 @@ class WikiRenderer:
             "pm_alive_projects": pm["alive_projects"],
             "pm_column_counts": pm["column_counts"],
             "pm_config_path": pm["config_path"],
+            "unassigned_pages": unassigned_pages,
+            "unassigned_count": len(unassigned_pages),
         }
 
     # ─── PM BOARD (Goal → Project → Deliverable) ─────
