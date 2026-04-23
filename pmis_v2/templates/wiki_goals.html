@@ -344,6 +344,12 @@
     font-weight: 600; color: var(--fg, #e5e5e5); margin-bottom: 4px;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
+  .pk-up-sparkle {
+    font-size: 10px; opacity: .75; margin-right: 2px; cursor: help;
+  }
+  .pk-up-card[data-humanized="1"] .pk-up-summary {
+    color: var(--fg, #e5e5e5);
+  }
   .pk-up-summary {
     color: var(--fg2, #9ca3af);
     font-size: 11px; line-height: 1.35; margin-bottom: 6px;
@@ -389,6 +395,53 @@
     line-height: 1.4;
   }
   .pk-up-confirm:hover { background: #7c3aed; }
+
+  /* Phase A — kachra folded footer */
+  .pk-kachra-footer {
+    margin-top: 12px; padding: 8px 10px;
+    border-top: 1px dashed var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 11px; color: var(--fg3, #6b7280); cursor: pointer;
+    user-select: none;
+  }
+  .pk-kachra-footer:hover { color: var(--fg2, #9ca3af); }
+  .pk-kachra-footer-reasons { font-size: 10px; opacity: .8; }
+  .pk-kachra-caret { transition: transform .18s; display: inline-block; }
+  .pk-kachra-footer.open .pk-kachra-caret { transform: rotate(90deg); }
+
+  .pk-kachra-strip {
+    display: none;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 8px; margin-top: 8px; opacity: .75;
+  }
+  .pk-kachra-strip.open { display: grid; }
+  .pk-k-card {
+    background: var(--bg1, #0a0a0f);
+    border: 1px dashed var(--border); border-radius: 4px;
+    padding: 6px 8px; font-size: 11px;
+    transition: opacity .2s;
+  }
+  .pk-k-card.tagging { opacity: .4; pointer-events: none; }
+  .pk-k-title {
+    font-weight: 500; color: var(--fg2, #9ca3af); margin-bottom: 3px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .pk-k-meta {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 6px; font-size: 10px;
+  }
+  .pk-k-reason {
+    background: rgba(107, 114, 128, .15);
+    color: var(--fg3, #6b7280);
+    border-radius: 3px; padding: 1px 6px;
+  }
+  .pk-k-revive {
+    background: transparent; border: 1px solid var(--border); color: var(--fg2);
+    border-radius: 3px; padding: 2px 7px; font-size: 10px; cursor: pointer;
+  }
+  .pk-k-revive:hover {
+    background: var(--accent, #8b5cf6); color: white; border-color: transparent;
+  }
 
   .pk-up-picker {
     position: absolute; z-index: 50;
@@ -549,9 +602,15 @@
     <div class="pk-unassigned-strip" id="pk-unassigned-strip">
       {% for p in unassigned_pages %}
       <article class="pk-up-card" data-page-id="{{ p.id }}"
-               data-tag-state="{{ p.tag_state or '' }}">
-        <div class="pk-up-title" title="{{ p.title }}">{{ p.title }}</div>
-        <div class="pk-up-summary">{{ p.summary[:200] }}</div>
+               data-tag-state="{{ p.tag_state or '' }}"
+               data-humanized="{{ '1' if p.humanized_summary else '0' }}">
+        <div class="pk-up-title" title="{{ p.title }}">
+          {% if p.humanized_summary %}<span class="pk-up-sparkle" title="Humanized by {{ p.humanized_by }}">✨</span>{% endif %}
+          {{ p.title }}
+        </div>
+        <div class="pk-up-summary" title="{{ p.summary[:400] }}">
+          {% if p.humanized_summary %}{{ p.humanized_summary }}{% else %}{{ p.summary[:200] }}{% endif %}
+        </div>
         {% if p.tag_state == 'proposed' %}
         <div class="pk-up-proposed" title="Dream proposed this match — confirm to accept or Tag to override">
           <span class="pk-up-proposed-dot"></span>
@@ -569,6 +628,32 @@
       </article>
       {% endfor %}
     </div>
+
+    {% if kachra_count and kachra_count > 0 %}
+    <div class="pk-kachra-footer" id="pk-kachra-footer" role="button" tabindex="0"
+         aria-expanded="false">
+      <span>
+        <span class="pk-kachra-caret">▸</span>
+        Plus {{ kachra_total_minutes|round|int }}m of low-signal activity hidden — {{ kachra_count }} item{% if kachra_count != 1 %}s{% endif %}
+      </span>
+      <span class="pk-kachra-footer-reasons">
+        {% for r, c in kachra_reason_counts.items() %}
+          {{ r }}{% if c > 1 %} ×{{ c }}{% endif %}{% if not loop.last %} · {% endif %}
+        {% endfor %}
+      </span>
+    </div>
+    <div class="pk-kachra-strip" id="pk-kachra-strip">
+      {% for p in kachra_pages %}
+      <article class="pk-k-card" data-page-id="{{ p.id }}">
+        <div class="pk-k-title" title="{{ p.title }}">{{ p.title }}</div>
+        <div class="pk-k-meta">
+          <span class="pk-k-reason">{{ p.kachra_reason or 'kachra' }}</span>
+          <button class="pk-k-revive" data-action="revive" title="Not kachra — move back">Revive</button>
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+    {% endif %}
   </section>
   {% endif %}
 
@@ -1326,6 +1411,57 @@
     else if (btn.dataset.action === 'reject') rejectPage(card);
     else if (btn.dataset.action === 'confirm') confirmProposed(card);
   });
+
+  /* ─── Kachra folded footer ─── */
+  const footer = document.getElementById('pk-kachra-footer');
+  const kstrip = document.getElementById('pk-kachra-strip');
+  if (footer && kstrip) {
+    const toggle = () => {
+      const open = footer.classList.toggle('open');
+      kstrip.classList.toggle('open');
+      footer.setAttribute('aria-expanded', open ? 'true' : 'false');
+    };
+    footer.addEventListener('click', toggle);
+    footer.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); toggle(); }
+    });
+    kstrip.addEventListener('click', async (ev) => {
+      const btn = ev.target.closest('[data-action="revive"]');
+      if (!btn) return;
+      ev.stopPropagation();
+      const card = btn.closest('.pk-k-card');
+      if (!card) return;
+      card.classList.add('tagging');
+      const pageId = card.dataset.pageId;
+      try {
+        const r = await fetch(`/api/work_pages/${pageId}/revive`, { method: 'POST' });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        card.style.transition = 'opacity .25s';
+        card.style.opacity = '0';
+        setTimeout(() => {
+          card.remove();
+          // update footer count label in place; if nothing left, hide footer+strip
+          const remaining = kstrip.querySelectorAll('.pk-k-card').length;
+          if (remaining === 0) {
+            footer.remove();
+            kstrip.remove();
+          } else {
+            const label = footer.querySelector('span');
+            if (label) {
+              label.innerHTML = '<span class="pk-kachra-caret">' +
+                (footer.classList.contains('open') ? '▾' : '▸') + '</span> ' +
+                remaining + ' low-signal item' + (remaining === 1 ? '' : 's') + ' hidden';
+            }
+          }
+          // user should ideally refresh to see the revived page in the main lane,
+          // but we avoid auto-reload to keep their scroll position.
+        }, 260);
+      } catch (e) {
+        card.classList.remove('tagging');
+        alert('Revive failed: ' + e.message);
+      }
+    });
+  }
 })();
 </script>
 
