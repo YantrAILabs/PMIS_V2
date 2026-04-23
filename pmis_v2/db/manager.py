@@ -2482,3 +2482,116 @@ class DBManager:
         )
         self._conn.commit()
         return cur.rowcount or 0
+
+    # ═══════════════════════════════════════════════════════════
+    # Dream auto-match (step 4) — proposed/confirmed bookkeeping
+    # ═══════════════════════════════════════════════════════════
+
+    def count_confirmed_page_tags(self, user_id: str = "local") -> int:
+        """Total human-validated confirmed tags (user-tagged OR user-confirmed
+        Dream proposals — both are training signal). Gates the bootstrap
+        cold start: Dream won't auto-propose until this clears the threshold."""
+        row = self._conn.execute(
+            """SELECT COUNT(*) AS n FROM work_pages
+               WHERE user_id = ? AND tag_state = 'confirmed'""",
+            (user_id,),
+        ).fetchone()
+        return int(row["n"]) if row else 0
+
+    def list_untagged_pages_for_matching(
+        self,
+        user_id: str = "local",
+        since_date: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Pages that Dream's project matcher should consider.
+
+        Includes state='open' with no tag_state (never proposed) AND
+        state='open' with tag_state='proposed' (re-score allowed — HGCN
+        may have moved). Excludes confirmed/rejected/archived/stale.
+        """
+        if since_date:
+            rows = self._conn.execute(
+                """SELECT * FROM work_pages
+                   WHERE user_id = ? AND state = 'open'
+                     AND tag_state IN ('', 'proposed')
+                     AND date_local >= ?
+                   ORDER BY date_local DESC, created_at DESC""",
+                (user_id, since_date),
+            ).fetchall()
+        else:
+            rows = self._conn.execute(
+                """SELECT * FROM work_pages
+                   WHERE user_id = ? AND state = 'open'
+                     AND tag_state IN ('', 'proposed')
+                   ORDER BY date_local DESC, created_at DESC""",
+                (user_id,),
+            ).fetchall()
+        pages: List[Dict[str, Any]] = []
+        for r in rows:
+            page = dict(r)
+            blob = page.pop("embedding_blob", None)
+            page["embedding"] = (
+                np.frombuffer(blob, dtype=np.float32)
+                if blob is not None else None
+            )
+            pages.append(page)
+        return pages
+
+    def set_work_page_proposal(
+        self,
+        page_id: str,
+        project_id: str,
+        deliverable_id: str = "",
+        score: float = 0.0,
+        user_id: str = "local",
+    ) -> None:
+        """Write a Dream-proposed match onto a still-open page. Keeps
+        state='open' so the page stays in the Unassigned lane with a
+        'proposed' banner — user still has to confirm before HGCN sees it."""
+        self._conn.execute(
+            """UPDATE work_pages
+               SET project_id = ?, deliverable_id = ?,
+                   tag_state = 'proposed', tag_source = 'dream_proposed',
+                   rank_score = ?
+               WHERE id = ? AND user_id = ?""",
+            (project_id, deliverable_id, float(score), page_id, user_id),
+        )
+        self._conn.commit()
+
+    def confirm_work_page_proposal(
+        self, page_id: str, user_id: str = "local"
+    ) -> Optional[Dict[str, Any]]:
+        """User ✓ on a proposed tag. Flips to state='tagged' + confirmed,
+        tag_source stays 'dream_proposed' so the lineage survives."""
+        page = self.get_work_page(page_id)
+        if not page:
+            return None
+        if (page.get("tag_state") or "") != "proposed":
+            return None
+        self._conn.execute(
+            """UPDATE work_pages
+               SET state = 'tagged', tag_state = 'confirmed',
+                   tagged_at = datetime('now')
+               WHERE id = ? AND user_id = ?""",
+            (page_id, user_id),
+        )
+        self._conn.commit()
+        return self.get_work_page(page_id)
+
+    def expire_stale_proposals(
+        self, max_age_days: int = 3, user_id: str = "local"
+    ) -> int:
+        """TTL the 'proposed' tag_state: any proposal older than max_age_days
+        is cleared (tag_state='', project_id='') so Dream can re-score it,
+        or it ages out of the lane. Returns rows affected."""
+        cur = self._conn.execute(
+            """UPDATE work_pages
+               SET tag_state = '', tag_source = '',
+                   project_id = '', deliverable_id = '', rank_score = 0
+               WHERE user_id = ? AND state = 'open'
+                 AND tag_state = 'proposed'
+                 AND date_local <= date('now', ? || ' days')""",
+            (user_id, f"-{int(max_age_days)}"),
+        )
+        self._conn.commit()
+        return cur.rowcount or 0

@@ -87,6 +87,16 @@ class NightlyConsolidation:
         # 9. Project matching (tagged-session inherit + semantic for untagged).
         results["project_matches"] = self._pass_project_matching()
 
+        # 9b. Work-page auto-match — bootstrap-gated, writes tag_state=proposed
+        #     on state=open pages. User confirms via the Unassigned lane
+        #     morning review; only confirmed tags feed next nightly's HGCN.
+        try:
+            from consolidation.work_page_matcher import run_work_page_matching
+            wp_match = run_work_page_matching(self.db, self.hp)
+            results["work_page_matches"] = [wp_match]
+        except Exception as e:
+            results["work_page_matches"] = [{"status": "error", "error": str(e)}]
+
         # 10. Time assignment.
         results["time_assigned"] = self._pass_time_assignment()
 

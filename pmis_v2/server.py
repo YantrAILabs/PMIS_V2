@@ -1215,6 +1215,43 @@ async def api_reject_work_page(page_id: str):
     return {"ok": True, "page_id": page_id, "state": "archived"}
 
 
+@app.post("/api/work_pages/{page_id}/confirm")
+async def api_confirm_work_page(page_id: str):
+    """Confirm a Dream-proposed tag. Flips tag_state='proposed' → 'confirmed'
+    and state='open' → 'tagged'. Only confirmed tags feed HGCN feedback edges."""
+    result = _orch.db.confirm_work_page_proposal(page_id)
+    if result is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"no proposed tag found on work_page {page_id}",
+        )
+    return {
+        "ok": True,
+        "page_id": page_id,
+        "project_id": result.get("project_id"),
+        "deliverable_id": result.get("deliverable_id"),
+        "state": result.get("state"),
+        "tag_state": result.get("tag_state"),
+    }
+
+
+@app.post("/api/dream/match-pages")
+async def api_dream_match_pages(req: Request):
+    """Manually trigger Dream's auto-match pass. Body: {force?, since?}."""
+    from consolidation.work_page_matcher import run_work_page_matching
+    body = {}
+    try:
+        body = await req.json()
+    except Exception:
+        pass
+    hp = _orch.hp if hasattr(_orch, "hp") else {}
+    return run_work_page_matching(
+        _orch.db, hp,
+        force=bool(body.get("force", False)),
+        since_date=body.get("since"),
+    )
+
+
 # ─── Project digests ───────────────────────────────────────────────────
 
 def _project_title_for(project_id: str) -> str:
