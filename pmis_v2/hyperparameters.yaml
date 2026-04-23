@@ -155,6 +155,10 @@ humanize_model_local: qwen2.5:7b     # offline fallback
 # ── Phase C — narrative composer ──────────────────────────────────
 narrate_auto_on_sync: true           # compose 1-4 journal stories each sync
 
+# Goals page: how many trailing days of work_pages + narratives to render.
+# 0 = today only. 2 means today + previous 2 days (useful after a backfill).
+goals_recent_window_days: 2
+
 # ── Phase 3: unified value_score on every memory_node ─────────────────
 # value_score(n) = w_g·G(n) + w_f·F(n) + w_u·U(n) + w_r·R(n)
 # G: goal achievement (0..1), F: feedback in [-1,1] internal (clipped at 0 for display),
