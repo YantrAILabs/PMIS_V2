@@ -156,8 +156,9 @@ humanize_model_local: qwen2.5:7b     # offline fallback
 narrate_auto_on_sync: true           # compose 1-4 journal stories each sync
 
 # Goals page: how many trailing days of work_pages + narratives to render.
-# 0 = today only. 2 means today + previous 2 days (useful after a backfill).
-goals_recent_window_days: 2
+# 0 = today only. Default 30 shows ~last-month view (handy after a backfill);
+# set to 2 or 7 for a tighter daily-use feel once history stops growing.
+goals_recent_window_days: 30
 
 # ── Phase 3: unified value_score on every memory_node ─────────────────
 # value_score(n) = w_g·G(n) + w_f·F(n) + w_u·U(n) + w_r·R(n)
