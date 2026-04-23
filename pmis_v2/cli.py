@@ -582,6 +582,23 @@ def cmd_sync_humanize(args):
 
 
 @_safe_output
+def cmd_sync_narrate(args):
+    """Phase C — compose daily journal stories from salient work_pages."""
+    from db.manager import DBManager
+    from core import config
+    from sync.narrator import compose_narratives_for_date
+
+    db_path = str(PMIS_DIR / "data" / "memory.db")
+    db = DBManager(db_path)
+    hp = config.get_all()
+    return compose_narratives_for_date(
+        db, hp,
+        target_date=getattr(args, "date", None),
+        generated_by="manual",
+    )
+
+
+@_safe_output
 def cmd_sync_status(args):
     """Show last sync watermark and today's open/tagged page counts."""
     from db.manager import DBManager
@@ -685,6 +702,13 @@ def build_parser():
     sync_hum_p.add_argument(
         "--local", action="store_true",
         help="Force local qwen2.5:7b, skip Gemini even if API key is set",
+    )
+    sync_narr_p = sync_sub.add_parser(
+        "narrate",
+        help="Compose 1-4 daily journal stories from salient work_pages",
+    )
+    sync_narr_p.add_argument(
+        "--date", default=None, help="Target date YYYY-MM-DD (default today)"
     )
 
     # dream subcommands (Phase 9 auto-match + future consolidations)
@@ -795,6 +819,8 @@ def main():
             cmd_sync_rescan_salience(args)
         elif args.sync_command == "humanize":
             cmd_sync_humanize(args)
+        elif args.sync_command == "narrate":
+            cmd_sync_narrate(args)
         else:
             parser.parse_args(["sync", "--help"])
     elif args.command == "dream":

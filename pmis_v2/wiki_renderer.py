@@ -234,7 +234,15 @@ class WikiRenderer:
             "kachra_count": len(kachra_pages),
             "kachra_total_minutes": round(kachra_total_minutes, 1),
             "kachra_reason_counts": kachra_reason_counts,
+            "narratives": self._render_narratives_for_today(today),
         }
+
+    def _render_narratives_for_today(self, today: str) -> List[Dict]:
+        try:
+            narratives = self.db.list_narratives(date_local=today)
+        except Exception:
+            return []
+        return narratives
 
     # ─── PM BOARD (Goal → Project → Deliverable) ─────
 

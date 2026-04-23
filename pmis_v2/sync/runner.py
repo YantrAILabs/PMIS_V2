@@ -169,6 +169,20 @@ def run_sync(
         except Exception as e:
             logger.warning("humanize skipped: %s", e)
 
+    # Phase C narrator — compose 1–4 journal stories from today's salient
+    # humanized pages. Skips entirely if there's nothing new or if disabled.
+    narratives_written = 0
+    if hyperparams.get("narrate_auto_on_sync", True) and touched_ids:
+        try:
+            from sync.narrator import compose_narratives_for_date
+            nres = compose_narratives_for_date(
+                db, hyperparams, target_date=target_date,
+                user_id=user_id, generated_by="auto_sync",
+            )
+            narratives_written = int(nres.get("narratives_written") or 0)
+        except Exception as e:
+            logger.warning("narrate skipped: %s", e)
+
     return {
         "status": "ok",
         "date": target_date,
@@ -181,6 +195,7 @@ def run_sync(
         "salient": kachra_counts.get("salient", 0),
         "kachra": kachra_counts.get("kachra", 0),
         "humanized": humanized,
+        "narratives_written": narratives_written,
     }
 
 
