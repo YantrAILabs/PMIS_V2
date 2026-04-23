@@ -5,9 +5,18 @@
   <key>Label</key>
   <string>com.pmis.sync</string>
 
+  <!-- Call python3 directly — shell invocation hits TCC "Operation not
+       permitted" when the script lives under ~/Desktop. Python binaries
+       on macOS inherit Full Disk Access from the user's PATH-granted
+       interpreters, matching the existing com.pmis.memory-server pattern. -->
   <key>ProgramArguments</key>
   <array>
-    <string>__REPO_ROOT__/pmis_v2/deploy/launchd/pmis_sync.sh</string>
+    <string>/opt/homebrew/bin/python3</string>
+    <string>__REPO_ROOT__/pmis_v2/cli.py</string>
+    <string>sync</string>
+    <string>run</string>
+    <string>--model</string>
+    <string>qwen2.5:7b</string>
   </array>
 
   <key>StartInterval</key>
@@ -29,6 +38,8 @@
   <dict>
     <key>PATH</key>
     <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>PYTHONPATH</key>
+    <string>__REPO_ROOT__/pmis_v2</string>
   </dict>
 </dict>
 </plist>

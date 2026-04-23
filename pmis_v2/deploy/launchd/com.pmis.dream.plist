@@ -5,9 +5,11 @@
   <key>Label</key>
   <string>com.pmis.dream</string>
 
+  <!-- Same TCC workaround as com.pmis.sync — python3 directly, no shell. -->
   <key>ProgramArguments</key>
   <array>
-    <string>__REPO_ROOT__/pmis_v2/deploy/launchd/pmis_dream.sh</string>
+    <string>/opt/homebrew/bin/python3</string>
+    <string>__REPO_ROOT__/pmis_v2/deploy/launchd/run_dream.py</string>
   </array>
 
   <!-- Run once a day at 18:00 local. -->
@@ -35,6 +37,8 @@
   <dict>
     <key>PATH</key>
     <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>PYTHONPATH</key>
+    <string>__REPO_ROOT__/pmis_v2</string>
   </dict>
 </dict>
 </plist>
