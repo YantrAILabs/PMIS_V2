@@ -146,6 +146,12 @@ dream_auto_match_min_confirmed: 20  # set 0 to disable the gate
 dream_proposal_score_threshold: 0.55 # cosine similarity floor for proposing
 dream_proposal_ttl_days: 3           # proposed tag expires → archived 'stale'
 
+# ── Phase B — outcome-shaped rewrite of work_page summaries ────────
+humanize_auto_on_sync: true          # rewrite salient pages after every sync
+humanize_use_cloud: true             # prefer Gemini (needs GOOGLE_API_KEY)
+humanize_model_cloud: gemini-2.5-flash
+humanize_model_local: qwen2.5:7b     # offline fallback
+
 # ── Phase 3: unified value_score on every memory_node ─────────────────
 # value_score(n) = w_g·G(n) + w_f·F(n) + w_u·U(n) + w_r·R(n)
 # G: goal achievement (0..1), F: feedback in [-1,1] internal (clipped at 0 for display),

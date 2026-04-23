@@ -82,6 +82,41 @@ class DBManager:
         """)
         self._conn.commit()
 
+        # Phase A (step 5) — salience columns on work_pages.
+        # ADD COLUMN is idempotent via PRAGMA table_info check since SQLite
+        # has no IF NOT EXISTS for columns.
+        self._ensure_column(
+            "work_pages", "salience", "TEXT DEFAULT 'pending'"
+        )
+        self._ensure_column(
+            "work_pages", "kachra_reason", "TEXT DEFAULT ''"
+        )
+        # Phase B — outcome-shaped rewrite of the raw summary.
+        self._ensure_column(
+            "work_pages", "humanized_summary", "TEXT DEFAULT ''"
+        )
+        self._ensure_column(
+            "work_pages", "humanized_at", "TEXT DEFAULT ''"
+        )
+        self._ensure_column(
+            "work_pages", "humanized_by", "TEXT DEFAULT ''"
+        )
+        self._conn.commit()
+
+    def _ensure_column(self, table: str, column: str, type_sql: str) -> None:
+        """Idempotent ADD COLUMN (SQLite has no IF NOT EXISTS for columns)."""
+        try:
+            cols = {
+                r["name"]
+                for r in self._conn.execute(f"PRAGMA table_info({table})")
+            }
+            if column not in cols:
+                self._conn.execute(
+                    f"ALTER TABLE {table} ADD COLUMN {column} {type_sql}"
+                )
+        except Exception:
+            pass
+
         # Migration: add unique index on conversation_turns if missing
         try:
             self._conn.execute("""

@@ -141,6 +141,34 @@ def run_sync(
         latest_ts = datetime.now().isoformat(timespec="seconds")
     db.set_last_sync_timestamp(latest_ts, user_id=user_id)
 
+    # Phase A kachra filter — score every page we just touched so the
+    # Unassigned lane hides noise by default. Reversible via Revive.
+    kachra_counts = {"salient": 0, "kachra": 0}
+    touched_ids = {p["id"] for p in open_pages}
+    try:
+        from sync.salience import score_and_store
+        for pid in touched_ids:
+            sal, _ = score_and_store(db, pid)
+            kachra_counts[sal] = kachra_counts.get(sal, 0) + 1
+    except Exception as e:
+        logger.warning("salience scoring skipped: %s", e)
+
+    # Phase B humanizer — outcome-shaped rewrite on salient pages.
+    # Never humanizes kachra (would waste a call on what we hide).
+    humanized = 0
+    if hyperparams.get("humanize_auto_on_sync", True):
+        try:
+            from sync.humanizer import humanize_page
+            for pid in touched_ids:
+                page = db.get_work_page(pid)
+                if not page or (page.get("salience") or "") != "salient":
+                    continue
+                res = humanize_page(db, page, hyperparams)
+                if res.get("outcome"):
+                    humanized += 1
+        except Exception as e:
+            logger.warning("humanize skipped: %s", e)
+
     return {
         "status": "ok",
         "date": target_date,
@@ -150,6 +178,9 @@ def run_sync(
         "pages_created": pages_created,
         "pages_appended": pages_appended,
         "watermark": latest_ts,
+        "salient": kachra_counts.get("salient", 0),
+        "kachra": kachra_counts.get("kachra", 0),
+        "humanized": humanized,
     }
 
 

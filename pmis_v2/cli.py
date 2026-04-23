@@ -542,6 +542,46 @@ def cmd_dream_match_pages(args):
 
 
 @_safe_output
+def cmd_sync_rescan_salience(args):
+    """Phase A — re-score every work_page with the kachra filter.
+
+    Idempotent: safe to run anytime. Writes salience + kachra_reason to
+    each page. Use after heuristic tuning or to apply to backfilled data.
+    """
+    from db.manager import DBManager
+    from sync.salience import rescan_all
+
+    db_path = str(PMIS_DIR / "data" / "memory.db")
+    db = DBManager(db_path)
+    return rescan_all(db, date_local=getattr(args, "date", None))
+
+
+@_safe_output
+def cmd_sync_humanize(args):
+    """Phase B — outcome-shaped rewrite of salient work_pages.
+
+    Gemini Flash primary (if GOOGLE_API_KEY set), qwen2.5:7b fallback.
+    Skips already-humanized pages unless --force.
+    """
+    from db.manager import DBManager
+    from core import config
+    from sync.humanizer import humanize_all
+
+    db_path = str(PMIS_DIR / "data" / "memory.db")
+    db = DBManager(db_path)
+    hp = config.get_all()
+    if getattr(args, "model", None):
+        hp["humanize_model_cloud"] = args.model
+    if getattr(args, "local", False):
+        hp["humanize_use_cloud"] = False
+    return humanize_all(
+        db, hp,
+        date_local=getattr(args, "date", None),
+        force=getattr(args, "force", False),
+    )
+
+
+@_safe_output
 def cmd_sync_status(args):
     """Show last sync watermark and today's open/tagged page counts."""
     from db.manager import DBManager
@@ -620,6 +660,32 @@ def build_parser():
         help="Override LLM model for title/summary (default: from hyperparameters.yaml)"
     )
     sync_sub.add_parser("status", help="Show watermark + today's page counts")
+    sync_rescan_p = sync_sub.add_parser(
+        "rescan-salience",
+        help="Re-score all work_pages with the kachra filter (retroactive)",
+    )
+    sync_rescan_p.add_argument(
+        "--date", default=None, help="Limit rescan to one YYYY-MM-DD"
+    )
+    sync_hum_p = sync_sub.add_parser(
+        "humanize",
+        help="Rewrite salient work_page summaries as outcomes (Phase B)",
+    )
+    sync_hum_p.add_argument(
+        "--date", default=None, help="Limit to one YYYY-MM-DD"
+    )
+    sync_hum_p.add_argument(
+        "--force", action="store_true",
+        help="Rewrite even pages already humanized",
+    )
+    sync_hum_p.add_argument(
+        "--model", default=None,
+        help="Override Gemini model name (cloud path)",
+    )
+    sync_hum_p.add_argument(
+        "--local", action="store_true",
+        help="Force local qwen2.5:7b, skip Gemini even if API key is set",
+    )
 
     # dream subcommands (Phase 9 auto-match + future consolidations)
     dream_parser = subparsers.add_parser("dream", help="Dream / nightly ops")
@@ -725,6 +791,10 @@ def main():
             cmd_sync_run(args)
         elif args.sync_command == "status":
             cmd_sync_status(args)
+        elif args.sync_command == "rescan-salience":
+            cmd_sync_rescan_salience(args)
+        elif args.sync_command == "humanize":
+            cmd_sync_humanize(args)
         else:
             parser.parse_args(["sync", "--help"])
     elif args.command == "dream":

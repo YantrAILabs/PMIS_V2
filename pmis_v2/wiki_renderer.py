@@ -204,6 +204,22 @@ class WikiRenderer:
         except Exception:
             unassigned_pages = []
 
+        # Phase A — split into salient (main lane) + kachra (folded footer).
+        # Pages with salience='pending' (e.g. predates Phase A) are treated
+        # as salient so nothing is silently hidden.
+        salient_pages: List[Dict] = []
+        kachra_pages: List[Dict] = []
+        kachra_total_minutes = 0.0
+        kachra_reason_counts: Dict[str, int] = {}
+        for p in unassigned_pages:
+            if (p.get("salience") or "pending") == "kachra":
+                kachra_pages.append(p)
+                kachra_total_minutes += (p.get("segment_count", 0) * 10) / 60.0
+                reason = p.get("kachra_reason") or "other"
+                kachra_reason_counts[reason] = kachra_reason_counts.get(reason, 0) + 1
+            else:
+                salient_pages.append(p)
+
         return {
             "goals": enriched,
             "total": len(enriched),
@@ -212,8 +228,12 @@ class WikiRenderer:
             "pm_alive_projects": pm["alive_projects"],
             "pm_column_counts": pm["column_counts"],
             "pm_config_path": pm["config_path"],
-            "unassigned_pages": unassigned_pages,
-            "unassigned_count": len(unassigned_pages),
+            "unassigned_pages": salient_pages,
+            "unassigned_count": len(salient_pages),
+            "kachra_pages": kachra_pages,
+            "kachra_count": len(kachra_pages),
+            "kachra_total_minutes": round(kachra_total_minutes, 1),
+            "kachra_reason_counts": kachra_reason_counts,
         }
 
     # ─── PM BOARD (Goal → Project → Deliverable) ─────

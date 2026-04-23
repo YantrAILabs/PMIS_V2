@@ -1215,6 +1215,75 @@ async def api_reject_work_page(page_id: str):
     return {"ok": True, "page_id": page_id, "state": "archived"}
 
 
+@app.post("/api/work_pages/{page_id}/revive")
+async def api_revive_work_page(page_id: str):
+    """User: "this isn't kachra" — flip salience back to 'salient',
+    clear kachra_reason. Keeps state/tag_state untouched."""
+    from sync.salience import revive_page
+    result = revive_page(_orch.db, page_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"work_page {page_id} not found")
+    return {
+        "ok": True,
+        "page_id": page_id,
+        "salience": result.get("salience"),
+        "kachra_reason": result.get("kachra_reason"),
+    }
+
+
+@app.post("/api/sync/rescan-salience")
+async def api_rescan_salience(req: Request):
+    """Re-score all work_pages. Body: {date?}. Idempotent."""
+    from sync.salience import rescan_all
+    body = {}
+    try:
+        body = await req.json()
+    except Exception:
+        pass
+    return rescan_all(_orch.db, date_local=body.get("date"))
+
+
+@app.post("/api/sync/humanize")
+async def api_sync_humanize(req: Request):
+    """Batch humanize. Body: {date?, force?, local?, model?}."""
+    from sync.humanizer import humanize_all
+    body = {}
+    try:
+        body = await req.json()
+    except Exception:
+        pass
+    hp = dict(_orch.hp) if hasattr(_orch, "hp") else {}
+    if body.get("model"):
+        hp["humanize_model_cloud"] = body["model"]
+    if body.get("local"):
+        hp["humanize_use_cloud"] = False
+    return humanize_all(
+        _orch.db, hp,
+        date_local=body.get("date"),
+        force=bool(body.get("force", False)),
+    )
+
+
+@app.post("/api/work_pages/{page_id}/humanize")
+async def api_work_page_humanize(page_id: str, req: Request):
+    """Humanize a single page. Body: {force?, local?, model?}."""
+    from sync.humanizer import humanize_page
+    page = _orch.db.get_work_page(page_id)
+    if not page:
+        raise HTTPException(status_code=404, detail=f"work_page {page_id} not found")
+    body = {}
+    try:
+        body = await req.json()
+    except Exception:
+        pass
+    hp = dict(_orch.hp) if hasattr(_orch, "hp") else {}
+    if body.get("model"):
+        hp["humanize_model_cloud"] = body["model"]
+    if body.get("local"):
+        hp["humanize_use_cloud"] = False
+    return humanize_page(_orch.db, page, hp, force=bool(body.get("force", False)))
+
+
 @app.post("/api/work_pages/{page_id}/confirm")
 async def api_confirm_work_page(page_id: str):
     """Confirm a Dream-proposed tag. Flips tag_state='proposed' → 'confirmed'
