@@ -101,6 +101,30 @@ class DBManager:
         self._ensure_column(
             "work_pages", "humanized_by", "TEXT DEFAULT ''"
         )
+        # Phase C — narrative layer: 1-4 daily stories composed from salient
+        # humanized work_pages. One row per (user, date, narrative ordinal).
+        self._conn.executescript("""
+            CREATE TABLE IF NOT EXISTS work_narratives (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL DEFAULT 'local',
+                date_local TEXT NOT NULL,
+                ordinal INTEGER NOT NULL DEFAULT 0,
+                heading TEXT NOT NULL,
+                body_markdown TEXT NOT NULL,
+                source_page_ids_json TEXT DEFAULT '[]',
+                project_id TEXT DEFAULT '',
+                state TEXT DEFAULT 'open'
+                    CHECK(state IN ('open', 'tagged', 'archived')),
+                generated_at TEXT DEFAULT (datetime('now')),
+                generated_by TEXT DEFAULT '',
+                is_stale INTEGER DEFAULT 0,
+                UNIQUE(user_id, date_local, ordinal)
+            );
+            CREATE INDEX IF NOT EXISTS idx_narratives_user_date
+                ON work_narratives(user_id, date_local);
+            CREATE INDEX IF NOT EXISTS idx_narratives_stale
+                ON work_narratives(is_stale);
+        """)
         self._conn.commit()
 
     def _ensure_column(self, table: str, column: str, type_sql: str) -> None:
@@ -2612,6 +2636,106 @@ class DBManager:
         )
         self._conn.commit()
         return self.get_work_page(page_id)
+
+    # ═══════════════════════════════════════════════════════════
+    # Phase C — work narratives (daily journal stories)
+    # ═══════════════════════════════════════════════════════════
+
+    def upsert_narrative(
+        self,
+        date_local: str,
+        ordinal: int,
+        heading: str,
+        body_markdown: str,
+        source_page_ids: Optional[List[str]] = None,
+        project_id: str = "",
+        generated_by: str = "manual",
+        user_id: str = "local",
+    ) -> str:
+        """Insert or replace a narrative at (user, date, ordinal).
+        Regeneration during the same day simply overwrites."""
+        nid = uuid.uuid4().hex[:16]
+        self._conn.execute(
+            """INSERT INTO work_narratives
+               (id, user_id, date_local, ordinal, heading, body_markdown,
+                source_page_ids_json, project_id, generated_by, is_stale,
+                generated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, datetime('now'))
+               ON CONFLICT(user_id, date_local, ordinal) DO UPDATE SET
+                   heading = excluded.heading,
+                   body_markdown = excluded.body_markdown,
+                   source_page_ids_json = excluded.source_page_ids_json,
+                   project_id = excluded.project_id,
+                   generated_by = excluded.generated_by,
+                   is_stale = 0,
+                   generated_at = datetime('now')""",
+            (nid, user_id, date_local, ordinal, heading, body_markdown,
+             json.dumps(source_page_ids or []), project_id, generated_by),
+        )
+        self._conn.commit()
+        row = self._conn.execute(
+            """SELECT id FROM work_narratives
+               WHERE user_id=? AND date_local=? AND ordinal=?""",
+            (user_id, date_local, ordinal),
+        ).fetchone()
+        return row["id"] if row else nid
+
+    def clear_narratives_for_date(
+        self, date_local: str, user_id: str = "local"
+    ) -> int:
+        """Wipe narratives for a day before regenerating — keeps
+        (user,date,ordinal) unique without juggling ordinals."""
+        cur = self._conn.execute(
+            """DELETE FROM work_narratives
+               WHERE user_id = ? AND date_local = ?""",
+            (user_id, date_local),
+        )
+        self._conn.commit()
+        return cur.rowcount or 0
+
+    def list_narratives(
+        self,
+        date_local: Optional[str] = None,
+        user_id: str = "local",
+        limit: int = 50,
+    ) -> List[Dict[str, Any]]:
+        if date_local:
+            rows = self._conn.execute(
+                """SELECT * FROM work_narratives
+                   WHERE user_id = ? AND date_local = ?
+                   ORDER BY ordinal ASC""",
+                (user_id, date_local),
+            ).fetchall()
+        else:
+            rows = self._conn.execute(
+                """SELECT * FROM work_narratives
+                   WHERE user_id = ?
+                   ORDER BY date_local DESC, ordinal ASC
+                   LIMIT ?""",
+                (user_id, limit),
+            ).fetchall()
+        out: List[Dict[str, Any]] = []
+        for r in rows:
+            d = dict(r)
+            try:
+                d["source_page_ids"] = json.loads(
+                    d.pop("source_page_ids_json") or "[]"
+                )
+            except Exception:
+                d["source_page_ids"] = []
+            out.append(d)
+        return out
+
+    def mark_narratives_stale(
+        self, date_local: str, user_id: str = "local"
+    ) -> int:
+        cur = self._conn.execute(
+            """UPDATE work_narratives SET is_stale = 1
+               WHERE user_id = ? AND date_local = ?""",
+            (user_id, date_local),
+        )
+        self._conn.commit()
+        return cur.rowcount or 0
 
     def expire_stale_proposals(
         self, max_age_days: int = 3, user_id: str = "local"

@@ -1264,6 +1264,31 @@ async def api_sync_humanize(req: Request):
     )
 
 
+@app.get("/api/narratives")
+async def api_list_narratives(date: Optional[str] = None, limit: int = 50):
+    """List narratives for a date (default: today). Newest first otherwise."""
+    narratives = _orch.db.list_narratives(date_local=date, limit=limit)
+    return {"date": date, "count": len(narratives), "narratives": narratives}
+
+
+@app.post("/api/narratives/compose")
+async def api_compose_narratives(req: Request):
+    """Compose daily stories for a target date. Body: {date?}. Wipes
+    existing narratives for that date and writes the fresh set."""
+    from sync.narrator import compose_narratives_for_date
+    body = {}
+    try:
+        body = await req.json()
+    except Exception:
+        pass
+    hp = dict(_orch.hp) if hasattr(_orch, "hp") else {}
+    return compose_narratives_for_date(
+        _orch.db, hp,
+        target_date=body.get("date"),
+        generated_by="manual",
+    )
+
+
 @app.post("/api/work_pages/{page_id}/humanize")
 async def api_work_page_humanize(page_id: str, req: Request):
     """Humanize a single page. Body: {force?, local?, model?}."""

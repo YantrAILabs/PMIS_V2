@@ -152,6 +152,9 @@ humanize_use_cloud: true             # prefer Gemini (needs GOOGLE_API_KEY)
 humanize_model_cloud: gemini-2.5-flash
 humanize_model_local: qwen2.5:7b     # offline fallback
 
+# ── Phase C — narrative composer ──────────────────────────────────
+narrate_auto_on_sync: true           # compose 1-4 journal stories each sync
+
 # ── Phase 3: unified value_score on every memory_node ─────────────────
 # value_score(n) = w_g·G(n) + w_f·F(n) + w_u·U(n) + w_r·R(n)
 # G: goal achievement (0..1), F: feedback in [-1,1] internal (clipped at 0 for display),
