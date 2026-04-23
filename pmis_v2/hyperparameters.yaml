@@ -138,6 +138,14 @@ match_feedback_max_age_days: 90
 sync_cluster_threshold: 0.28      # within-sync greedy clustering of segments
 sync_append_distance: 0.15        # runner's append-vs-new decision boundary
 
+# ── Dream auto-match (Phase 9 on work_pages) ─────────────────────
+# Bootstrap gate: Dream won't auto-match until the user has manually
+# confirmed enough tags for HGCN to be better than naive similarity.
+# Below the threshold, untagged pages just sit in Unassigned.
+dream_auto_match_min_confirmed: 20  # set 0 to disable the gate
+dream_proposal_score_threshold: 0.55 # cosine similarity floor for proposing
+dream_proposal_ttl_days: 3           # proposed tag expires → archived 'stale'
+
 # ── Phase 3: unified value_score on every memory_node ─────────────────
 # value_score(n) = w_g·G(n) + w_f·F(n) + w_u·U(n) + w_r·R(n)
 # G: goal achievement (0..1), F: feedback in [-1,1] internal (clipped at 0 for display),

@@ -518,6 +518,30 @@ def cmd_sync_run(args):
 
 
 @_safe_output
+def cmd_dream_match_pages(args):
+    """Dream's gated auto-match over untagged work_pages.
+
+    Bootstrap rule: does nothing until user has confirmed N tags
+    (hyperparameters.yaml: dream_auto_match_min_confirmed). Use --force to
+    bypass the gate for testing.
+    """
+    from db.manager import DBManager
+    from core import config
+    from consolidation.work_page_matcher import run_work_page_matching
+
+    db_path = str(PMIS_DIR / "data" / "memory.db")
+    db = DBManager(db_path)
+    hp = config.get_all()
+    if getattr(args, "model", None):
+        hp["consolidation_model_local"] = args.model
+    return run_work_page_matching(
+        db, hp,
+        force=getattr(args, "force", False),
+        since_date=getattr(args, "since", None),
+    )
+
+
+@_safe_output
 def cmd_sync_status(args):
     """Show last sync watermark and today's open/tagged page counts."""
     from db.manager import DBManager
@@ -596,6 +620,25 @@ def build_parser():
         help="Override LLM model for title/summary (default: from hyperparameters.yaml)"
     )
     sync_sub.add_parser("status", help="Show watermark + today's page counts")
+
+    # dream subcommands (Phase 9 auto-match + future consolidations)
+    dream_parser = subparsers.add_parser("dream", help="Dream / nightly ops")
+    dream_sub = dream_parser.add_subparsers(dest="dream_command")
+    dream_match_p = dream_sub.add_parser(
+        "match-pages", help="Gated auto-match over untagged work_pages"
+    )
+    dream_match_p.add_argument(
+        "--force", action="store_true",
+        help="Bypass the bootstrap confirmed-tag gate (for testing)",
+    )
+    dream_match_p.add_argument(
+        "--model", default=None,
+        help="Override embed/LLM model for this run",
+    )
+    dream_match_p.add_argument(
+        "--since", default=None,
+        help="Only consider pages with date_local >= YYYY-MM-DD",
+    )
 
     # goal subcommands
     goal_parser = subparsers.add_parser("goal", help="Goal management")
@@ -684,6 +727,11 @@ def main():
             cmd_sync_status(args)
         else:
             parser.parse_args(["sync", "--help"])
+    elif args.command == "dream":
+        if args.dream_command == "match-pages":
+            cmd_dream_match_pages(args)
+        else:
+            parser.parse_args(["dream", "--help"])
     else:
         parser.print_help()
         sys.exit(1)

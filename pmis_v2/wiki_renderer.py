@@ -178,10 +178,28 @@ class WikiRenderer:
         today = _date.today().isoformat()
         unassigned_pages: List[Dict] = []
         try:
+            # Build project_id → title lookup so Dream proposals can render
+            # "→ ProjectTitle" in the banner without another JS round-trip.
+            project_titles: Dict[str, str] = {}
+            deliverable_names: Dict[str, str] = {}
+            for _g in pm.get("goals", []):
+                for _p in _g.get("projects", []):
+                    if _p.get("id"):
+                        project_titles[_p["id"]] = _p.get("title", _p["id"])
+                    for _d in _p.get("deliverables", []):
+                        if _d.get("id"):
+                            deliverable_names[_d["id"]] = _d.get("name", _d["id"])
+
             raw_pages = self.db.list_work_pages_by_state("open", date_local=today)
             for p in raw_pages:
                 p.pop("embedding_blob", None)
                 p["segment_count"] = len(self.db.get_page_segments(p["id"]))
+                if p.get("tag_state") == "proposed":
+                    p["proposed_project_title"] = project_titles.get(
+                        p.get("project_id") or "", p.get("project_id") or ""
+                    )
+                    did = p.get("deliverable_id") or ""
+                    p["proposed_deliverable_name"] = deliverable_names.get(did, did)
                 unassigned_pages.append(p)
         except Exception:
             unassigned_pages = []

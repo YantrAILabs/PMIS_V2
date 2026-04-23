@@ -369,6 +369,27 @@
     background: #991b1b; color: white; border-color: transparent;
   }
 
+  /* Dream-proposed tag banner inside a card */
+  .pk-up-proposed {
+    margin: 4px 0 6px; padding: 4px 7px;
+    background: rgba(245, 158, 11, .1);
+    border: 1px solid rgba(245, 158, 11, .4);
+    border-radius: 3px; font-size: 10px;
+    display: flex; align-items: center; gap: 6px;
+    color: var(--fg, #e5e5e5);
+  }
+  .pk-up-proposed-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #f59e0b; flex: 0 0 auto;
+  }
+  .pk-up-proposed-label { flex: 1 1 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pk-up-confirm {
+    background: var(--accent, #8b5cf6); color: white; border: none;
+    border-radius: 3px; padding: 2px 7px; font-size: 10px; cursor: pointer;
+    line-height: 1.4;
+  }
+  .pk-up-confirm:hover { background: #7c3aed; }
+
   .pk-up-picker {
     position: absolute; z-index: 50;
     background: var(--bg2, #12121a); border: 1px solid var(--border);
@@ -527,13 +548,21 @@
     </div>
     <div class="pk-unassigned-strip" id="pk-unassigned-strip">
       {% for p in unassigned_pages %}
-      <article class="pk-up-card" data-page-id="{{ p.id }}">
+      <article class="pk-up-card" data-page-id="{{ p.id }}"
+               data-tag-state="{{ p.tag_state or '' }}">
         <div class="pk-up-title" title="{{ p.title }}">{{ p.title }}</div>
         <div class="pk-up-summary">{{ p.summary[:200] }}</div>
+        {% if p.tag_state == 'proposed' %}
+        <div class="pk-up-proposed" title="Dream proposed this match — confirm to accept or Tag to override">
+          <span class="pk-up-proposed-dot"></span>
+          <span class="pk-up-proposed-label">Dream → {{ p.proposed_project_title }}{% if p.proposed_deliverable_name %} · {{ p.proposed_deliverable_name }}{% endif %}</span>
+          <button class="pk-up-confirm" data-action="confirm">✓ Confirm</button>
+        </div>
+        {% endif %}
         <div class="pk-up-meta">
           <span class="pk-up-segs">{{ p.segment_count }} seg{% if p.segment_count != 1 %}s{% endif %}</span>
           <div class="pk-up-actions">
-            <button class="pk-up-tag" data-action="tag">Tag</button>
+            <button class="pk-up-tag" data-action="tag">{% if p.tag_state == 'proposed' %}Change{% else %}Tag{% endif %}</button>
             <button class="pk-up-reject" data-action="reject" title="Archive">✕</button>
           </div>
         </div>
@@ -1260,6 +1289,19 @@
     }
   }
 
+  async function confirmProposed(card) {
+    card.classList.add('tagging');
+    const pageId = card.dataset.pageId;
+    try {
+      const r = await fetch(`/api/work_pages/${pageId}/confirm`, { method: 'POST' });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      fadeOut(card);
+    } catch (e) {
+      card.classList.remove('tagging');
+      alert('Failed to confirm: ' + e.message);
+    }
+  }
+
   function fadeOut(card) {
     card.style.transition = 'opacity .25s';
     card.style.opacity = '0';
@@ -1282,6 +1324,7 @@
     if (!card) return;
     if (btn.dataset.action === 'tag') buildPicker(card);
     else if (btn.dataset.action === 'reject') rejectPage(card);
+    else if (btn.dataset.action === 'confirm') confirmProposed(card);
   });
 })();
 </script>
