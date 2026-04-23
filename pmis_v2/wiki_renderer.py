@@ -173,13 +173,19 @@ class WikiRenderer:
 
         pm = self._render_pm_projects()
 
-        # Unassigned lane — today's state=open work_pages awaiting user tag.
-        from datetime import date as _date
+        # Unassigned lane — state=open work_pages in the recent window.
+        # Window widens beyond today so a backfill's historical pages show up
+        # instead of being invisible; knob is goals_recent_window_days.
+        from datetime import date as _date, timedelta as _timedelta
         today = _date.today().isoformat()
+        try:
+            from core import config as _cfg
+            _window_days = int(_cfg.get("goals_recent_window_days", 2) or 0)
+        except Exception:
+            _window_days = 2
+        cutoff = (_date.today() - _timedelta(days=_window_days)).isoformat()
         unassigned_pages: List[Dict] = []
         try:
-            # Build project_id → title lookup so Dream proposals can render
-            # "→ ProjectTitle" in the banner without another JS round-trip.
             project_titles: Dict[str, str] = {}
             deliverable_names: Dict[str, str] = {}
             for _g in pm.get("goals", []):
@@ -190,10 +196,13 @@ class WikiRenderer:
                         if _d.get("id"):
                             deliverable_names[_d["id"]] = _d.get("name", _d["id"])
 
-            raw_pages = self.db.list_work_pages_by_state("open", date_local=today)
+            raw_pages = self.db.list_work_pages_by_state("open")
             for p in raw_pages:
+                if (p.get("date_local") or "") < cutoff:
+                    continue
                 p.pop("embedding_blob", None)
                 p["segment_count"] = len(self.db.get_page_segments(p["id"]))
+                p["is_today"] = (p.get("date_local") == today)
                 if p.get("tag_state") == "proposed":
                     p["proposed_project_title"] = project_titles.get(
                         p.get("project_id") or "", p.get("project_id") or ""
@@ -201,6 +210,10 @@ class WikiRenderer:
                     did = p.get("deliverable_id") or ""
                     p["proposed_deliverable_name"] = deliverable_names.get(did, did)
                 unassigned_pages.append(p)
+            unassigned_pages.sort(
+                key=lambda p: (p.get("date_local", ""), p.get("created_at", "")),
+                reverse=True,
+            )
         except Exception:
             unassigned_pages = []
 
@@ -238,11 +251,26 @@ class WikiRenderer:
         }
 
     def _render_narratives_for_today(self, today: str) -> List[Dict]:
+        """Returns narratives in the recent window (today + previous N days
+        where N = goals_recent_window_days). Today first, then older by date
+        desc."""
+        from datetime import date as _date, timedelta as _timedelta
         try:
-            narratives = self.db.list_narratives(date_local=today)
+            from core import config as _cfg
+            window_days = int(_cfg.get("goals_recent_window_days", 2) or 0)
+        except Exception:
+            window_days = 2
+        try:
+            all_rows: List[Dict] = []
+            for i in range(window_days + 1):
+                d = (_date.today() - _timedelta(days=i)).isoformat()
+                day_rows = self.db.list_narratives(date_local=d) or []
+                for r in day_rows:
+                    r["is_today"] = (d == today)
+                all_rows.extend(day_rows)
+            return all_rows
         except Exception:
             return []
-        return narratives
 
     # ─── PM BOARD (Goal → Project → Deliverable) ─────
 

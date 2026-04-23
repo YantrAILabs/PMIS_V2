@@ -361,6 +361,18 @@
     border-top: 1px solid var(--border); padding-top: 5px;
   }
   .pk-up-segs { font-size: 10px; color: var(--fg3, #6b7280); }
+  .pk-up-date-pill {
+    display: inline-block; font-size: 9px; padding: 1px 6px;
+    background: rgba(107,114,128,.18); color: var(--fg3, #6b7280);
+    border-radius: 8px; margin-right: 6px; letter-spacing: .02em;
+    text-transform: uppercase;
+  }
+  .pk-story-date-pill {
+    font-size: 9px; padding: 1px 6px;
+    background: rgba(139,92,246,.15); color: var(--fg2, #9ca3af);
+    border-radius: 8px; margin-left: 6px; letter-spacing: .02em;
+    vertical-align: middle;
+  }
   .pk-up-actions { display: flex; gap: 4px; }
   .pk-up-tag, .pk-up-reject {
     background: transparent; border: 1px solid var(--border);
@@ -658,7 +670,10 @@
       {% if narratives and narratives|length > 0 %}
         {% for n in narratives %}
         <article class="pk-story-card" data-narrative-id="{{ n.id }}">
-          <div class="pk-story-heading">{{ n.heading }}</div>
+          <div class="pk-story-heading">
+            {{ n.heading }}
+            {% if not n.is_today %}<span class="pk-story-date-pill">{{ n.date_local }}</span>{% endif %}
+          </div>
           <div class="pk-story-body">
             <ul>
               {% for line in n.body_markdown.split('\n') %}
@@ -709,7 +724,10 @@
         </div>
         {% endif %}
         <div class="pk-up-meta">
-          <span class="pk-up-segs">{{ p.segment_count }} seg{% if p.segment_count != 1 %}s{% endif %}</span>
+          <span class="pk-up-segs">
+            {% if not p.is_today %}<span class="pk-up-date-pill">{{ p.date_local }}</span>{% endif %}
+            {{ p.segment_count }} seg{% if p.segment_count != 1 %}s{% endif %}
+          </span>
           <div class="pk-up-actions">
             <button class="pk-up-tag" data-action="tag">{% if p.tag_state == 'proposed' %}Change{% else %}Tag{% endif %}</button>
             <button class="pk-up-reject" data-action="reject" title="Archive">✕</button>
