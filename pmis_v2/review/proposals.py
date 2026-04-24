@@ -210,11 +210,14 @@ class ReviewProposals:
         # Supersede stale drafts for this target_date scope.
         self._supersede_drafts(target_date)
 
+        from consolidation.tree_builder import build_tree_candidate
+
         proposals: List[Dict] = []
         for cluster in clusters:
             if not cluster:
                 continue
             pattern = merger._extract_pattern(cluster) or cluster[0].get("summary") or "Activity"
+            tree = build_tree_candidate(cluster, sc_title=pattern, hp=self.hp)
             probs = self._score_against_projects(pattern, cluster)
             prop_id = f"rp-{uuid.uuid4().hex[:12]}"
             segment_ids = [s.get("id", "") for s in cluster]
@@ -225,14 +228,15 @@ class ReviewProposals:
             pconn.execute(
                 """INSERT INTO review_proposals
                    (id, target_date, author, status, proposed_content,
-                    segment_ids_json, project_probs_json)
-                   VALUES (?, ?, 'user', 'draft', ?, ?, ?)""",
+                    segment_ids_json, project_probs_json, tree_json)
+                   VALUES (?, ?, 'user', 'draft', ?, ?, ?, ?)""",
                 (
                     prop_id,
                     target_date or "",
                     pattern[:2000],
                     json.dumps(segment_ids),
                     json.dumps(probs),
+                    tree.to_json(),
                 ),
             )
             pconn.commit()
@@ -248,6 +252,7 @@ class ReviewProposals:
                 "duration_mins": round(total_duration / 60.0, 1),
                 "windows": windows,
                 "project_probs": probs,
+                "tree": json.loads(tree.to_json()),
             })
         return proposals
 
