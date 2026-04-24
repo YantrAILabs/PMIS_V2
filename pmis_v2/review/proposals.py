@@ -213,11 +213,20 @@ class ReviewProposals:
         from consolidation.tree_builder import build_tree_candidate
 
         proposals: List[Dict] = []
+        fingerprint_filtered = 0
         for cluster in clusters:
             if not cluster:
                 continue
             pattern = merger._extract_pattern(cluster) or cluster[0].get("summary") or "Activity"
             tree = build_tree_candidate(cluster, sc_title=pattern, hp=self.hp)
+
+            # F4 — silently drop clusters that look like prior rejections.
+            # Runs BEFORE the auto-attach gate so rejected noise can never
+            # sneak through on a high project score.
+            if self._matches_rejection_fingerprint(tree):
+                fingerprint_filtered += 1
+                continue
+
             probs = self._score_against_projects(pattern, cluster)
             segment_ids = [s.get("id", "") for s in cluster]
             total_duration = sum(int(s.get("duration_secs", 10)) for s in cluster)
@@ -303,6 +312,11 @@ class ReviewProposals:
                 "project_probs": probs,
                 "tree": json.loads(tree.to_json()),
             })
+        if fingerprint_filtered:
+            logger.info(
+                "%d cluster(s) filtered by rejection fingerprints",
+                fingerprint_filtered,
+            )
         return proposals
 
     def _supersede_drafts(self, target_date: Optional[str]) -> None:
@@ -926,16 +940,114 @@ class ReviewProposals:
             "top_score": top_score,
         }
 
-    def reject(self, proposal_id: str) -> Dict[str, Any]:
+    def reject(self, proposal_id: str, reason: str = "") -> Dict[str, Any]:
+        """Reject a draft proposal.
+
+        F4: if the proposal's tree_json carries a centroid, also write
+        a row to `tree_rejection_fingerprints` so future consolidate()
+        runs silently skip clusters that look like this noise. Proposals
+        without a centroid (embedder was down when tree was built) still
+        get rejected but can't teach the filter — by design."""
         pconn = sqlite3.connect(self.db.db_path)
+        pconn.row_factory = sqlite3.Row
+        row = pconn.execute(
+            "SELECT tree_json, segment_ids_json, status "
+            "FROM review_proposals WHERE id = ?",
+            (proposal_id,),
+        ).fetchone()
+        if not row:
+            pconn.close()
+            return {"ok": False, "proposal_id": proposal_id,
+                    "error": "not_found"}
+        if row["status"] != "draft":
+            pconn.close()
+            return {"ok": False, "proposal_id": proposal_id,
+                    "error": f"not_draft (status={row['status']})"}
+
         cur = pconn.execute(
-            "UPDATE review_proposals SET status='rejected' WHERE id = ? AND status='draft'",
+            "UPDATE review_proposals SET status='rejected' "
+            "WHERE id = ? AND status='draft'",
             (proposal_id,),
         )
-        pconn.commit()
         changed = cur.rowcount
+        pconn.commit()
+
+        fingerprinted = False
+        try:
+            tree = json.loads(row["tree_json"] or "{}")
+            centroid = tree.get("centroid_embedding")
+            if centroid:
+                arr = np.asarray(centroid, dtype=np.float32)
+                if arr.size > 0:
+                    segs = json.loads(row["segment_ids_json"] or "[]")
+                    fp_id = f"trf-{uuid.uuid4().hex[:12]}"
+                    pconn.execute(
+                        """INSERT INTO tree_rejection_fingerprints
+                           (id, centroid_embedding, reason,
+                            example_segment_ids)
+                           VALUES (?, ?, ?, ?)""",
+                        (fp_id, arr.tobytes(), (reason or "")[:500],
+                         json.dumps(segs[:10])),
+                    )
+                    pconn.commit()
+                    fingerprinted = True
+        except Exception:
+            logger.exception("rejection fingerprint write failed")
+
         pconn.close()
-        return {"ok": bool(changed), "proposal_id": proposal_id}
+        return {
+            "ok": bool(changed),
+            "proposal_id": proposal_id,
+            "fingerprinted": fingerprinted,
+        }
+
+    def _matches_rejection_fingerprint(self, tree) -> bool:
+        """True when `tree.centroid_embedding` is within cosine distance
+        `rejection_fingerprint_match_threshold` (default 0.30) of any
+        stored fingerprint. Trees without a centroid bypass the filter
+        — the embedder wasn't available when they were built, and we
+        won't silently hide work we couldn't score."""
+        centroid = getattr(tree, "centroid_embedding", None)
+        if not centroid:
+            return False
+        try:
+            query = np.asarray(centroid, dtype=np.float32)
+        except Exception:
+            return False
+        nq = float(np.linalg.norm(query))
+        if nq == 0.0:
+            return False
+
+        threshold = float(self.hp.get(
+            "rejection_fingerprint_match_threshold", 0.30,
+        ))
+
+        pconn = sqlite3.connect(self.db.db_path)
+        try:
+            rows = pconn.execute(
+                "SELECT centroid_embedding FROM tree_rejection_fingerprints"
+            ).fetchall()
+        finally:
+            pconn.close()
+
+        for (blob,) in rows:
+            if not blob:
+                continue
+            try:
+                fp = np.frombuffer(blob, dtype=np.float32)
+                # Defend against embedder-dim changes; a mismatched
+                # fingerprint is useless, not dangerous.
+                if fp.shape != query.shape:
+                    continue
+                nf = float(np.linalg.norm(fp))
+                if nf == 0.0:
+                    continue
+                sim = float(np.dot(query, fp) / (nq * nf))
+                if (1.0 - sim) < threshold:
+                    return True
+            except Exception:
+                continue
+        return False
 
     def set_assignment(self, proposal_id: str, project_id: str, deliverable_id: str = "") -> Dict[str, Any]:
         pconn = sqlite3.connect(self.db.db_path)
