@@ -163,27 +163,16 @@ class ReviewProposals:
         return out
 
     def _claimed_segment_ids(self) -> set:
-        """segment_ids that are already spoken for."""
-        claimed: set = set()
+        """segment_ids that are already spoken for. Delegates to
+        consolidation.claims so Review, Goals Unassigned, and Recent-days
+        all agree on the definition of 'claimed' — including segments
+        bound to confirmed or auto_attached proposals (the F1 leak fix)."""
+        from consolidation.claims import all_claimed_segment_ids
         pconn = sqlite3.connect(self.db.db_path)
         try:
-            for (sid,) in pconn.execute(
-                "SELECT DISTINCT segment_id FROM activity_time_log "
-                "WHERE segment_id IS NOT NULL AND segment_id != ''"
-            ).fetchall():
-                claimed.add(sid)
-            for (sids_json,) in pconn.execute(
-                "SELECT segment_ids_json FROM review_proposals "
-                "WHERE status = 'draft'"
-            ).fetchall():
-                try:
-                    for sid in json.loads(sids_json or "[]"):
-                        claimed.add(sid)
-                except Exception:
-                    continue
+            return set(all_claimed_segment_ids(pconn).keys())
         finally:
             pconn.close()
-        return claimed
 
     # ------------------------------------------------------------------
     # Stage 2: consolidate
@@ -426,7 +415,7 @@ class ReviewProposals:
             gy = Path.home() / "Desktop" / "memory" / "productivity-tracker" / "config" / "goals.yaml"
             if not gy.exists():
                 return []
-            with open(gy) as f:
+            with open(gy, encoding="utf-8") as f:
                 raw = yaml.safe_load(f) or {}
             for g in raw.get("goals") or []:
                 for p in g.get("projects") or []:

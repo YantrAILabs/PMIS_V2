@@ -13,8 +13,13 @@ import hashlib
 import numpy as np
 import sqlite3
 from datetime import datetime
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Set, Tuple
 from pathlib import Path
+
+# Repo root (parent of pmis_v2/) — productivity-tracker/ lives as a sibling.
+# Resolved relative to this file so Windows / Linux / macOS all work regardless
+# of where the user cloned the repo.
+_REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
 class WikiRenderer:
@@ -63,11 +68,125 @@ class WikiRenderer:
         # Global stats
         orphan_count = len(self.db.get_orphan_nodes()) if hasattr(self.db, 'get_orphan_nodes') else 0
 
+        # Shell sidebar / rail data for /wiki/ index.
+        ws_payload = self.render_workspaces()
+        total_nodes = sum(s["total_nodes"] for s in sc_list)
         return {
             "super_contexts": sc_list,
             "total_scs": len(sc_list),
-            "total_nodes": sum(s["total_nodes"] for s in sc_list),
+            "total_nodes": total_nodes,
             "orphan_count": orphan_count,
+            "workspaces": ws_payload["workspaces"],
+            "workspace_active_id": "",
+            "review_counts": ws_payload["review"],
+            "index_stats": {
+                "visible_scs": len([w for w in ws_payload["workspaces"]
+                                    if w["status"] != "stale"]),
+                "total_scs": len(sc_list),
+                "total_nodes": total_nodes,
+                "orphan_count": orphan_count,
+            },
+        }
+
+    # ─── WORKSPACE TREE (Phase D1 — sidebar + cmd-K data source) ───
+
+    def render_workspaces(self) -> Dict:
+        """SC tree with freshness signals for the unified sidebar and
+        cmd-K palette. Slimmer than render_index — no feedback/goals joins,
+        context list trimmed to what a sidebar needs."""
+        from datetime import date as _date, timedelta as _timedelta
+
+        today = _date.today()
+        scs = self.db.get_nodes_by_level("SC")
+
+        out: List[Dict] = []
+        unclassified_count = 0
+        stale_count = 0
+
+        for sc in scs:
+            children = self.db.get_children(sc["id"])
+            anchor_count = 0
+            for child in children:
+                anchor_count += len(self.db.get_children(child["id"]))
+            node_count = len(children) + anchor_count + 1
+
+            last_accessed = sc.get("last_accessed") or ""
+            days_dormant: Optional[int] = None
+            last_active_date: Optional[str] = None
+            if last_accessed:
+                try:
+                    dt = datetime.fromisoformat(last_accessed)
+                    last_active_date = dt.date().isoformat()
+                    days_dormant = (today - dt.date()).days
+                except (ValueError, TypeError):
+                    pass
+
+            # Status buckets
+            title_lower = (sc.get("content") or "").strip().lower()
+            if title_lower.startswith("unclassified"):
+                status = "stale"
+            elif days_dormant is None:
+                status = "stale"
+            elif days_dormant <= 7:
+                status = "active"
+            elif days_dormant <= 30:
+                status = "recent"
+            else:
+                status = "stale"
+            if node_count <= 1:  # SCs with no contexts/anchors
+                status = "stale"
+
+            if status == "stale":
+                stale_count += 1
+            if title_lower.startswith("unclassified"):
+                unclassified_count += 1
+
+            # Trim contexts to sidebar-friendly shape
+            ctx_slim: List[Dict] = []
+            for ctx in children:
+                anchors = self.db.get_children(ctx["id"])
+                ctx_slim.append({
+                    "id": ctx["id"],
+                    "title": (ctx.get("content") or "").split("\n", 1)[0][:120],
+                    "anchor_count": len(anchors),
+                    "precision": round(float(ctx.get("precision") or 0.5), 2),
+                })
+            ctx_slim.sort(key=lambda c: -c["anchor_count"])
+
+            title_full = (sc.get("content") or "").split(".", 1)
+            title = title_full[0].strip() if title_full else sc["id"]
+            description = title_full[1].strip() if len(title_full) > 1 else ""
+
+            out.append({
+                "id": sc["id"],
+                "title": title,
+                "description": description,
+                "node_count": node_count,
+                "context_count": len(children),
+                "anchor_count": anchor_count,
+                "last_active": last_active_date,
+                "days_dormant": days_dormant,
+                "status": status,
+                "contexts": ctx_slim,
+            })
+
+        # Sort: biggest workspaces first (matches /wiki/ index behaviour).
+        out.sort(key=lambda w: -w["node_count"])
+
+        orphan_count = (
+            len(self.db.get_orphan_nodes())
+            if hasattr(self.db, "get_orphan_nodes") else 0
+        )
+
+        return {
+            "count": len(out),
+            "current_date": today.isoformat(),
+            "workspaces": out,
+            "review": {
+                "unclassified_count": unclassified_count,
+                "stale_count": stale_count,
+                "orphan_count": orphan_count,
+            },
         }
 
     # ─── NODE DETAIL ──────────────────────────────────
@@ -130,6 +249,9 @@ class WikiRenderer:
         # Phase 5 — pitfalls in this node's subtree (any ANC descendant with F <= -0.3)
         pitfalls = self._fetch_pitfalls_for_subtree(node_id)
 
+        # Phase D2 — data for the unified 3-column shell.
+        shell = self._build_node_shell(node, parents, enriched_children, goals)
+
         return {
             "node": node,
             "level": node.get("level", "ANC"),
@@ -145,6 +267,142 @@ class WikiRenderer:
             "value_v3": value_v3,
             "pitfalls": pitfalls,
             "tree_id": self._get_tree_id(node_id),
+            # Shell (sidebar / breadcrumb / right rail)
+            "workspaces": shell["workspaces"],
+            "workspace_active_id": shell["workspace_active_id"],
+            "breadcrumb_trail": shell["breadcrumb"],
+            "stats_rail": shell["stats"],
+            "backlinks": shell["backlinks"],
+            "review_counts": shell["review"],
+        }
+
+    def _build_node_shell(
+        self,
+        node: Dict,
+        parents: List[Dict],
+        children: List[Dict],
+        goals_for_node: List[Dict],
+    ) -> Dict:
+        """Assemble workspace tree, breadcrumb, stats, backlinks for the
+        unified shell. Kept cheap: reuses render_workspaces plus a handful
+        of small queries."""
+        from datetime import date as _date, timedelta as _timedelta
+
+        ws_payload = self.render_workspaces()
+
+        # Resolve active workspace: the first SC seen in the parent chain,
+        # or the node itself if it's an SC.
+        node_id = node["id"]
+        node_level = node.get("level", "ANC")
+        active_sc_id = node_id if node_level == "SC" else ""
+        if not active_sc_id:
+            for p in parents:
+                if p.get("level") == "SC":
+                    active_sc_id = p["target_id"]
+                    break
+
+        # Breadcrumb: Home → SC → (CTX) → current
+        trail: List[Dict] = [{"title": "Home", "href": "/wiki/"}]
+        for p in reversed(parents):
+            if not p.get("target_id"):
+                continue
+            title = (p.get("content") or p["target_id"]).split(".", 1)[0].strip()[:60]
+            trail.append({
+                "title": title,
+                "href": f"/wiki/node/{p['target_id']}",
+            })
+        current_title = (node.get("content") or "").split(".", 1)[0].strip()[:60] or node["id"]
+        trail.append({"title": current_title, "href": None})
+
+        # Stats: counts + last_active + precision + 14-day access spark.
+        today = _date.today()
+        node_count = len(children) + 1
+        anchor_count = 0
+        if node_level == "SC":
+            for ctx in children:
+                anchor_count += len(self.db.get_children(ctx["id"]))
+            node_count += anchor_count
+
+        last_accessed = node.get("last_accessed") or ""
+        last_active_str: Optional[str] = None
+        days_dormant: Optional[int] = None
+        if last_accessed:
+            try:
+                dt = datetime.fromisoformat(last_accessed)
+                last_active_str = dt.date().isoformat()
+                days_dormant = (today - dt.date()).days
+            except (ValueError, TypeError):
+                pass
+
+        # 14-day access spark — count access_log rows per day for the last 14.
+        spark = [0] * 14
+        try:
+            conn = sqlite3.connect(self.db.db_path)
+            conn.row_factory = sqlite3.Row
+            start_iso = (today - _timedelta(days=13)).isoformat()
+            rows = conn.execute(
+                "SELECT DATE(accessed_at) AS d, COUNT(*) AS c "
+                "FROM access_log "
+                "WHERE node_id = ? AND DATE(accessed_at) >= ? "
+                "GROUP BY DATE(accessed_at)",
+                (node_id, start_iso),
+            ).fetchall()
+            conn.close()
+            by_day = {r["d"]: r["c"] for r in rows}
+            for i in range(14):
+                d = (today - _timedelta(days=13 - i)).isoformat()
+                spark[i] = int(by_day.get(d, 0) or 0)
+        except Exception:
+            pass
+
+        stats = {
+            "context_count": len(children) if node_level == "SC" else 0,
+            "anchor_count": anchor_count if node_level == "SC" else len(children),
+            "node_count": node_count,
+            "last_active": last_active_str,
+            "days_dormant": days_dormant,
+            "access_count": int(node.get("access_count") or 0),
+            "precision": round(float(node.get("precision") or 0.5), 2),
+            "pulse_spark_14d": spark,
+            "pulse_max": max(spark) if spark else 0,
+        }
+
+        # Backlinks — up to 3 goals + up to 3 narratives citing this node
+        # or (for SCs) any child node via source_page_ids_json substring.
+        backlinks: List[Dict] = []
+        for g in goals_for_node[:3]:
+            backlinks.append({
+                "kind": "goal",
+                "title": g.get("title") or g.get("id", ""),
+                "href": "/wiki/goals",
+            })
+        try:
+            conn = sqlite3.connect(self.db.db_path)
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                "SELECT heading, date_local, source_page_ids_json "
+                "FROM work_narratives "
+                "WHERE source_page_ids_json LIKE ? "
+                "ORDER BY date_local DESC, ordinal ASC LIMIT 3",
+                (f'%{node_id}%',),
+            ).fetchall()
+            conn.close()
+            for r in rows:
+                backlinks.append({
+                    "kind": "narrative",
+                    "title": f"{r['heading']} · {r['date_local']}",
+                    "href": "/wiki/goals",
+                })
+        except Exception:
+            pass
+
+        return {
+            "workspaces": ws_payload["workspaces"],
+            "workspace_active_id": active_sc_id,
+            "breadcrumb": trail,
+            "stats": stats,
+            "backlinks": backlinks,
+            "review": ws_payload["review"],
         }
 
     # ─── GOALS PAGE ───────────────────────────────────
@@ -185,6 +443,7 @@ class WikiRenderer:
             _window_days = 2
         cutoff = (_date.today() - _timedelta(days=_window_days)).isoformat()
         unassigned_pages: List[Dict] = []
+        leak_filtered_count = 0
         try:
             project_titles: Dict[str, str] = {}
             deliverable_names: Dict[str, str] = {}
@@ -196,20 +455,39 @@ class WikiRenderer:
                         if _d.get("id"):
                             deliverable_names[_d["id"]] = _d.get("name", _d["id"])
 
-            raw_pages = self.db.list_work_pages_by_state("open")
-            for p in raw_pages:
-                if (p.get("date_local") or "") < cutoff:
-                    continue
-                p.pop("embedding_blob", None)
-                p["segment_count"] = len(self.db.get_page_segments(p["id"]))
-                p["is_today"] = (p.get("date_local") == today)
-                if p.get("tag_state") == "proposed":
-                    p["proposed_project_title"] = project_titles.get(
-                        p.get("project_id") or "", p.get("project_id") or ""
+            # F1 leak-fix: precompute the set of work_pages whose segments
+            # are already fully claimed by nightly, so we can skip them in
+            # the loop below.
+            from consolidation.claims import (
+                fully_consolidated_page_ids, is_workpage_claimed,
+            )
+            import sqlite3 as _sqlite3
+            claim_conn = _sqlite3.connect(self.db.db_path)
+            try:
+                consolidated_set = fully_consolidated_page_ids(claim_conn)
+                raw_pages = self.db.list_work_pages_by_state("open")
+                for p in raw_pages:
+                    if (p.get("date_local") or "") < cutoff:
+                        continue
+                    claimed, _reason = is_workpage_claimed(
+                        claim_conn, p["id"],
+                        fully_consolidated=consolidated_set,
                     )
-                    did = p.get("deliverable_id") or ""
-                    p["proposed_deliverable_name"] = deliverable_names.get(did, did)
-                unassigned_pages.append(p)
+                    if claimed:
+                        leak_filtered_count += 1
+                        continue
+                    p.pop("embedding_blob", None)
+                    p["segment_count"] = len(self.db.get_page_segments(p["id"]))
+                    p["is_today"] = (p.get("date_local") == today)
+                    if p.get("tag_state") == "proposed":
+                        p["proposed_project_title"] = project_titles.get(
+                            p.get("project_id") or "", p.get("project_id") or ""
+                        )
+                        did = p.get("deliverable_id") or ""
+                        p["proposed_deliverable_name"] = deliverable_names.get(did, did)
+                    unassigned_pages.append(p)
+            finally:
+                claim_conn.close()
             unassigned_pages.sort(
                 key=lambda p: (p.get("date_local", ""), p.get("created_at", "")),
                 reverse=True,
@@ -233,6 +511,30 @@ class WikiRenderer:
             else:
                 salient_pages.append(p)
 
+        # Phase C2 — goal hero cards (prose + 6-week pulse + status pill).
+        goals_with_narratives, current_iso_week, hero_counts = \
+            self._build_goals_hero(pm["goals"])
+
+        try:
+            review_pending_count = self.db._conn.execute(
+                "SELECT COUNT(*) FROM work_pages "
+                "WHERE state='open' AND (salience='salient' OR salience='pending')"
+            ).fetchone()[0] or 0
+        except Exception:
+            review_pending_count = 0
+
+        # F1 leak-fix: narratives for projects already shown in the PM
+        # board above would be a double-render — collect active project ids
+        # and let _render_narratives_for_today roll them up into a count.
+        active_project_ids: Set[str] = {
+            (p.get("id") or "")
+            for g in pm.get("goals", []) or []
+            for p in (g.get("projects") or [])
+            if p.get("id")
+        }
+        narratives, narratives_rolled_up_count = \
+            self._render_narratives_for_today(today, active_project_ids)
+
         return {
             "goals": enriched,
             "total": len(enriched),
@@ -243,17 +545,221 @@ class WikiRenderer:
             "pm_config_path": pm["config_path"],
             "unassigned_pages": salient_pages,
             "unassigned_count": len(salient_pages),
+            "unassigned_leak_filtered_count": leak_filtered_count,
             "kachra_pages": kachra_pages,
             "kachra_count": len(kachra_pages),
             "kachra_total_minutes": round(kachra_total_minutes, 1),
             "kachra_reason_counts": kachra_reason_counts,
-            "narratives": self._render_narratives_for_today(today),
+            "narratives": narratives,
+            "narratives_rolled_up_count": narratives_rolled_up_count,
+            "goals_with_narratives": goals_with_narratives,
+            "current_iso_week": current_iso_week,
+            "hero_counts": hero_counts,
+            "review_pending_count": review_pending_count,
         }
 
-    def _render_narratives_for_today(self, today: str) -> List[Dict]:
+    def _build_goals_hero(self, pm_goals: List[Dict]) -> tuple:
+        """Attach weekly prose narrative + 6-week pulse strip to each goal.
+        Returns (list_of_goals, current_iso_week, counts_by_status)."""
+        from datetime import date as _date, timedelta as _timedelta
+
+        today = _date.today()
+        y, w, _ = today.isocalendar()
+        current_iso_week = f"{y}-W{w:02d}"
+
+        # Pull all narratives for the current ISO week in one query.
+        try:
+            gw_rows = self.db.list_goal_narratives(iso_week=current_iso_week)
+        except Exception:
+            gw_rows = []
+        gw_by_id: Dict[str, Dict] = {r["goal_id"]: r for r in gw_rows}
+
+        # Legacy (YAML) → new vocab fallback for goals not yet composed.
+        legacy_map = {
+            "active": "active", "alive": "active",
+            "cooling": "slowing_down",
+            "cold": "stalled", "paused": "stalled", "abandoned": "stalled",
+            "shipped": "shipped", "achieved": "shipped", "done": "shipped",
+        }
+
+        def _iso_week_str(d: _date) -> str:
+            yy, ww, _ = d.isocalendar()
+            return f"{yy}-W{ww:02d}"
+
+        def _week_bounds(iso_wk: str) -> tuple:
+            year_s, week_s = iso_wk.split("-W")
+            mon = _date.fromisocalendar(int(year_s), int(week_s), 1)
+            return mon, mon + _timedelta(days=6)
+
+        # Each goal gets 6 weekly buckets ending on the current ISO week.
+        last_6_weeks: List[str] = []
+        for i in range(5, -1, -1):
+            monday_i = today - _timedelta(days=today.weekday()) - _timedelta(weeks=i)
+            last_6_weeks.append(_iso_week_str(monday_i))
+
+        import os
+        tracker_db = Path(os.path.expanduser("~/.productivity-tracker/tracker.db"))
+        tracker_conn = None
+        if tracker_db.is_file():
+            try:
+                tracker_conn = sqlite3.connect(
+                    f"file:{tracker_db}?mode=ro", uri=True, timeout=3.0
+                )
+                tracker_conn.row_factory = sqlite3.Row
+            except Exception:
+                tracker_conn = None
+
+        def _mins_for(patterns: List[str], iso_wk: str) -> float:
+            if not patterns or tracker_conn is None:
+                return 0.0
+            mon, sun = _week_bounds(iso_wk)
+            clauses, params = [], []
+            for p in patterns:
+                like = f"%{p}%"
+                clauses.append("(window_name LIKE ? OR detailed_summary LIKE ?)")
+                params.extend([like, like])
+            sql = (
+                "SELECT COALESCE(SUM(target_segment_length_secs)/60.0, 0) AS m "
+                "FROM context_1 WHERE DATE(timestamp_start) BETWEEN ? AND ? "
+                f"AND ({' OR '.join(clauses)})"
+            )
+            try:
+                row = tracker_conn.execute(
+                    sql, [mon.isoformat(), sun.isoformat(), *params]
+                ).fetchone()
+                return float(row["m"] or 0.0) if row else 0.0
+            except Exception:
+                return 0.0
+
+        goals_out: List[Dict] = []
+        counts = {"active": 0, "slowing_down": 0, "stalled": 0,
+                  "shipped": 0, "not_started": 0}
+        for g in pm_goals:
+            gid = g.get("id") or ""
+            patterns: List[str] = []
+            for p in g.get("projects", []) or []:
+                patterns.extend(p.get("match_patterns", []) or [])
+
+            weekly_pulse: List[Dict] = []
+            for wk in last_6_weeks:
+                m = _mins_for(patterns, wk)
+                if m >= 180:
+                    bucket = "hot"
+                elif m >= 60:
+                    bucket = "warm"
+                elif m > 0:
+                    bucket = "light"
+                else:
+                    bucket = "cold"
+                weekly_pulse.append({
+                    "iso_week": wk,
+                    "mins": round(m),
+                    "bucket": bucket,
+                    "is_current": wk == current_iso_week,
+                })
+
+            gw = gw_by_id.get(gid, {})
+            status = (gw.get("status_this_week") or
+                      legacy_map.get((g.get("status") or "").lower(), ""))
+            if not status:
+                status = "not_started" if not (g.get("projects") or []) else "stalled"
+            mins_this_week = float(gw.get("minutes_this_week") or
+                                   (weekly_pulse[-1]["mins"] if weekly_pulse else 0))
+            prose = (gw.get("narrative_prose") or "").strip()
+            if not prose:
+                if status == "not_started":
+                    prose = ("Not started — no linked projects yet." if not (g.get("projects") or [])
+                             else "No work logged yet. Run Compose to generate this week's summary.")
+                else:
+                    prose = "No prose composed yet. Run Compose to generate this week's summary."
+
+            # Projects slimmed for the evidence drawer (pulse + deliverables
+            # already enriched in _render_pm_projects output).
+            projects_trimmed = []
+            for p in g.get("projects", []) or []:
+                projects_trimmed.append({
+                    "id": p.get("id", ""),
+                    "title": p.get("title", ""),
+                    "status": p.get("status", ""),
+                    "target_week": p.get("target_week", ""),
+                    "pulse_mins_7d": p.get("pulse_mins_7d", 0) or 0,
+                    "deliverables": p.get("deliverables", []) or [],
+                })
+
+            # Up to 3 short story snippets from this ISO week whose text
+            # mentions any of the goal's project titles or match patterns.
+            haystack_needles: List[str] = [g.get("title", "") or ""]
+            for p in g.get("projects", []) or []:
+                if p.get("title"):
+                    haystack_needles.append(p["title"])
+                haystack_needles.extend(p.get("match_patterns", []) or [])
+            haystack_needles = [n for n in haystack_needles if n and len(n) >= 3]
+
+            story_snippets: List[str] = []
+            try:
+                mon, sun = (_date.fromisocalendar(
+                    *tuple(int(s) for s in current_iso_week.split("-W"))
+                ), None)
+                # fromisocalendar wants (year, week, day); rebuild monday → sun
+                year_s, week_s = current_iso_week.split("-W")
+                mon = _date.fromisocalendar(int(year_s), int(week_s), 1)
+                sun = mon + _timedelta(days=6)
+                narr_rows = self.db._conn.execute(
+                    """SELECT heading, body_prose, body_markdown
+                       FROM work_narratives
+                       WHERE date_local BETWEEN ? AND ?
+                       ORDER BY date_local DESC, ordinal ASC""",
+                    (mon.isoformat(), sun.isoformat()),
+                ).fetchall()
+                for r in narr_rows:
+                    hay = " ".join(filter(None, (
+                        r["heading"] or "", r["body_prose"] or "",
+                        r["body_markdown"] or "",
+                    ))).lower()
+                    if not any(n.lower() in hay for n in haystack_needles):
+                        continue
+                    snippet = (r["body_prose"] or r["body_markdown"] or r["heading"] or "").strip()
+                    snippet = " ".join(snippet.split())
+                    if snippet:
+                        story_snippets.append(snippet[:220])
+                    if len(story_snippets) >= 3:
+                        break
+            except Exception:
+                pass
+
+            counts[status] = counts.get(status, 0) + 1
+            goals_out.append({
+                "id": gid,
+                "title": g.get("title", ""),
+                "outcome": g.get("why", "") or "",
+                "status": status,
+                "minutes_this_week": mins_this_week,
+                "n_projects": len(g.get("projects", []) or []),
+                "narrative_prose": prose,
+                "weekly_pulse": weekly_pulse,
+                "projects": projects_trimmed,
+                "story_snippets": story_snippets,
+            })
+
+        if tracker_conn is not None:
+            tracker_conn.close()
+
+        return goals_out, current_iso_week, counts
+
+    def _render_narratives_for_today(
+        self, today: str,
+        active_project_ids: Optional[Set[str]] = None,
+    ) -> Tuple[List[Dict], int]:
         """Returns narratives in the recent window (today + previous N days
         where N = goals_recent_window_days). Today first, then older by date
-        desc."""
+        desc.
+
+        F1 leak-fix: narratives whose project_id is already represented by
+        an active project card in the PM board are excluded from the list
+        and counted in the second return value (rolled_up_count) so the UI
+        can surface "N narratives rolled into project cards" without
+        showing them twice.
+        """
         from datetime import date as _date, timedelta as _timedelta
         try:
             from core import config as _cfg
@@ -262,15 +768,24 @@ class WikiRenderer:
             window_days = 2
         try:
             all_rows: List[Dict] = []
+            rolled_up = 0
             for i in range(window_days + 1):
                 d = (_date.today() - _timedelta(days=i)).isoformat()
                 day_rows = self.db.list_narratives(date_local=d) or []
                 for r in day_rows:
+                    pid = (r.get("project_id") or "").strip()
+                    if active_project_ids and pid and pid in active_project_ids:
+                        rolled_up += 1
+                        continue
                     r["is_today"] = (d == today)
-                all_rows.extend(day_rows)
-            return all_rows
+                    # Prefer prose when the narrator filled it; fall back to
+                    # the bullet list otherwise (old rows, LLM-unavailable run).
+                    prose = (r.get("body_prose") or "").strip()
+                    r["render_mode"] = "prose" if prose else "bullets"
+                    all_rows.append(r)
+            return all_rows, rolled_up
         except Exception:
-            return []
+            return [], 0
 
     # ─── PM BOARD (Goal → Project → Deliverable) ─────
 
@@ -287,7 +802,7 @@ class WikiRenderer:
         import os, yaml
         from datetime import date as dt_date, timedelta
 
-        pt_root = Path.home() / "Desktop" / "memory" / "productivity-tracker"
+        pt_root = _REPO_ROOT / "productivity-tracker"
         goals_path = pt_root / "config" / "goals.yaml"
         deliv_path = pt_root / "config" / "deliverables.yaml"
         tracker_db = Path(os.path.expanduser("~/.productivity-tracker/tracker.db"))
@@ -297,11 +812,12 @@ class WikiRenderer:
                 "goals": [],
                 "total_projects": 0,
                 "alive_projects": 0,
+                "column_counts": {"alive": 0, "cooling": 0, "cold": 0, "shipped": 0},
                 "config_path": str(goals_path),
             }
 
         try:
-            with open(goals_path) as f:
+            with open(goals_path, encoding="utf-8") as f:
                 raw = yaml.safe_load(f) or {}
         except Exception:
             raw = {}
@@ -311,7 +827,7 @@ class WikiRenderer:
         deliv_ix: Dict[str, Dict] = {}
         if deliv_path.exists():
             try:
-                with open(deliv_path) as f:
+                with open(deliv_path, encoding="utf-8") as f:
                     d_raw = yaml.safe_load(f) or {}
                 for d in d_raw.get("deliverables", []) or []:
                     deliv_ix[d["id"]] = {
@@ -542,7 +1058,7 @@ class WikiRenderer:
         enrichment fields so the file stays a clean spec. Returns the
         re-enriched view (same shape as render_pm_projects)."""
         import yaml
-        pt_root = Path.home() / "Desktop" / "memory" / "productivity-tracker"
+        pt_root = _REPO_ROOT / "productivity-tracker"
         goals_path = pt_root / "config" / "goals.yaml"
         goals_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -577,7 +1093,7 @@ class WikiRenderer:
             cg["projects"] = projects
             clean_goals.append(cg)
 
-        with open(goals_path, "w") as f:
+        with open(goals_path, "w", encoding="utf-8") as f:
             yaml.safe_dump({"goals": clean_goals}, f,
                            sort_keys=False, default_flow_style=False)
         return self._render_pm_projects()
@@ -585,13 +1101,13 @@ class WikiRenderer:
     def list_pm_deliverables(self) -> List[Dict]:
         """Read productivity-tracker/config/deliverables.yaml for the picker."""
         import yaml
-        pt_root = Path.home() / "Desktop" / "memory" / "productivity-tracker"
+        pt_root = _REPO_ROOT / "productivity-tracker"
         deliv_path = pt_root / "config" / "deliverables.yaml"
         out: List[Dict] = []
         if not deliv_path.exists():
             return out
         try:
-            with open(deliv_path) as f:
+            with open(deliv_path, encoding="utf-8") as f:
                 raw = yaml.safe_load(f) or {}
             for d in raw.get("deliverables", []) or []:
                 out.append({
@@ -613,14 +1129,14 @@ class WikiRenderer:
         if not name:
             raise ValueError("name required")
 
-        pt_root = Path.home() / "Desktop" / "memory" / "productivity-tracker"
+        pt_root = _REPO_ROOT / "productivity-tracker"
         deliv_path = pt_root / "config" / "deliverables.yaml"
         deliv_path.parent.mkdir(parents=True, exist_ok=True)
 
         raw: Dict[str, Any] = {}
         if deliv_path.exists():
             try:
-                with open(deliv_path) as f:
+                with open(deliv_path, encoding="utf-8") as f:
                     raw = yaml.safe_load(f) or {}
             except Exception:
                 raw = {}
@@ -654,7 +1170,7 @@ class WikiRenderer:
 
         items.append(row)
         raw["deliverables"] = items
-        with open(deliv_path, "w") as f:
+        with open(deliv_path, "w", encoding="utf-8") as f:
             yaml.safe_dump(raw, f, sort_keys=False, default_flow_style=False)
 
         return {
@@ -799,29 +1315,72 @@ class WikiRenderer:
     # ─── PRODUCTIVITY DASHBOARD ─────────────────────
 
     def render_productivity(self, target_date: str = None) -> Dict:
-        """Rich productivity dashboard from tracker.db + node_time_log."""
+        """Rich productivity dashboard from tracker.db + node_time_log.
+
+        If target_date has no data, fall back to the most recent day that
+        does. Run the tracker-health probe on every call so the red banner
+        on the page auto-lights when the tracker's gone silent.
+        """
         import os
         from datetime import date as dt_date, timedelta
 
-        if not target_date:
-            target_date = dt_date.today().isoformat()
+        requested_date = target_date or dt_date.today().isoformat()
+
+        # Tracker freshness → productivity_degradation_log.
+        try:
+            from tracker_health import probe_and_log
+            degradation = probe_and_log(self.db._conn)
+        except Exception:
+            degradation = {"degraded": False, "reason": "", "detected_at": "",
+                           "last_segment_ts": ""}
 
         tracker_db = os.path.expanduser("~/.productivity-tracker/tracker.db")
+        empty_shell = {
+            "has_data": False,
+            "requested_date": requested_date,
+            "effective_date": requested_date,
+            "fallback_date_used": False,
+            "tracker_degraded": degradation.get("degraded", False),
+            "degraded_reason": degradation.get("reason", ""),
+            "degraded_detected_at": degradation.get("detected_at", ""),
+            "tracker_last_ts": degradation.get("last_segment_ts", ""),
+        }
         if not os.path.exists(tracker_db):
-            return {"has_data": False}
+            return empty_shell
 
         conn = sqlite3.connect(tracker_db)
         conn.row_factory = sqlite3.Row
 
-        # Total time
-        totals = conn.execute(
-            "SELECT COUNT(*) as cnt, COALESCE(SUM(target_segment_length_secs)/60.0, 0) as mins "
-            "FROM context_1 WHERE DATE(timestamp_start) = ?", (target_date,)
-        ).fetchone()
+        def _totals_for(d: str):
+            return conn.execute(
+                "SELECT COUNT(*) as cnt, "
+                "COALESCE(SUM(target_segment_length_secs)/60.0, 0) as mins "
+                "FROM context_1 WHERE DATE(timestamp_start) = ?", (d,)
+            ).fetchone()
+
+        # Resolve effective date: requested → most-recent-with-data fallback.
+        effective_date = requested_date
+        totals = _totals_for(effective_date)
+        fallback_used = False
+        if not totals or totals["cnt"] == 0:
+            fallback_row = conn.execute(
+                "SELECT DATE(timestamp_start) as d "
+                "FROM context_1 "
+                "WHERE DATE(timestamp_start) < ? AND target_segment_length_secs > 0 "
+                "ORDER BY timestamp_start DESC LIMIT 1",
+                (requested_date,)
+            ).fetchone()
+            if fallback_row and fallback_row["d"]:
+                effective_date = fallback_row["d"]
+                totals = _totals_for(effective_date)
+                fallback_used = True
 
         if not totals or totals["cnt"] == 0:
             conn.close()
-            return {"has_data": False}
+            return empty_shell
+
+        # From here on, queries read from effective_date (NOT requested_date).
+        target_date = effective_date
 
         # Productive vs not
         productive = conn.execute(
@@ -910,6 +1469,19 @@ class WikiRenderer:
         ).fetchall()
         recent_frames = [dict(r) for r in recent_frames]
 
+        # 30-day coverage — uses the tracker.db connection before it closes.
+        cov_rows = conn.execute(
+            "SELECT DATE(timestamp_start) AS d, "
+            "COALESCE(SUM(target_segment_length_secs)/60.0, 0) AS mins, "
+            "COUNT(*) AS segments "
+            "FROM context_1 "
+            "WHERE DATE(timestamp_start) BETWEEN DATE(?, '-29 days') AND ? "
+            "AND target_segment_length_secs > 0 "
+            "GROUP BY DATE(timestamp_start)",
+            (effective_date, effective_date)
+        ).fetchall()
+        by_day = {r["d"]: {"mins": r["mins"], "segments": r["segments"]} for r in cov_rows}
+
         conn.close()
 
         # Branch time from node_time_log
@@ -930,8 +1502,54 @@ class WikiRenderer:
         except Exception:
             pass
 
+        # 30-day coverage heatmap — by_day already built above before conn
+        # closed. Pull degradation markers and bucket into cells.
+        try:
+            deg_rows = self.db._conn.execute(
+                "SELECT DISTINCT date_local FROM productivity_degradation_log "
+                "WHERE date_local BETWEEN DATE(?, '-29 days') AND ?",
+                (effective_date, effective_date)
+            ).fetchall()
+            degraded_days = {r["date_local"] for r in deg_rows}
+        except sqlite3.OperationalError:
+            degraded_days = set()
+        coverage_30d = []
+        effective_dt = dt_date.fromisoformat(effective_date)
+        for i in range(29, -1, -1):
+            d = (effective_dt - timedelta(days=i)).isoformat()
+            cell = by_day.get(d, {"mins": 0.0, "segments": 0})
+            mins = cell["mins"]
+            if mins <= 0:
+                level = 0
+            elif mins <= 30:
+                level = 1
+            elif mins <= 90:
+                level = 2
+            elif mins <= 180:
+                level = 3
+            else:
+                level = 4
+            coverage_30d.append({
+                "date": d,
+                "mins": mins,
+                "segments": cell["segments"],
+                "degraded": d in degraded_days,
+                "intensity_level": level,
+                "is_effective": d == effective_date,
+            })
+        coverage_max_mins = max((c["mins"] for c in coverage_30d), default=0.0)
+
         return {
             "has_data": True,
+            "requested_date": requested_date,
+            "effective_date": effective_date,
+            "fallback_date_used": fallback_used,
+            "tracker_degraded": degradation.get("degraded", False),
+            "degraded_reason": degradation.get("reason", ""),
+            "degraded_detected_at": degradation.get("detected_at", ""),
+            "tracker_last_ts": degradation.get("last_segment_ts", ""),
+            "coverage_30d": coverage_30d,
+            "coverage_max_mins": coverage_max_mins,
             "total_segments": totals["cnt"],
             "total_duration_mins": totals["mins"],
             "productive_mins": productive_mins,

@@ -37,170 +37,12 @@
   .pk-save-state.saved { color:#22c55e; }
 
   /* ─── Column header strip ─── */
-  .pk-col-head-row {
-    display:grid;
-    grid-template-columns: 200px repeat(5, 1fr);
-    gap:8px;
-    padding:6px 0 10px;
-    border-bottom:1px solid var(--border);
-    position:sticky; top:56px; z-index:2;
-    background:var(--bg, #0a0a0f);
-  }
-  .pk-col-head {
-    font-size:10px; letter-spacing:0.8px; text-transform:uppercase;
-    color:var(--fg3); font-weight:600;
-    display:flex; align-items:center; gap:6px;
-  }
-  .pk-col-head .cnt {
-    background:var(--bg2, rgba(255,255,255,0.04));
-    border:1px solid var(--border);
-    padding:1px 6px; border-radius:9px; font-size:10px; font-weight:500;
-    color:var(--fg2);
-  }
-  .pk-col-head .hint {
-    color:var(--fg3); font-weight:400; text-transform:none; letter-spacing:0; font-size:10px;
-  }
-
+  /* Status dots still used next to counts in the goals header. */
   .pk-col-swatch { width:8px; height:8px; border-radius:50%; display:inline-block; }
-  .sw-spark    { background:rgba(148,163,184,0.5); }
   .sw-alive    { background:#22c55e; }
   .sw-cooling  { background:#f59e0b; }
   .sw-cold     { background:#64748b; }
   .sw-shipped  { background:#8b5cf6; }
-
-  /* ─── Swimlane (per goal) ─── */
-  .pk-lane {
-    display:grid;
-    grid-template-columns: 200px repeat(5, 1fr);
-    gap:8px;
-    border-bottom:1px solid var(--border);
-    padding:12px 0;
-  }
-  .pk-lane:last-of-type { border-bottom:none; }
-
-  .pk-goal {
-    padding-right:8px;
-    border-right:1px solid var(--border);
-  }
-  .pk-goal-head { margin-bottom:4px; }
-  .pk-goal-status {
-    display:inline-block; font-size:9px; font-weight:700;
-    letter-spacing:0.7px; padding:2px 7px; border-radius:3px;
-    cursor:pointer; user-select:none; transition:all 0.15s;
-    border:1px solid transparent;
-  }
-  .pk-goal-status:hover { filter:brightness(1.15); }
-  .pk-goal-status.st-active {
-    background:rgba(34,197,94,0.1); color:#22c55e;
-    border-color:rgba(34,197,94,0.3);
-  }
-  .pk-goal-status.st-paused {
-    background:rgba(245,158,11,0.12); color:#f59e0b;
-    border-color:rgba(245,158,11,0.35);
-  }
-  .pk-goal-status.st-done {
-    background:rgba(139,92,246,0.12); color:#8b5cf6;
-    border-color:rgba(139,92,246,0.35);
-  }
-  .pk-goal-title {
-    font-weight:600; font-size:14px; color:var(--fg);
-    display:block; margin-bottom:4px; word-break:break-word;
-  }
-  .pk-goal-why {
-    font-size:11px; color:var(--fg3); font-style:italic;
-    line-height:1.5; margin-bottom:6px; word-break:break-word;
-  }
-  .pk-goal-counts {
-    font-size:10px; color:var(--fg3); margin-bottom:8px;
-    font-variant-numeric:tabular-nums;
-  }
-  .pk-goal-counts .alive   { color:#22c55e; font-weight:500; }
-  .pk-goal-counts .shipped { color:#8b5cf6; font-weight:500; }
-  .pk-goal-actions { display:flex; gap:6px; flex-wrap:wrap; }
-  .pk-goal-mini {
-    background:transparent; border:1px dashed var(--border);
-    color:var(--fg3); font-size:10px; padding:2px 6px;
-    border-radius:3px; cursor:pointer;
-  }
-  .pk-goal-mini:hover { color:var(--fg); border-color:var(--accent,#8b5cf6); }
-
-  /* ─── Column cell ─── */
-  .pk-cell {
-    min-height:40px;
-    padding:2px;
-    display:flex; flex-direction:column; gap:6px;
-  }
-  .pk-cell-empty {
-    color:rgba(148,163,184,0.35); font-size:10px; font-style:italic;
-    text-align:center; padding:10px 6px;
-    border:1px dashed rgba(148,163,184,0.12); border-radius:4px;
-  }
-
-  /* ─── Project card ─── */
-  .pk-card {
-    background:var(--bg2, rgba(255,255,255,0.02));
-    border:1px solid var(--border);
-    border-left:3px solid rgba(148,163,184,0.4);
-    border-radius:5px;
-    padding:8px 10px;
-    cursor:pointer;
-    transition:border-color 0.15s, background 0.15s, transform 0.12s;
-  }
-  .pk-card:hover {
-    border-color:var(--accent,#8b5cf6);
-    background:rgba(139,92,246,0.05);
-    transform:translateY(-1px);
-  }
-  .pk-card.col-spark    { border-left-color:rgba(148,163,184,0.5); }
-  .pk-card.col-alive    { border-left-color:#22c55e; background:rgba(34,197,94,0.05); }
-  .pk-card.col-cooling  { border-left-color:#f59e0b; background:rgba(245,158,11,0.04); }
-  .pk-card.col-cold     { border-left-color:#64748b; opacity:0.72; }
-  .pk-card.col-shipped  { border-left-color:#8b5cf6; opacity:0.85; }
-
-  .pk-card-title {
-    font-size:12px; font-weight:600; color:var(--fg);
-    line-height:1.35; margin-bottom:5px;
-    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
-    overflow:hidden;
-  }
-
-  .pk-card-spark {
-    display:inline-grid; grid-template-columns:repeat(7, 6px);
-    gap:1px; align-items:end; height:14px;
-    margin-right:6px; vertical-align:middle;
-  }
-  .pk-card-spark .c {
-    display:block; width:6px; background:rgba(148,163,184,0.12);
-    border-radius:1px; min-height:1px;
-  }
-  .pk-card-spark .c.lit { background:currentColor; }
-
-  .pk-card-meta {
-    display:flex; align-items:center; justify-content:space-between;
-    font-size:10px; color:var(--fg3); gap:6px;
-  }
-  .pk-card-meta .mins { font-variant-numeric:tabular-nums; color:var(--fg2); }
-  .pk-card.col-alive   .pk-card-meta .mins { color:#22c55e; }
-  .pk-card.col-cooling .pk-card-meta .mins { color:#f59e0b; }
-
-  .pk-card-target {
-    font-size:10px; color:var(--fg3);
-    padding:1px 5px; border:1px solid var(--border);
-    border-radius:3px; white-space:nowrap;
-  }
-  .pk-card-target.soon { color:#f59e0b; border-color:rgba(245,158,11,0.4); }
-  .pk-card-target.overdue { color:#ef4444; border-color:rgba(239,68,68,0.45); background:rgba(239,68,68,0.08); }
-  .pk-card-target.now { color:#22c55e; border-color:rgba(34,197,94,0.45); }
-
-  .pk-dots {
-    display:flex; gap:3px; margin-top:5px; flex-wrap:wrap;
-  }
-  .pk-dot {
-    width:6px; height:6px; border-radius:50%;
-    background:rgba(148,163,184,0.25);
-  }
-  .pk-dot.alive { background:#22c55e; }
-  .pk-dot.dormant { background:rgba(148,163,184,0.4); }
 
   /* ─── Drawer ─── */
   .pk-drawer-backdrop {
@@ -497,6 +339,24 @@
   }
   .pk-story-body ul { margin: 0; padding-left: 16px; }
   .pk-story-body li { margin-bottom: 3px; }
+  /* Prose paragraphs get higher contrast on the near-black card and a
+     touch more leading since there's no bullet structure to guide the eye.
+     We hard-code the light text color here because the surrounding page
+     palette is light-mode (dark fg on light bg) while the story card is
+     intentionally dark. */
+  .pk-story-prose {
+    margin: 0;
+    color: #e8e8ea;
+    font-size: 12px;
+    line-height: 1.6;
+  }
+  .pk-story-heading {
+    color: #ffffff;
+  }
+  .pk-story-body ul,
+  .pk-story-body li {
+    color: #cdd0d4;
+  }
   .pk-story-meta {
     font-size: 10px; color: var(--fg3, #6b7280);
     border-top: 1px dashed var(--border); padding-top: 5px;
@@ -619,6 +479,116 @@
     padding: 20px; text-align: center;
     color: var(--fg2, #9ca3af); font-size: 11px;
   }
+
+  /* ─── Phase C2 — Goals hero cards ─── */
+  .pk-goal-hero {
+    display: flex; flex-direction: column; gap: 12px;
+    margin: 16px 0 24px;
+  }
+  .pk-goal-card {
+    background: var(--bg2, #f8f9fa); border: 1px solid var(--border);
+    border-radius: 12px; padding: 16px 18px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .pk-goal-card-top {
+    display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+  }
+  .pk-goal-card-title {
+    font-size: 17px; font-weight: 700; color: var(--fg);
+    letter-spacing: -0.01em;
+  }
+  .pk-goal-card-outcome {
+    color: var(--fg3, #6b7280); font-size: 13px; font-weight: 400;
+  }
+  .pk-goal-card-meta {
+    margin-left: auto; font-size: 12px; color: var(--fg3, #6b7280);
+  }
+  .pk-goal-card-narrative {
+    background: var(--bg, #ffffff); border: 1px dashed var(--border);
+    border-radius: 8px; padding: 12px 14px;
+    font-size: 14px; line-height: 1.6; color: var(--fg);
+  }
+  .pk-goal-card-weeks {
+    display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px;
+  }
+  .pk-goal-week-cell {
+    background: var(--bg, #ffffff); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 10px; min-height: 52px;
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .pk-goal-week-cell .wk {
+    font-size: 10px; font-weight: 600; color: var(--fg3, #6b7280);
+    letter-spacing: .06em;
+  }
+  .pk-goal-week-cell .mins {
+    font-size: 14px; font-weight: 700; color: var(--fg);
+  }
+  .pk-goal-week-cell.pulse-hot {
+    background: #e7f5ed; border-color: #bfe2cc;
+  }
+  .pk-goal-week-cell.pulse-warm {
+    background: #fbf3df; border-color: #e8d8a5;
+  }
+  .pk-goal-week-cell.pulse-light { opacity: 0.85; }
+  .pk-goal-week-cell.pulse-cold { opacity: 0.55; }
+  .pk-goal-week-cell.current {
+    outline: 2px solid var(--fg); outline-offset: 1px;
+  }
+  .pk-pill {
+    display: inline-flex; align-items: center;
+    font-size: 10px; font-weight: 600; padding: 2px 8px;
+    border-radius: 999px; letter-spacing: 0.04em;
+  }
+  .pk-pill.status-active      { background: #e7f5ed; color: #1f8a50; }
+  .pk-pill.status-slowing_down{ background: #fbf3df; color: #b4870b; }
+  .pk-pill.status-stalled     { background: #fbeeee; color: #b34545; }
+  .pk-pill.status-shipped     { background: #e9f0fb; color: #3a6bca; }
+  .pk-pill.status-not_started { background: var(--bg3, #f4f4f2); color: var(--fg3, #6b7280); border: 1px dashed var(--border); }
+
+  /* ─── Phase C3 — evidence drawer ─── */
+  .pk-goal-evidence {
+    border-top: 1px dashed var(--border); margin-top: 2px;
+  }
+  .pk-goal-evidence > summary {
+    cursor: pointer; font-size: 12px; color: var(--fg3, #6b7280);
+    list-style: none; padding: 8px 0 4px;
+  }
+  .pk-goal-evidence > summary:hover { color: var(--fg); }
+  .pk-goal-evidence > summary::-webkit-details-marker { display: none; }
+  .pk-goal-evidence > summary::before { content: "▸ "; }
+  .pk-goal-evidence[open] > summary::before { content: "▾ "; }
+  .pk-goal-evidence-body { padding: 4px 2px 4px; }
+  .pk-goal-evidence-section-label {
+    font-size: 10px; font-weight: 600; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--fg3, #6b7280);
+    margin: 8px 0 4px;
+  }
+  .pk-goal-project-row {
+    display: flex; gap: 10px; align-items: center;
+    font-size: 13px; padding: 4px 0; color: var(--fg2, #4b4b4b);
+  }
+  .pk-goal-project-title { color: var(--fg); font-weight: 500; }
+  .pk-goal-project-mins { color: var(--fg3, #6b7280); font-variant-numeric: tabular-nums; }
+  .pk-goal-project-target {
+    background: var(--bg3, #f4f4f2); color: var(--fg2, #4b4b4b);
+    font-size: 11px; padding: 1px 6px; border-radius: 999px;
+  }
+  .pk-goal-project-dots { display: inline-flex; gap: 4px; }
+  .pk-goal-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--bg3, #d8d8d4); }
+  .pk-goal-dot.alive { background: #22c55e; }
+  .pk-goal-evidence-stories {
+    margin: 4px 0 0 18px; font-size: 13px; line-height: 1.6;
+    color: var(--fg2, #4b4b4b);
+  }
+  .pk-goal-evidence-stories li + li { margin-top: 4px; }
+  .pk-goal-evidence-empty {
+    font-size: 12px; color: var(--fg3, #6b7280); font-style: italic;
+    padding: 8px 0 4px;
+  }
+  .pk-goal-evidence-empty code {
+    background: var(--bg3, #f4f4f2); padding: 1px 6px; border-radius: 4px;
+    font-size: 11px; font-style: normal;
+  }
 </style>
 
 <div class="pk"
@@ -629,38 +599,121 @@
     <div class="pk-topbar-left">
       <h1 style="margin:0;">Goals</h1>
       <div class="pk-meta">
-        {{ pm_goals|length }} goal{% if pm_goals|length != 1 %}s{% endif %} ·
-        <span class="dot sw-alive"></span>{{ pm_column_counts.alive }} alive ·
-        <span class="dot sw-cooling"></span>{{ pm_column_counts.cooling }} cooling ·
-        <span class="dot sw-cold"></span>{{ pm_column_counts.cold }} cold ·
-        <span class="dot sw-shipped"></span>{{ pm_column_counts.shipped }} shipped
+        {{ goals_with_narratives|length }} goal{% if goals_with_narratives|length != 1 %}s{% endif %} ·
+        <span class="dot sw-alive"></span>{{ hero_counts.active }} active ·
+        <span class="dot sw-cooling"></span>{{ hero_counts.slowing_down }} slowing down ·
+        <span class="dot sw-cold"></span>{{ hero_counts.stalled }} stalled ·
+        <span class="dot sw-shipped"></span>{{ hero_counts.shipped }} shipped
+        {% if hero_counts.not_started %} ·
+        <span class="dot" style="background:#6b7280;"></span>{{ hero_counts.not_started }} not started
+        {% endif %}
+        · <span style="color:var(--fg3);">{{ current_iso_week }}</span>
       </div>
     </div>
     <div class="pk-actions">
-      <!-- Phase 3 toggle: Projects ⇄ Review -->
-      <div class="pk-toggle" role="tablist" aria-label="View switch"
-           style="display:inline-flex;border:1px solid var(--border);border-radius:6px;overflow:hidden;margin-right:8px;">
-        <a href="/wiki/goals" role="tab" aria-selected="true"
-           style="padding:5px 12px;font-size:12px;background:var(--accent,#8b5cf6);color:white;text-decoration:none;">Projects</a>
-        <a href="/wiki/review" role="tab" aria-selected="false"
-           style="padding:5px 12px;font-size:12px;color:var(--fg2);text-decoration:none;">
-          Review{% if review_pending_count %}
-          <span style="background:#f59e0b;color:#0a0a0f;border-radius:9px;padding:0 6px;font-size:10px;margin-left:4px;">{{ review_pending_count }}</span>
-          {% endif %}
-        </a>
-      </div>
+      <a href="/wiki/review"
+         style="padding:5px 12px;font-size:12px;color:var(--fg2);text-decoration:none;
+                border:1px solid var(--border);border-radius:6px;margin-right:8px;
+                display:inline-flex;align-items:center;gap:6px;">
+        Review
+        {% if review_pending_count %}
+        <span style="background:#f59e0b;color:#0a0a0f;border-radius:9px;padding:0 6px;font-size:10px;">{{ review_pending_count }}</span>
+        {% endif %}
+        <span style="color:var(--fg3);">→</span>
+      </a>
+      <button class="pk-btn" id="pk-compose-goal-narratives"
+              title="Regenerate all goals' weekly prose from tracker + stories">
+        ↻ Compose
+      </button>
       <span class="pk-save-state saved" id="pk-save-state">All changes saved</span>
       <button class="pk-btn" id="pk-add-goal">+ Goal</button>
       <button class="pk-btn primary" id="pk-save" disabled>Save</button>
     </div>
   </div>
 
+  <!-- Phase C2 — Goals hero: prose + weekly pulse, ABOVE everything else -->
+  {% if goals_with_narratives %}
+  <section class="pk-goal-hero">
+    {% for gh in goals_with_narratives %}
+    <article class="pk-goal-card" data-goal-id="{{ gh.id }}">
+      <div class="pk-goal-card-top">
+        <span class="pk-pill status-{{ gh.status }}">{{ gh.status.replace('_', ' ')|upper }}</span>
+        <span class="pk-goal-card-title">{{ gh.title }}</span>
+        {% if gh.outcome %}
+        <span class="pk-goal-card-outcome">· {{ gh.outcome }}</span>
+        {% endif %}
+        <span class="pk-goal-card-meta">
+          {{ gh.n_projects }} project{% if gh.n_projects != 1 %}s{% endif %} ·
+          {{ gh.minutes_this_week|round|int }}m this week
+        </span>
+      </div>
+      <div class="pk-goal-card-narrative">{{ gh.narrative_prose }}</div>
+      <div class="pk-goal-card-weeks">
+        {% for w in gh.weekly_pulse %}
+        <div class="pk-goal-week-cell pulse-{{ w.bucket }}{% if w.is_current %} current{% endif %}"
+             title="{{ w.iso_week }} · {{ w.mins }}m">
+          <div class="wk">{{ w.iso_week.split('-W')[1] and ('W' + w.iso_week.split('-W')[1]) }}</div>
+          <div class="mins">{{ w.mins }}m</div>
+        </div>
+        {% endfor %}
+      </div>
+      <details class="pk-goal-evidence">
+        <summary>
+          Evidence · {{ gh.n_projects }} project{% if gh.n_projects != 1 %}s{% endif %}
+          · {{ gh.minutes_this_week|round|int }}m this week
+        </summary>
+        <div class="pk-goal-evidence-body">
+          {% if gh.projects %}
+          <div class="pk-goal-evidence-section-label">Projects</div>
+          {% for p in gh.projects %}
+          <div class="pk-goal-project-row">
+            <span class="pk-goal-project-title">{{ p.title }}</span>
+            <span class="pk-goal-project-mins">{{ p.pulse_mins_7d|round|int }}m · 7d</span>
+            {% if p.target_week %}<span class="pk-goal-project-target">{{ p.target_week }}</span>{% endif %}
+            {% if p.deliverables %}
+            <span class="pk-goal-project-dots">
+              {% for d in p.deliverables %}
+              <span class="pk-goal-dot {% if d.alive %}alive{% endif %}"
+                    title="{{ d.name }}{% if d.mins_7d %} · {{ d.mins_7d|round|int }}m · 7d{% endif %}"></span>
+              {% endfor %}
+            </span>
+            {% endif %}
+          </div>
+          {% endfor %}
+          {% endif %}
+
+          {% if gh.story_snippets %}
+          <div class="pk-goal-evidence-section-label">Recent story snippets</div>
+          <ul class="pk-goal-evidence-stories">
+            {% for s in gh.story_snippets %}<li>{{ s }}</li>{% endfor %}
+          </ul>
+          {% endif %}
+
+          {% if not gh.projects and not gh.story_snippets %}
+          <div class="pk-goal-evidence-empty">
+            No linked projects or recent stories yet.
+            Edit <code>productivity-tracker/config/goals.yaml</code> to add a project.
+          </div>
+          {% endif %}
+        </div>
+      </details>
+    </article>
+    {% endfor %}
+  </section>
+  {% endif %}
+
   <section class="pk-stories" id="pk-stories">
     <div class="pk-stories-head">
-      <h2>Today's stories
+      <h2>Recent days
         {% if narratives and narratives|length > 0 %}
         <span style="font-size:11px;color:var(--fg3);margin-left:6px;font-weight:400;">
           {{ narratives|length }} entr{% if narratives|length == 1 %}y{% else %}ies{% endif %}
+        </span>
+        {% endif %}
+        {% if narratives_rolled_up_count and narratives_rolled_up_count > 0 %}
+        <span style="font-size:11px;color:var(--fg3);margin-left:6px;font-weight:400;opacity:0.8;"
+              title="Already represented in the project cards above">
+          · {{ narratives_rolled_up_count }} rolled into project cards
         </span>
         {% endif %}
       </h2>
@@ -675,14 +728,18 @@
             {% if not n.is_today %}<span class="pk-story-date-pill">{{ n.date_local }}</span>{% endif %}
           </div>
           <div class="pk-story-body">
-            <ul>
-              {% for line in n.body_markdown.split('\n') %}
-                {% set stripped = line.strip() %}
-                {% if stripped.startswith('- ') %}
-                  <li>{{ stripped[2:] }}</li>
-                {% endif %}
-              {% endfor %}
-            </ul>
+            {% if n.render_mode == 'prose' %}
+              <p class="pk-story-prose">{{ n.body_prose }}</p>
+            {% else %}
+              <ul>
+                {% for line in n.body_markdown.split('\n') %}
+                  {% set stripped = line.strip() %}
+                  {% if stripped.startswith('- ') %}
+                    <li>{{ stripped[2:] }}</li>
+                  {% endif %}
+                {% endfor %}
+              </ul>
+            {% endif %}
           </div>
           <div class="pk-story-meta">
             <span>{{ n.source_page_ids|length }} source{% if n.source_page_ids|length != 1 %}s{% endif %}</span>
@@ -765,19 +822,8 @@
   </section>
   {% endif %}
 
-  <div id="pk-lanes">
-    {% if pm_goals %}
-      {% for g in pm_goals %}
-      {% include "_pm_goal.html" %}
-      {% endfor %}
-    {% else %}
-      <div class="pk-lane" style="grid-template-columns:1fr;">
-        <div class="pk-cell-empty" style="border:none;">
-          No goals yet. Click <strong>+ Goal</strong> above to add one.
-        </div>
-      </div>
-    {% endif %}
-  </div>
+  {# Legacy 5-column kanban (pk-lanes) retired in C3. Evidence now lives in
+     the per-goal <details> drawer inside .pk-goal-hero above. #}
 
 </div>
 
@@ -818,7 +864,9 @@
 
   const saveState = $('#pk-save-state');
   const saveBtn   = $('#pk-save');
-  const lanes     = $('#pk-lanes');
+  // #pk-lanes retired in C3. Dead listeners still bind to this stub so the
+  // legacy handlers can be pruned later without cascading refactors.
+  const lanes     = $('#pk-lanes') || document.createElement('div');
   const drawer    = $('#pk-drawer');
   const backdrop  = $('#pk-drawer-backdrop');
 
@@ -1540,6 +1588,29 @@
         recomposeBtn.disabled = false;
         recomposeBtn.textContent = orig;
         alert('Recompose failed: ' + e.message);
+      }
+    });
+  }
+
+  /* ─── Phase C2 — compose goal weekly narratives on demand ─── */
+  const composeGoalBtn = document.getElementById('pk-compose-goal-narratives');
+  if (composeGoalBtn) {
+    composeGoalBtn.addEventListener('click', async () => {
+      const orig = composeGoalBtn.textContent;
+      composeGoalBtn.disabled = true;
+      composeGoalBtn.textContent = '… composing';
+      try {
+        const r = await fetch('/api/goal-narratives/compose', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+        });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        window.location.reload();
+      } catch (e) {
+        composeGoalBtn.disabled = false;
+        composeGoalBtn.textContent = orig;
+        alert('Compose failed: ' + e.message);
       }
     });
   }

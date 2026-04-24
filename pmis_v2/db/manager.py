@@ -41,7 +41,7 @@ class DBManager:
         """Initialize database with schema if tables don't exist."""
         schema_path = Path(__file__).parent / "schema.sql"
         if schema_path.exists():
-            schema_sql = schema_path.read_text()
+            schema_sql = schema_path.read_text(encoding="utf-8")
             # Strip comment-only lines that precede the first CREATE
             # and use executescript for reliable multi-statement execution
             try:
@@ -101,6 +101,23 @@ class DBManager:
         self._ensure_column(
             "work_pages", "humanized_by", "TEXT DEFAULT ''"
         )
+        # Phase F1 — processed-by-nightly marker on review_proposals so the
+        # Review page can hide items nightly already swept. One-shot backfill
+        # sets pre-existing confirmed rows to their confirmed_at timestamp.
+        self._ensure_column(
+            "review_proposals", "processed_by_nightly_at", "TEXT"
+        )
+        try:
+            self._conn.execute(
+                "UPDATE review_proposals "
+                "SET processed_by_nightly_at = confirmed_at "
+                "WHERE processed_by_nightly_at IS NULL "
+                "  AND status = 'confirmed' "
+                "  AND confirmed_at IS NOT NULL"
+            )
+            self._conn.commit()
+        except sqlite3.Error:
+            pass
         # Phase C — narrative layer: 1-4 daily stories composed from salient
         # humanized work_pages. One row per (user, date, narrative ordinal).
         self._conn.executescript("""
@@ -124,6 +141,42 @@ class DBManager:
                 ON work_narratives(user_id, date_local);
             CREATE INDEX IF NOT EXISTS idx_narratives_stale
                 ON work_narratives(is_stale);
+        """)
+        # Prose narrative column — narrator (Phase B3) writes here; readers
+        # fall back to body_markdown when empty.
+        self._ensure_column(
+            "work_narratives", "body_prose", "TEXT DEFAULT ''"
+        )
+        # Weekly prose per goal (Scene 2 inverted Goals) + tracker degradation
+        # incidents (Scene 3 red banner). Both stay empty until later phases
+        # wire writers.
+        self._conn.executescript("""
+            CREATE TABLE IF NOT EXISTS goal_weekly_narratives (
+                goal_id           TEXT NOT NULL,
+                iso_week          TEXT NOT NULL,
+                narrative_prose   TEXT NOT NULL DEFAULT '',
+                minutes_this_week REAL DEFAULT 0,
+                status_this_week  TEXT DEFAULT ''
+                    CHECK(status_this_week IN ('', 'active', 'slowing_down', 'stalled', 'shipped', 'not_started')),
+                generated_at      TEXT DEFAULT (datetime('now')),
+                generated_by      TEXT DEFAULT '',
+                PRIMARY KEY (goal_id, iso_week)
+            );
+            CREATE INDEX IF NOT EXISTS idx_goal_week
+                ON goal_weekly_narratives(iso_week);
+
+            CREATE TABLE IF NOT EXISTS productivity_degradation_log (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                date_local    TEXT NOT NULL,
+                detected_at   TEXT DEFAULT (datetime('now')),
+                reason        TEXT NOT NULL,
+                affected_mins REAL DEFAULT 0,
+                resolved_at   TEXT DEFAULT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_degradation_date
+                ON productivity_degradation_log(date_local);
+            CREATE INDEX IF NOT EXISTS idx_degradation_active
+                ON productivity_degradation_log(resolved_at);
         """)
         self._conn.commit()
 
@@ -2651,6 +2704,7 @@ class DBManager:
         project_id: str = "",
         generated_by: str = "manual",
         user_id: str = "local",
+        body_prose: str = "",
     ) -> str:
         """Insert or replace a narrative at (user, date, ordinal).
         Regeneration during the same day simply overwrites."""
@@ -2658,19 +2712,21 @@ class DBManager:
         self._conn.execute(
             """INSERT INTO work_narratives
                (id, user_id, date_local, ordinal, heading, body_markdown,
-                source_page_ids_json, project_id, generated_by, is_stale,
-                generated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, datetime('now'))
+                body_prose, source_page_ids_json, project_id, generated_by,
+                is_stale, generated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, datetime('now'))
                ON CONFLICT(user_id, date_local, ordinal) DO UPDATE SET
                    heading = excluded.heading,
                    body_markdown = excluded.body_markdown,
+                   body_prose = excluded.body_prose,
                    source_page_ids_json = excluded.source_page_ids_json,
                    project_id = excluded.project_id,
                    generated_by = excluded.generated_by,
                    is_stale = 0,
                    generated_at = datetime('now')""",
             (nid, user_id, date_local, ordinal, heading, body_markdown,
-             json.dumps(source_page_ids or []), project_id, generated_by),
+             body_prose, json.dumps(source_page_ids or []), project_id,
+             generated_by),
         )
         self._conn.commit()
         row = self._conn.execute(
@@ -2736,6 +2792,55 @@ class DBManager:
         )
         self._conn.commit()
         return cur.rowcount or 0
+
+    # ─── Goal weekly narratives (Phase C1) ──────────────────────
+
+    def upsert_goal_weekly_narrative(
+        self,
+        goal_id: str,
+        iso_week: str,
+        narrative_prose: str,
+        minutes_this_week: float = 0.0,
+        status_this_week: str = "",
+        generated_by: str = "manual",
+    ) -> None:
+        """Insert or replace the prose summary for one (goal, ISO week).
+        status_this_week must be one of '', 'active', 'slowing_down',
+        'stalled', 'shipped', 'not_started' — enforced by the CHECK
+        constraint in schema.sql."""
+        self._conn.execute(
+            """INSERT INTO goal_weekly_narratives
+                 (goal_id, iso_week, narrative_prose, minutes_this_week,
+                  status_this_week, generated_by, generated_at)
+               VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+               ON CONFLICT(goal_id, iso_week) DO UPDATE SET
+                   narrative_prose   = excluded.narrative_prose,
+                   minutes_this_week = excluded.minutes_this_week,
+                   status_this_week  = excluded.status_this_week,
+                   generated_by      = excluded.generated_by,
+                   generated_at      = datetime('now')""",
+            (goal_id, iso_week, narrative_prose, minutes_this_week,
+             status_this_week, generated_by),
+        )
+        self._conn.commit()
+
+    def list_goal_narratives(
+        self,
+        iso_week: Optional[str] = None,
+        goal_id: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """List goal weekly narratives. Filter by iso_week and/or goal_id."""
+        sql = "SELECT * FROM goal_weekly_narratives WHERE 1=1"
+        params: List[Any] = []
+        if iso_week:
+            sql += " AND iso_week = ?"
+            params.append(iso_week)
+        if goal_id:
+            sql += " AND goal_id = ?"
+            params.append(goal_id)
+        sql += " ORDER BY iso_week DESC, goal_id ASC"
+        rows = self._conn.execute(sql, params).fetchall()
+        return [dict(r) for r in rows]
 
     def expire_stale_proposals(
         self, max_age_days: int = 3, user_id: str = "local"
