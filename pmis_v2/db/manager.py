@@ -178,6 +178,155 @@ class DBManager:
             CREATE INDEX IF NOT EXISTS idx_degradation_active
                 ON productivity_degradation_log(resolved_at);
         """)
+
+        # ────────────────────────────────────────────────────────────────
+        # Phase A — schema for F2+ (links pipeline, daily summaries,
+        # deliverable scaffold, rejection-fingerprint learning).
+        #
+        # Pure schema plumbing: no writers yet. Tables stay empty until
+        # phases B-G wire the data flow.
+        # ────────────────────────────────────────────────────────────────
+        self._conn.executescript("""
+            -- Reusable catalog of URLs / file paths. Bindings attach a
+            -- link to a project, deliverable, daily summary, or individual
+            -- work match. One URL = one row, deduped by URL.
+            CREATE TABLE IF NOT EXISTS links (
+                id         TEXT PRIMARY KEY,
+                url        TEXT NOT NULL UNIQUE,
+                kind       TEXT NOT NULL
+                    CHECK(kind IN ('design','md','code','pdf','web','image','other')),
+                title      TEXT DEFAULT '',
+                created_at TEXT DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_links_kind ON links(kind);
+
+            -- Many-to-many between links and whatever scope tagged them.
+            -- `contributed=1` is the filter a daily summary uses to show
+            -- only the links that directly moved the work forward.
+            -- `dwell_frames` is the raw signal from the frame extractor.
+            CREATE TABLE IF NOT EXISTS link_bindings (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                link_id      TEXT NOT NULL,
+                scope        TEXT NOT NULL
+                    CHECK(scope IN ('project','deliverable','daily',
+                                    'work_match','frame','segment')),
+                scope_id     TEXT NOT NULL,
+                contributed  INTEGER NOT NULL DEFAULT 1,
+                dwell_frames INTEGER DEFAULT 0,
+                added_at     TEXT DEFAULT (datetime('now')),
+                UNIQUE(link_id, scope, scope_id),
+                FOREIGN KEY(link_id) REFERENCES links(id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_bindings_scope
+                ON link_bindings(scope, scope_id);
+            CREATE INDEX IF NOT EXISTS idx_bindings_contrib
+                ON link_bindings(contributed);
+
+            -- One prose row per (project, deliverable, date). Surface for
+            -- the Daily toggle on deliverable pages.
+            CREATE TABLE IF NOT EXISTS daily_summaries (
+                id            TEXT PRIMARY KEY,
+                project_id    TEXT NOT NULL,
+                deliverable_id TEXT DEFAULT '',
+                date          TEXT NOT NULL,
+                body_md       TEXT NOT NULL DEFAULT '',
+                status        TEXT NOT NULL DEFAULT 'auto'
+                    CHECK(status IN ('auto','manual','edited')),
+                composed_at   TEXT DEFAULT (datetime('now')),
+                UNIQUE(project_id, deliverable_id, date)
+            );
+            CREATE INDEX IF NOT EXISTS idx_daily_date
+                ON daily_summaries(date);
+            CREATE INDEX IF NOT EXISTS idx_daily_project
+                ON daily_summaries(project_id, deliverable_id);
+
+            -- Free-text feedback on a past daily summary. Nightly pass
+            -- G2 sweeps `applied=0` rows, re-composes the target summary,
+            -- and flips `applied=1`.
+            CREATE TABLE IF NOT EXISTS daily_feedback (
+                id                INTEGER PRIMARY KEY AUTOINCREMENT,
+                daily_summary_id  TEXT NOT NULL,
+                feedback_text     TEXT NOT NULL,
+                created_at        TEXT DEFAULT (datetime('now')),
+                applied           INTEGER DEFAULT 0,
+                applied_at        TEXT,
+                FOREIGN KEY(daily_summary_id) REFERENCES daily_summaries(id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_daily_fb_pending
+                ON daily_feedback(applied);
+
+            -- Fixed-scaffold content for each deliverable page. One row
+            -- per (deliverable, slot) so a single section can be re-
+            -- generated without clobbering the others.
+            CREATE TABLE IF NOT EXISTS deliverable_sections (
+                deliverable_id TEXT NOT NULL,
+                slot           TEXT NOT NULL
+                    CHECK(slot IN ('overview','progress','decisions',
+                                   'questions','risks','links')),
+                body_md        TEXT NOT NULL DEFAULT '',
+                updated_at     TEXT DEFAULT (datetime('now')),
+                source         TEXT DEFAULT 'auto'
+                    CHECK(source IN ('auto','user','llm')),
+                PRIMARY KEY (deliverable_id, slot)
+            );
+
+            -- Learned rejections: when the user rejects a consolidation
+            -- tree in Review, save its centroid so future runs can skip
+            -- similar clusters automatically.
+            CREATE TABLE IF NOT EXISTS tree_rejection_fingerprints (
+                id                   TEXT PRIMARY KEY,
+                centroid_embedding   BLOB,
+                reason               TEXT DEFAULT '',
+                example_segment_ids  TEXT DEFAULT '[]',
+                created_at           TEXT DEFAULT (datetime('now'))
+            );
+        """)
+
+        # Phase A additions on review_proposals (processed_by_nightly_at
+        # was added in F1). tree_json carries the SC+C+A candidate tree;
+        # auto_attached_to_deliverable_id is set when consolidation
+        # auto-tags a tree above the confidence threshold.
+        self._ensure_column(
+            "review_proposals", "tree_json", "TEXT DEFAULT ''"
+        )
+        self._ensure_column(
+            "review_proposals", "auto_attached_to_deliverable_id",
+            "TEXT DEFAULT ''"
+        )
+
+        # Phase A additions on the productivity-tracker DB (context_1 =
+        # segment rows, context_2 = frame rows). Columns are JSON arrays
+        # populated by phase D's extractor + roll-up. Wrapped in
+        # try/except because the tracker DB lives in a separate path
+        # that may not exist in every environment (CI, fresh checkouts).
+        try:
+            import os
+            tracker_path = os.path.expanduser(
+                "~/.productivity-tracker/tracker.db"
+            )
+            if os.path.exists(tracker_path):
+                tconn = sqlite3.connect(tracker_path)
+                try:
+                    for table, col in (
+                        ("context_2", "extracted_links"),
+                        ("context_1", "segment_links"),
+                    ):
+                        existing = {
+                            r[1] for r in tconn.execute(
+                                f"PRAGMA table_info({table})"
+                            ).fetchall()
+                        }
+                        if col not in existing:
+                            tconn.execute(
+                                f"ALTER TABLE {table} ADD COLUMN "
+                                f"{col} TEXT DEFAULT '[]'"
+                            )
+                    tconn.commit()
+                finally:
+                    tconn.close()
+        except Exception:
+            pass
+
         self._conn.commit()
 
     def _ensure_column(self, table: str, column: str, type_sql: str) -> None:
