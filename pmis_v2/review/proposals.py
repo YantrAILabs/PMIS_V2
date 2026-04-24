@@ -219,11 +219,60 @@ class ReviewProposals:
             pattern = merger._extract_pattern(cluster) or cluster[0].get("summary") or "Activity"
             tree = build_tree_candidate(cluster, sc_title=pattern, hp=self.hp)
             probs = self._score_against_projects(pattern, cluster)
-            prop_id = f"rp-{uuid.uuid4().hex[:12]}"
             segment_ids = [s.get("id", "") for s in cluster]
             total_duration = sum(int(s.get("duration_secs", 10)) for s in cluster)
             windows = list({s.get("window", "") for s in cluster if s.get("window")})[:5]
 
+            # F2b auto-attach gate: top project above threshold → silently
+            # create ANC + bind + log, skipping the draft stage. Orphans
+            # (below threshold or no active projects) fall through to the
+            # existing draft path.
+            if self._should_auto_attach(probs):
+                cluster_text = " | ".join(
+                    (s.get("window", "") + " "
+                     + s.get("short_title", "") + " "
+                     + s.get("detailed_summary", ""))
+                    for s in cluster
+                )
+                top = probs[0]
+                deliverable_id = self._pick_deliverable_for_project(
+                    top["project_id"], cluster_text,
+                )
+                try:
+                    result = self._auto_attach(
+                        cluster=cluster,
+                        tree=tree,
+                        project_id=top["project_id"],
+                        project_name=top.get("project_name")
+                                     or top["project_id"],
+                        deliverable_id=deliverable_id,
+                        target_date=target_date or "",
+                        segment_ids=segment_ids,
+                        probs=probs,
+                        pattern=pattern,
+                    )
+                except Exception:
+                    logger.exception("auto_attach failed; falling back to draft")
+                    result = None
+                if result and result.get("ok"):
+                    proposals.append({
+                        "id": result["proposal_id"],
+                        "target_date": target_date or "",
+                        "status": "auto_attached",
+                        "proposed_content": pattern,
+                        "segment_ids": segment_ids,
+                        "segment_count": len(cluster),
+                        "duration_mins": round(total_duration / 60.0, 1),
+                        "windows": windows,
+                        "project_probs": probs,
+                        "project_id": result["project_id"],
+                        "deliverable_id": result["deliverable_id"],
+                        "anchor_id": result["anchor_id"],
+                        "tree": json.loads(tree.to_json()),
+                    })
+                    continue
+
+            prop_id = f"rp-{uuid.uuid4().hex[:12]}"
             pconn = sqlite3.connect(self.db.db_path)
             pconn.execute(
                 """INSERT INTO review_proposals
@@ -312,6 +361,52 @@ class ReviewProposals:
                 "windows": windows,
                 "project_probs": probs,
                 "user_assigned_project_id": r["user_assigned_project_id"] or "",
+            })
+        return out
+
+    def list_auto_attached_pending_review(self, days: int = 14) -> List[Dict]:
+        """Auto-attached proposals still in the contest window. After
+        `days` days they stay in the DB as auto_attached rows but stop
+        surfacing here — the soft-review period has expired and the
+        assignment is considered settled."""
+        pconn = sqlite3.connect(self.db.db_path)
+        pconn.row_factory = sqlite3.Row
+        try:
+            rows = pconn.execute(
+                """SELECT id, target_date, proposed_content,
+                          segment_ids_json, project_probs_json, tree_json,
+                          auto_attached_to_deliverable_id,
+                          user_assigned_project_id, anchor_node_id,
+                          confirmed_at
+                   FROM review_proposals
+                   WHERE status='auto_attached'
+                     AND confirmed_at IS NOT NULL
+                     AND datetime(confirmed_at) >= datetime('now', ?)
+                   ORDER BY confirmed_at DESC""",
+                (f"-{int(days)} days",),
+            ).fetchall()
+        finally:
+            pconn.close()
+
+        out: List[Dict] = []
+        for r in rows:
+            segment_ids = json.loads(r["segment_ids_json"] or "[]")
+            probs = json.loads(r["project_probs_json"] or "[]")
+            duration_mins, windows = self._segment_meta(segment_ids)
+            out.append({
+                "id": r["id"],
+                "target_date": r["target_date"],
+                "status": "auto_attached",
+                "proposed_content": r["proposed_content"] or "",
+                "segment_ids": segment_ids,
+                "segment_count": len(segment_ids),
+                "duration_mins": duration_mins,
+                "windows": windows,
+                "project_probs": probs,
+                "project_id": r["user_assigned_project_id"] or "",
+                "deliverable_id": r["auto_attached_to_deliverable_id"] or "",
+                "anchor_node_id": r["anchor_node_id"] or "",
+                "confirmed_at": r["confirmed_at"] or "",
             })
         return out
 
@@ -456,6 +551,68 @@ class ReviewProposals:
             pass
 
         return list(catalog.values())
+
+    # ------------------------------------------------------------------
+    # Stage 3b (F2b): auto-attach gate + deliverable selection
+    # ------------------------------------------------------------------
+
+    def _should_auto_attach(self, probs: List[Dict]) -> bool:
+        """True when the top-scored project clears
+        `auto_attach_confidence_threshold` (default 0.70). Empty probs
+        returns False — no active projects = no auto-attach candidate."""
+        if not probs:
+            return False
+        threshold = float(self.hp.get("auto_attach_confidence_threshold", 0.70))
+        return float(probs[0].get("score", 0.0)) >= threshold
+
+    def _pick_deliverable_for_project(
+        self, project_id: str, cluster_text: str,
+    ) -> str:
+        """Return the best-matching deliverable_id inside `project_id`,
+        or '' if no deliverable_patterns are configured OR no pattern hits.
+        Matches are case-insensitive substring against `cluster_text`.
+        Ties broken by the dict iteration order from goals.yaml (stable)."""
+        try:
+            import yaml
+            gy = Path.home() / "Desktop" / "memory" / "productivity-tracker" / "config" / "goals.yaml"
+            if not gy.exists():
+                return ""
+            with open(gy, encoding="utf-8") as f:
+                raw = yaml.safe_load(f) or {}
+        except Exception:
+            return ""
+
+        project: Optional[Dict] = None
+        for g in raw.get("goals") or []:
+            for p in g.get("projects") or []:
+                if p.get("id") == project_id:
+                    project = p
+                    break
+            if project is not None:
+                break
+        if project is None:
+            return ""
+
+        deliv_patterns: Dict[str, List[str]] = (
+            project.get("deliverable_patterns") or {}
+        )
+        if not deliv_patterns:
+            return ""
+
+        text_lower = (cluster_text or "").lower()
+        best_id = ""
+        best_hits = 0
+        for did, patterns in deliv_patterns.items():
+            if not patterns:
+                continue
+            hits = sum(
+                1 for pat in patterns
+                if pat and pat.lower() in text_lower
+            )
+            if hits > best_hits:
+                best_hits = hits
+                best_id = did
+        return best_id
 
     # ------------------------------------------------------------------
     # Stage 4: confirm / reject
@@ -611,6 +768,162 @@ class ReviewProposals:
             "project_id": project_id,
             "segments_tagged": len(segment_ids),
             "duration_mins": round(total_duration / 60.0, 1),
+        }
+
+    def _auto_attach(
+        self,
+        *,
+        cluster: List[Dict],
+        tree,  # TreeCandidate
+        project_id: str,
+        project_name: str,
+        deliverable_id: str,
+        target_date: str,
+        segment_ids: List[str],
+        probs: List[Dict],
+        pattern: str,
+    ) -> Dict[str, Any]:
+        """Create the ANC, bind it, write activity_time_log rows, and
+        persist the proposal as 'auto_attached'. Mirrors _confirm_locked
+        but automated — no user action required.
+
+        `confirmed_at` and `processed_by_nightly_at` are both set, so F1
+        claim-source queries correctly hide the segments from Review's
+        unconsolidated pool and Goals' recent-days/Unassigned lanes.
+        """
+        from core.memory_node import MemoryNode, MemoryLevel
+        from core.temporal import temporal_encode, compute_era
+        from ingestion.embedder import Embedder
+
+        # Anchor content: SC title + each anchor's body. Deliberately
+        # simple — F5 renders the richer scaffold from tree_json at
+        # display time; this is just the node text so embeddings land.
+        parts = [tree.sc_title or pattern or "Auto-attached activity"]
+        for a in tree.anchors or []:
+            if a.body:
+                parts.append(f"— {a.title}\n{a.body}")
+        content = "\n\n".join(p for p in parts if p).strip()
+        if not content:
+            content = pattern or "Auto-attached activity"
+
+        embedder = Embedder(hyperparams=self.hp)
+        try:
+            euclidean = embedder.embed_text(content)
+        except Exception:
+            euclidean = np.zeros(self.hp.get("local_embedding_dimensions", 768))
+
+        hyp_dim = self.hp.get("poincare_dimensions", 16)
+        temporal = temporal_encode(
+            datetime.now(), self.hp.get("temporal_embedding_dim", 16),
+        )
+        era = compute_era(
+            datetime.now(), self.hp.get("era_boundaries", {}),
+        )
+
+        project_sc = ""
+        pconn = sqlite3.connect(self.db.db_path)
+        try:
+            r = pconn.execute(
+                "SELECT sc_node_id FROM projects WHERE id = ?", (project_id,),
+            ).fetchone()
+            if r:
+                project_sc = r[0] or ""
+        finally:
+            pconn.close()
+
+        deliverable_label = deliverable_id or "(no deliverable)"
+        node = MemoryNode.create(
+            content=(
+                f"[Auto · {target_date} · {project_name} · "
+                f"{deliverable_label}]\n\n{content}"
+            ),
+            level=MemoryLevel.ANCHOR,
+            euclidean_embedding=euclidean,
+            hyperbolic_coords=np.zeros(hyp_dim, dtype=np.float32),
+            temporal_embedding=temporal,
+            source_conversation_id=f"auto_attach_{uuid.uuid4().hex[:12]}",
+            surprise=0.0,
+            # Lower than user_review's 0.7 — auto is less trusted until
+            # the rejection-fingerprint store (F4) trains it up.
+            precision=0.6,
+            era=era,
+        )
+        node.is_orphan = False
+        node.is_tentative = False
+        self.db.create_node(node)
+
+        if project_sc:
+            tree_id = self._tree_id_for(project_sc) or "default"
+            try:
+                self.db.attach_to_parent(node.id, project_sc, tree_id)
+            except Exception:
+                pass
+
+        total_duration = 0
+        durations = self._segment_durations(segment_ids)
+        prop_id = f"rp-{uuid.uuid4().hex[:12]}"
+        pconn = sqlite3.connect(self.db.db_path)
+        try:
+            for sid in segment_ids:
+                dur = durations.get(sid, 10)
+                total_duration += dur
+                pconn.execute(
+                    """INSERT OR IGNORE INTO activity_time_log
+                       (segment_id, memory_node_id, matched_ctx_id,
+                        matched_sc_id, duration_seconds, date,
+                        project_id, match_source)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, 'auto_attached')""",
+                    (sid, node.id, "", project_sc, dur, target_date,
+                     project_id),
+                )
+            pconn.execute(
+                """INSERT INTO review_proposals
+                   (id, target_date, author, status, proposed_content,
+                    segment_ids_json, project_probs_json, tree_json,
+                    user_assigned_project_id,
+                    user_assigned_deliverable_id,
+                    auto_attached_to_deliverable_id, anchor_node_id,
+                    confirmed_at, processed_by_nightly_at)
+                   VALUES (?, ?, 'auto', 'auto_attached', ?, ?, ?, ?,
+                           ?, ?, ?, ?,
+                           datetime('now'), datetime('now'))""",
+                (prop_id, target_date or "", (pattern or "")[:2000],
+                 json.dumps(segment_ids), json.dumps(probs),
+                 tree.to_json(), project_id, deliverable_id,
+                 deliverable_id, node.id),
+            )
+            pconn.commit()
+        finally:
+            pconn.close()
+
+        top_score = float(probs[0].get("score", 0.0)) if probs else 0.0
+        self.db.log_match({
+            "segment_id": node.id,
+            "project_id": project_id,
+            "deliverable_id": deliverable_id,
+            "sc_node_id": project_sc,
+            "context_node_id": "",
+            "anchor_node_id": node.id,
+            "semantic_score": top_score,
+            "hyperbolic_score": 0.0,
+            "combined_match_pct": top_score,
+            "match_method": "auto_attached",
+            "work_description": content[:500],
+            "worker_type": "auto",
+            "time_mins": total_duration / 60.0,
+            "is_correct": 1,
+            "source": "auto_attached",
+        })
+
+        return {
+            "ok": True,
+            "proposal_id": prop_id,
+            "anchor_id": node.id,
+            "project_id": project_id,
+            "deliverable_id": deliverable_id,
+            "segments_tagged": len(segment_ids),
+            "duration_mins": round(total_duration / 60.0, 1),
+            "top_score": top_score,
         }
 
     def reject(self, proposal_id: str) -> Dict[str, Any]:
