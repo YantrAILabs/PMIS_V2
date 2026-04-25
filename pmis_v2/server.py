@@ -1827,6 +1827,65 @@ async def api_pm_project_create(payload: PMProjectCreate):
     }
 
 
+class PMProjectUpdate(BaseModel):
+    title: str
+
+
+@app.put("/api/pm/projects/{project_id}")
+async def api_pm_project_update(project_id: str, payload: PMProjectUpdate):
+    """Inline rename a project. Mutates goals.yaml in place — finds the
+    project by id across all goals, updates its title, writes back, and
+    re-runs the YAML→DB sync so the new name surfaces immediately."""
+    import yaml as _yaml
+
+    title = (payload.title or "").strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="title required")
+
+    pt_root = Path.home() / "Desktop" / "memory" / "productivity-tracker"
+    goals_path = pt_root / "config" / "goals.yaml"
+    if not goals_path.exists():
+        raise HTTPException(status_code=404, detail="goals.yaml not found")
+
+    try:
+        raw = _yaml.safe_load(goals_path.read_text()) or {}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"yaml parse: {e}")
+
+    found_goal_id: Optional[str] = None
+    for g in raw.get("goals", []) or []:
+        for p in g.get("projects", []) or []:
+            if p.get("id") == project_id:
+                p["title"] = title
+                found_goal_id = g.get("id")
+                break
+        if found_goal_id is not None:
+            break
+
+    if found_goal_id is None:
+        raise HTTPException(status_code=404, detail=f"project {project_id} not found")
+
+    goals_path.write_text(
+        _yaml.safe_dump(raw, sort_keys=False, default_flow_style=False)
+    )
+
+    sync_counts: Dict[str, Any] = {}
+    try:
+        from sync.yaml_to_db import sync_pm_yaml_to_db
+        sync_counts = sync_pm_yaml_to_db(
+            _orch.db, embedder=_orch.embedder, hyperparams=_orch.hp,
+        )
+    except Exception as e:
+        sync_counts = {"error": str(e)}
+
+    return {
+        "id": project_id,
+        "title": title,
+        "goal_id": found_goal_id,
+        "sync_counts": sync_counts,
+    }
+
+
 @app.get("/api/pm/projects")
 async def api_pm_projects():
     """List active projects (flat, for widget picker)."""
@@ -2995,10 +3054,12 @@ async def wiki_productivity(request: Request):
 # ================================================================
 
 if __name__ == "__main__":
+    import os as _os
+    _port = int(_os.environ.get("PORT", "8100"))
     uvicorn.run(
         "server:app",
         host="0.0.0.0",
-        port=8100,
+        port=_port,
         reload=False,
         log_level="info",
     )

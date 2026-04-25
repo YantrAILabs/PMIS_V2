@@ -585,6 +585,40 @@
     font-size: 12px; color: var(--fg3, #6b7280); font-style: italic;
     padding: 8px 0 4px;
   }
+  /* ─── Phase B: inline add/rename affordances ─── */
+  .pk-pb-rename { cursor: text; border-radius: 3px; padding: 1px 3px; margin-left: -3px; }
+  .pk-pb-rename:hover { background: var(--bg3, #f4f4f2); }
+  .pk-pb-rename:focus {
+    outline: 1px solid var(--accent, #8b5cf6);
+    background: var(--bg2, #fff);
+  }
+  .pk-pb-add-deliv {
+    margin-left: auto;
+    background: transparent; border: 1px dashed var(--border, #d8d8d4);
+    color: var(--fg3, #6b7280); font-size: 11px;
+    padding: 1px 8px; border-radius: 4px; cursor: pointer;
+    transition: all 0.12s;
+  }
+  .pk-pb-add-deliv:hover { color: var(--fg, #1f1f1f); border-color: var(--accent, #8b5cf6); }
+  .pk-pb-add-project-row { margin-top: 6px; }
+  .pk-pb-add-project {
+    background: transparent; border: 1px dashed var(--border, #d8d8d4);
+    color: var(--fg3, #6b7280); font-size: 12px;
+    padding: 3px 10px; border-radius: 4px; cursor: pointer;
+    transition: all 0.12s;
+  }
+  .pk-pb-add-project:hover { color: var(--fg, #1f1f1f); border-color: var(--accent, #8b5cf6); }
+  .pk-pb-input {
+    background: var(--bg2, #fff);
+    border: 1px solid var(--accent, #8b5cf6);
+    color: var(--fg, #1f1f1f);
+    font-size: 13px; padding: 2px 8px; border-radius: 4px;
+    min-width: 200px;
+    font-family: inherit;
+  }
+  .pk-pb-input.busy { opacity: 0.6; pointer-events: none; }
+  .pk-pb-error { color: #ef4444; font-size: 11px; margin-left: 6px; }
+
   .pk-goal-evidence-empty code {
     background: var(--bg3, #f4f4f2); padding: 1px 6px; border-radius: 4px;
     font-size: 11px; font-style: normal;
@@ -666,8 +700,10 @@
           {% if gh.projects %}
           <div class="pk-goal-evidence-section-label">Projects</div>
           {% for p in gh.projects %}
-          <div class="pk-goal-project-row">
-            <span class="pk-goal-project-title">{{ p.title }}</span>
+          <div class="pk-goal-project-row" data-project-id="{{ p.id }}">
+            <span class="pk-goal-project-title pk-pb-rename"
+                  data-project-id="{{ p.id }}"
+                  title="Click to rename">{{ p.title }}</span>
             <span class="pk-goal-project-mins">{{ p.pulse_mins_7d|round|int }}m · 7d</span>
             {% if p.target_week %}<span class="pk-goal-project-target">{{ p.target_week }}</span>{% endif %}
             {% if p.deliverables %}
@@ -678,9 +714,17 @@
               {% endfor %}
             </span>
             {% endif %}
+            <button class="pk-pb-add-deliv" data-project-id="{{ p.id }}"
+                    title="Add deliverable to this project">+ deliverable</button>
           </div>
           {% endfor %}
           {% endif %}
+
+          <div class="pk-pb-add-project-row">
+            <button class="pk-pb-add-project" data-goal-id="{{ gh.id }}">
+              + Add project
+            </button>
+          </div>
 
           {% if gh.story_snippets %}
           <div class="pk-goal-evidence-section-label">Recent story snippets</div>
@@ -1865,6 +1909,178 @@
         });
       }
     } catch (e) { console.warn('fetch digest failed', e); }
+  });
+})();
+</script>
+
+<!-- Phase B: inline add/rename for goal-card projects + deliverables -->
+<script>
+(function() {
+  // ─── helpers ──────────────────────────────────────────────────────
+  function showError(host, message) {
+    const old = host.querySelector('.pk-pb-error');
+    if (old) old.remove();
+    const span = document.createElement('span');
+    span.className = 'pk-pb-error';
+    span.textContent = message;
+    host.appendChild(span);
+    setTimeout(() => span.remove(), 4000);
+  }
+
+  function makeInput(initial, placeholder) {
+    const inp = document.createElement('input');
+    inp.type = 'text';
+    inp.className = 'pk-pb-input';
+    inp.value = initial || '';
+    inp.placeholder = placeholder || '';
+    return inp;
+  }
+
+  // ─── inline rename ────────────────────────────────────────────────
+  document.addEventListener('click', (e) => {
+    const target = e.target.closest('.pk-pb-rename');
+    if (!target) return;
+    if (target.dataset.editing === '1') return;
+    const projectId = target.dataset.projectId;
+    if (!projectId) return;
+
+    const original = target.textContent.trim();
+    target.dataset.editing = '1';
+    const inp = makeInput(original, 'Project title');
+    target.textContent = '';
+    target.appendChild(inp);
+    inp.focus();
+    inp.select();
+
+    let settled = false;
+    const settle = async (commit) => {
+      if (settled) return;
+      settled = true;
+      const next = inp.value.trim();
+      if (!commit || !next || next === original) {
+        target.textContent = original;
+        delete target.dataset.editing;
+        return;
+      }
+      inp.classList.add('busy');
+      try {
+        const r = await fetch(`/api/pm/projects/${encodeURIComponent(projectId)}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: next }),
+        });
+        if (!r.ok) {
+          const err = await r.json().catch(() => ({}));
+          throw new Error(err.detail || `HTTP ${r.status}`);
+        }
+        target.textContent = next;
+        delete target.dataset.editing;
+      } catch (err) {
+        target.textContent = original;
+        delete target.dataset.editing;
+        const row = target.closest('.pk-goal-project-row');
+        if (row) showError(row, `rename failed: ${err.message}`);
+      }
+    };
+
+    inp.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') { ev.preventDefault(); settle(true); }
+      else if (ev.key === 'Escape') { ev.preventDefault(); settle(false); }
+    });
+    inp.addEventListener('blur', () => settle(true));
+  });
+
+  // ─── add deliverable to a project ─────────────────────────────────
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.pk-pb-add-deliv');
+    if (!btn) return;
+    const projectId = btn.dataset.projectId;
+    if (!projectId) return;
+
+    const row = btn.closest('.pk-goal-project-row');
+    const inp = makeInput('', 'Deliverable name');
+    btn.replaceWith(inp);
+    inp.focus();
+
+    let settled = false;
+    const settle = async (commit) => {
+      if (settled) return;
+      settled = true;
+      const name = inp.value.trim();
+      if (!commit || !name) {
+        inp.replaceWith(btn);
+        return;
+      }
+      inp.classList.add('busy');
+      try {
+        const r = await fetch('/api/pm/deliverables', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, project_id: projectId }),
+        });
+        if (!r.ok) {
+          const err = await r.json().catch(() => ({}));
+          throw new Error(err.detail || `HTTP ${r.status}`);
+        }
+        // Page reload pulls in the new deliverable + updated dots.
+        window.location.reload();
+      } catch (err) {
+        inp.replaceWith(btn);
+        if (row) showError(row, `add deliverable failed: ${err.message}`);
+      }
+    };
+
+    inp.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') { ev.preventDefault(); settle(true); }
+      else if (ev.key === 'Escape') { ev.preventDefault(); settle(false); }
+    });
+    inp.addEventListener('blur', () => settle(true));
+  });
+
+  // ─── add project to a goal ────────────────────────────────────────
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.pk-pb-add-project');
+    if (!btn) return;
+    const goalId = btn.dataset.goalId;
+    if (!goalId) return;
+
+    const inp = makeInput('', 'Project title');
+    btn.replaceWith(inp);
+    inp.focus();
+
+    let settled = false;
+    const settle = async (commit) => {
+      if (settled) return;
+      settled = true;
+      const title = inp.value.trim();
+      if (!commit || !title) {
+        inp.replaceWith(btn);
+        return;
+      }
+      inp.classList.add('busy');
+      try {
+        const r = await fetch('/api/pm/projects', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, goal_id: goalId }),
+        });
+        if (!r.ok) {
+          const err = await r.json().catch(() => ({}));
+          throw new Error(err.detail || `HTTP ${r.status}`);
+        }
+        window.location.reload();
+      } catch (err) {
+        inp.replaceWith(btn);
+        const host = inp.parentElement;
+        if (host) showError(host, `add project failed: ${err.message}`);
+      }
+    };
+
+    inp.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') { ev.preventDefault(); settle(true); }
+      else if (ev.key === 'Escape') { ev.preventDefault(); settle(false); }
+    });
+    inp.addEventListener('blur', () => settle(true));
   });
 })();
 </script>
