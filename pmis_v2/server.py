@@ -20,6 +20,7 @@ Usage:
 import sys
 import json
 import asyncio
+import sqlite3
 import threading
 import time as _time
 from pathlib import Path
@@ -34,7 +35,7 @@ sys.path.insert(0, str(PMIS_DIR))
 sys.path.insert(0, str(REPO_ROOT))
 
 from fastapi import FastAPI, Request, Query, Header, Depends, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
@@ -1157,6 +1158,263 @@ async def wiki_node_backend(node_id: str):
     return data
 
 
+@app.get("/api/work_pages")
+async def api_list_work_pages(date: Optional[str] = None, state: str = "open"):
+    """List work_pages filtered by date + state. state in {open,tagged,stale,archived}."""
+    from datetime import date as _date
+    target = date or _date.today().isoformat()
+    pages = _orch.db.list_work_pages_by_state(state, date_local=target)
+    for p in pages:
+        p.pop("embedding_blob", None)
+        p["segment_count"] = len(_orch.db.get_page_segments(p["id"]))
+    return {"date": target, "state": state, "count": len(pages), "pages": pages}
+
+
+@app.get("/api/work_pages/{page_id}")
+async def api_get_work_page(page_id: str):
+    page = _orch.db.get_work_page(page_id)
+    if not page:
+        raise HTTPException(status_code=404, detail=f"work_page {page_id} not found")
+    page.pop("embedding_blob", None)
+    page["segments"] = _orch.db.get_page_segments(page_id)
+    return page
+
+
+@app.post("/api/work_pages/{page_id}/tag")
+async def api_tag_work_page(page_id: str, req: Request):
+    """User-tag a page to a project. Body: {project_id, deliverable_id?}."""
+    body = await req.json()
+    project_id = (body.get("project_id") or "").strip()
+    deliverable_id = (body.get("deliverable_id") or "").strip()
+    if not project_id:
+        raise HTTPException(status_code=400, detail="project_id required")
+    page = _orch.db.get_work_page(page_id)
+    if not page:
+        raise HTTPException(status_code=404, detail=f"work_page {page_id} not found")
+    _orch.db.set_work_page_tag(
+        page_id=page_id,
+        project_id=project_id,
+        deliverable_id=deliverable_id,
+        tag_state="confirmed",
+        tag_source="user",
+    )
+    return {
+        "ok": True,
+        "page_id": page_id,
+        "project_id": project_id,
+        "deliverable_id": deliverable_id,
+    }
+
+
+@app.post("/api/work_pages/{page_id}/reject")
+async def api_reject_work_page(page_id: str):
+    """User explicitly rejects a page → archived, not tagged."""
+    page = _orch.db.get_work_page(page_id)
+    if not page:
+        raise HTTPException(status_code=404, detail=f"work_page {page_id} not found")
+    _orch.db.archive_work_page(page_id, tag_state="rejected")
+    return {"ok": True, "page_id": page_id, "state": "archived"}
+
+
+@app.post("/api/work_pages/{page_id}/revive")
+async def api_revive_work_page(page_id: str):
+    """User: "this isn't kachra" — flip salience back to 'salient',
+    clear kachra_reason. Keeps state/tag_state untouched."""
+    from sync.salience import revive_page
+    result = revive_page(_orch.db, page_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"work_page {page_id} not found")
+    return {
+        "ok": True,
+        "page_id": page_id,
+        "salience": result.get("salience"),
+        "kachra_reason": result.get("kachra_reason"),
+    }
+
+
+@app.post("/api/sync/rescan-salience")
+async def api_rescan_salience(req: Request):
+    """Re-score all work_pages. Body: {date?}. Idempotent."""
+    from sync.salience import rescan_all
+    body = {}
+    try:
+        body = await req.json()
+    except Exception:
+        pass
+    return rescan_all(_orch.db, date_local=body.get("date"))
+
+
+@app.post("/api/sync/humanize")
+async def api_sync_humanize(req: Request):
+    """Batch humanize. Body: {date?, force?, local?, model?}."""
+    from sync.humanizer import humanize_all
+    body = {}
+    try:
+        body = await req.json()
+    except Exception:
+        pass
+    hp = dict(_orch.hp) if hasattr(_orch, "hp") else {}
+    if body.get("model"):
+        hp["humanize_model_cloud"] = body["model"]
+    if body.get("local"):
+        hp["humanize_use_cloud"] = False
+    return humanize_all(
+        _orch.db, hp,
+        date_local=body.get("date"),
+        force=bool(body.get("force", False)),
+    )
+
+
+@app.get("/api/narratives")
+async def api_list_narratives(date: Optional[str] = None, limit: int = 50):
+    """List narratives for a date (default: today). Newest first otherwise."""
+    narratives = _orch.db.list_narratives(date_local=date, limit=limit)
+    return {"date": date, "count": len(narratives), "narratives": narratives}
+
+
+@app.post("/api/narratives/compose")
+async def api_compose_narratives(req: Request):
+    """Compose daily stories for a target date. Body: {date?}. Wipes
+    existing narratives for that date and writes the fresh set."""
+    from sync.narrator import compose_narratives_for_date
+    body = {}
+    try:
+        body = await req.json()
+    except Exception:
+        pass
+    hp = dict(_orch.hp) if hasattr(_orch, "hp") else {}
+    return compose_narratives_for_date(
+        _orch.db, hp,
+        target_date=body.get("date"),
+        generated_by="manual",
+    )
+
+
+@app.post("/api/work_pages/{page_id}/humanize")
+async def api_work_page_humanize(page_id: str, req: Request):
+    """Humanize a single page. Body: {force?, local?, model?}."""
+    from sync.humanizer import humanize_page
+    page = _orch.db.get_work_page(page_id)
+    if not page:
+        raise HTTPException(status_code=404, detail=f"work_page {page_id} not found")
+    body = {}
+    try:
+        body = await req.json()
+    except Exception:
+        pass
+    hp = dict(_orch.hp) if hasattr(_orch, "hp") else {}
+    if body.get("model"):
+        hp["humanize_model_cloud"] = body["model"]
+    if body.get("local"):
+        hp["humanize_use_cloud"] = False
+    return humanize_page(_orch.db, page, hp, force=bool(body.get("force", False)))
+
+
+@app.post("/api/work_pages/{page_id}/confirm")
+async def api_confirm_work_page(page_id: str):
+    """Confirm a Dream-proposed tag. Flips tag_state='proposed' → 'confirmed'
+    and state='open' → 'tagged'. Only confirmed tags feed HGCN feedback edges."""
+    result = _orch.db.confirm_work_page_proposal(page_id)
+    if result is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"no proposed tag found on work_page {page_id}",
+        )
+    return {
+        "ok": True,
+        "page_id": page_id,
+        "project_id": result.get("project_id"),
+        "deliverable_id": result.get("deliverable_id"),
+        "state": result.get("state"),
+        "tag_state": result.get("tag_state"),
+    }
+
+
+@app.post("/api/dream/match-pages")
+async def api_dream_match_pages(req: Request):
+    """Manually trigger Dream's auto-match pass. Body: {force?, since?}."""
+    from consolidation.work_page_matcher import run_work_page_matching
+    body = {}
+    try:
+        body = await req.json()
+    except Exception:
+        pass
+    hp = _orch.hp if hasattr(_orch, "hp") else {}
+    return run_work_page_matching(
+        _orch.db, hp,
+        force=bool(body.get("force", False)),
+        since_date=body.get("since"),
+    )
+
+
+# ─── Project digests ───────────────────────────────────────────────────
+
+def _project_title_for(project_id: str) -> str:
+    """Look up a project's display title from goals.yaml (best-effort)."""
+    try:
+        wiki = _get_wiki()
+        pm = wiki._render_pm_projects()
+        for g in pm.get("goals", []):
+            for p in g.get("projects", []):
+                if p.get("id") == project_id:
+                    return p.get("title", project_id)
+    except Exception:
+        pass
+    return project_id
+
+
+@app.get("/api/project/{project_id}/digests")
+async def api_list_project_digests(
+    project_id: str, window_type: Optional[str] = None, limit: int = 20
+):
+    """Recent digests for a project. Newest first."""
+    digests = _orch.db.list_project_digests(
+        project_id=project_id, window_type=window_type, limit=limit
+    )
+    return {
+        "project_id": project_id,
+        "count": len(digests),
+        "digests": digests,
+    }
+
+
+@app.post("/api/project/{project_id}/digest")
+async def api_generate_project_digest(project_id: str, req: Request):
+    """Compose a digest for a project over a given window.
+
+    Body: {window_start: YYYY-MM-DD, window_end: YYYY-MM-DD, window_type: day|week|custom, model?}
+    Returns the composed digest including the markdown body. Stores to DB
+    (upserts on conflict with same user+project+type+start).
+    """
+    body = await req.json()
+    window_start = (body.get("window_start") or "").strip()
+    window_end = (body.get("window_end") or window_start).strip()
+    window_type = (body.get("window_type") or "day").strip()
+    model = (body.get("model") or "").strip() or None
+
+    if not window_start:
+        raise HTTPException(status_code=400, detail="window_start required (YYYY-MM-DD)")
+    if window_type not in ("day", "week", "custom"):
+        raise HTTPException(status_code=400, detail="window_type in {day, week, custom}")
+
+    from reports.digest_composer import compose_digest
+
+    hp = _orch.hp if hasattr(_orch, "hp") else {}
+    llm_model = model or hp.get("consolidation_model_local", "qwen2.5:14b")
+
+    result = compose_digest(
+        db=_orch.db,
+        project_id=project_id,
+        window_start=window_start,
+        window_end=window_end,
+        window_type=window_type,
+        project_title=_project_title_for(project_id),
+        model=llm_model,
+        generated_by="manual",
+    )
+    return result
+
+
 @app.get("/wiki/goals", response_class=HTMLResponse)
 async def wiki_goals(request: Request):
     """Goals page."""
@@ -1170,162 +1428,194 @@ async def wiki_goals(request: Request):
     return templates.TemplateResponse(request, "wiki_goals.html", data)
 
 
-# ─── Review tab (Phase 3) ─────────────────────────────────────────────
+# ─── Phase C: project shell view ─────────────────────────────────────
 #
-# Pending rows in project_work_match_log (is_correct=-1, source='semantic',
-# and top-rank for that anchor) need human judgment. This page lets the user
-# confirm / reassign / reject each one. On confirm, is_correct flips to 1 and
-# source becomes 'manual'. On reject, is_correct flips to 0.
+# /wiki/goals/p/{pid}            — opens first deliverable, or Overview
+#                                   when the project has none yet.
+# /wiki/goals/p/{pid}/d/{did}    — same shell with a specific deliverable
+#                                   selected. 404 when did not under pid.
+
+@app.get("/wiki/goals/p/{project_id}", response_class=HTMLResponse)
+async def wiki_project_detail(
+    request: Request, project_id: str,
+    view: str = "overall", date: Optional[str] = None,
+):
+    wiki = _get_wiki()
+    data = wiki.render_project_detail(project_id, view=view, date=date)
+    if data is None:
+        raise HTTPException(status_code=404, detail=f"project {project_id} not found")
+    if data["deliverables"]:
+        first_id = data["deliverables"][0].get("id") or ""
+        if first_id:
+            qs = f"?view={view}" + (f"&date={date}" if date else "")
+            return RedirectResponse(
+                url=f"/wiki/goals/p/{project_id}/d/{first_id}{qs}",
+                status_code=302,
+            )
+    return templates.TemplateResponse(request, "wiki_project.html", data)
+
+
+@app.get(
+    "/wiki/goals/p/{project_id}/d/{deliverable_id}",
+    response_class=HTMLResponse,
+)
+async def wiki_project_deliverable(
+    request: Request, project_id: str, deliverable_id: str,
+    view: str = "overall", date: Optional[str] = None,
+):
+    wiki = _get_wiki()
+    data = wiki.render_project_detail(
+        project_id, deliverable_id, view=view, date=date,
+    )
+    if data is None:
+        raise HTTPException(status_code=404, detail=f"project {project_id} not found")
+    if data["selected_deliverable"] is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"deliverable {deliverable_id} not under project {project_id}",
+        )
+    return templates.TemplateResponse(request, "wiki_project.html", data)
+
+
+# ─── Review tab ───────────────────────────────────────────────────────
+#
+# Two-stage flow: the user sees raw unconsolidated segments, clicks
+# Consolidate, then confirms or rejects each proposed group. Confirming
+# writes activity_time_log rows with match_source='user_review' — the
+# highest-authority tag nightly + manual consolidation will then defer to.
+
+def _review_proposals():
+    """Build the ReviewProposals service — lazy so imports stay cheap."""
+    from review.proposals import ReviewProposals
+    from core import config as _cfg
+    from db.manager import DBManager as _DB
+    db = _DB(_cfg.get("db_path", "data/memory.db"))
+    return ReviewProposals(db, _cfg.get_all()), db
+
+
+REVIEW_DEFAULT_DAYS = 2  # window size for the Review page's unconsolidated list
+
 
 def _review_pending_count() -> int:
-    """Count distinct anchors with at least one pending review row today."""
-    import sqlite3
-    from core import config as _cfg
-    db_path = _cfg.get("db_path", "data/memory.db")
-    conn = sqlite3.connect(db_path)
+    """Count unconsolidated segments + active drafts — drives the Goals badge."""
     try:
-        n = conn.execute(
-            """SELECT COUNT(DISTINCT segment_id) FROM project_work_match_log
-               WHERE is_correct = -1 AND source = 'semantic'"""
-        ).fetchone()[0]
-    finally:
-        conn.close()
-    return int(n or 0)
+        rp, _ = _review_proposals()
+        return (len(rp.list_unconsolidated(None, days=REVIEW_DEFAULT_DAYS))
+                + len(rp.list_drafts(None)))
+    except Exception:
+        return 0
 
 
-def _review_payload() -> Dict[str, Any]:
-    """Assemble the wiki_review.html context dict."""
-    import sqlite3
-    from core import config as _cfg
-    db_path = _cfg.get("db_path", "data/memory.db")
-    hp = _cfg.get_all()
-    tau_high = float(hp.get("matcher_tau_high", 0.75))
-    tau_low = float(hp.get("matcher_tau_low", 0.45))
+def _review_payload(days: int = REVIEW_DEFAULT_DAYS) -> Dict[str, Any]:
+    """Assemble the wiki_review.html context dict for the two-state UI:
+    raw unconsolidated segments (bounded window) + active draft proposals."""
+    try:
+        rp, _ = _review_proposals()
+        unconsolidated = rp.list_unconsolidated(None, days=days)
+        drafts = rp.list_drafts(None)
+    except Exception as e:
+        import logging
+        logging.getLogger("pmis.server").warning(f"review_payload failed: {e}")
+        unconsolidated = []
+        drafts = []
 
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-
-    # Group pending top-rank rows by anchor. Rank is implicit in
-    # combined_match_pct; show top 3 candidates per anchor.
-    rows = conn.execute(
-        """
-        SELECT pwm.id AS match_id, pwm.segment_id AS anchor_id,
-               pwm.project_id, pwm.deliverable_id,
-               pwm.combined_match_pct AS combined,
-               pwm.matched_at,
-               n.content AS anchor_content,
-               p.name   AS project_name,
-               d.name   AS deliverable_name
-        FROM project_work_match_log pwm
-        LEFT JOIN memory_nodes n ON n.id = pwm.segment_id
-        LEFT JOIN projects     p ON p.id = pwm.project_id
-        LEFT JOIN deliverables d ON d.id = pwm.deliverable_id
-        WHERE pwm.is_correct = -1 AND pwm.source = 'semantic'
-        ORDER BY pwm.segment_id, pwm.combined_match_pct DESC
-        """
-    ).fetchall()
-
-    auto_today = conn.execute(
-        """SELECT COUNT(*) FROM project_work_match_log
-           WHERE is_correct = 1 AND source IN ('semantic','session_tag')
-           AND DATE(matched_at) = DATE('now')"""
-    ).fetchone()[0]
-    conn.close()
-
-    # Group by anchor, keep top-3
-    grouped: Dict[str, Dict[str, Any]] = {}
-    for r in rows:
-        aid = r["anchor_id"]
-        if aid not in grouped:
-            grouped[aid] = {
-                "anchor_id": aid,
-                "content": (r["anchor_content"] or "(anchor content unavailable)")[:400],
-                "when": (r["matched_at"] or "")[:16],
-                "top_score": r["combined"] or 0.0,
-                "candidates": [],
-            }
-        if len(grouped[aid]["candidates"]) < 3:
-            grouped[aid]["candidates"].append({
-                "match_id": r["match_id"],
-                "project_id": r["project_id"],
-                "project_name": r["project_name"],
-                "deliverable_id": r["deliverable_id"],
-                "deliverable_name": r["deliverable_name"],
-                "combined": r["combined"] or 0.0,
-            })
+    # Surface the active-projects catalog so per-group pickers can offer
+    # "tag to something else" from the same flat list. Reuses the same
+    # merger the scorer uses for symmetry.
+    try:
+        rp2, _ = _review_proposals()
+        projects_catalog = rp2._list_active_projects()
+    except Exception:
+        projects_catalog = []
 
     return {
-        "pending": list(grouped.values()),
-        "auto_confirmed_today": int(auto_today or 0),
-        "tau_high": tau_high,
-        "tau_low": tau_low,
+        "unconsolidated": unconsolidated,
+        "drafts": drafts,
+        "projects_catalog": [
+            {"id": p["id"], "name": p.get("name") or p["id"]}
+            for p in projects_catalog
+        ],
+        "unconsolidated_count": len(unconsolidated),
+        "draft_count": len(drafts),
+        "window_days": days,
     }
 
 
 @app.get("/wiki/review", response_class=HTMLResponse)
-async def wiki_review(request: Request):
-    """Review pending project matches."""
-    return templates.TemplateResponse(request, "wiki_review.html", _review_payload())
+async def wiki_review(request: Request, days: int = REVIEW_DEFAULT_DAYS):
+    """Review page — two-state: raw unconsolidated segments + draft proposals.
+    Defaults to a 2-day window (today + yesterday); ?days=N to widen."""
+    return templates.TemplateResponse(request, "wiki_review.html", _review_payload(days=days))
 
 
-class ReviewConfirmPayload(BaseModel):
-    match_id: str
+# ─── Review_proposals flow ────────────────────────────────────────────
 
 
-@app.post("/api/review/{anchor_id}/confirm")
-async def api_review_confirm(anchor_id: str, payload: ReviewConfirmPayload):
-    """Confirm one candidate: set that row to is_correct=1 source='manual',
-    mark all sibling rows for the same anchor as is_correct=0 (rejected)."""
-    import sqlite3
-    from core import config as _cfg
-    db_path = _cfg.get("db_path", "data/memory.db")
-    conn = sqlite3.connect(db_path)
-    try:
-        conn.execute(
-            """UPDATE project_work_match_log
-               SET is_correct = 1, source = 'manual'
-               WHERE id = ? AND segment_id = ?""",
-            (payload.match_id, anchor_id),
-        )
-        conn.execute(
-            """UPDATE project_work_match_log
-               SET is_correct = 0
-               WHERE segment_id = ? AND id != ? AND is_correct = -1""",
-            (anchor_id, payload.match_id),
-        )
-        conn.commit()
-    finally:
-        conn.close()
-    return {"ok": True, "anchor_id": anchor_id, "match_id": payload.match_id}
+class ReviewConsolidatePayload(BaseModel):
+    date: Optional[str] = None
+    days: Optional[int] = REVIEW_DEFAULT_DAYS
 
 
-@app.post("/api/review/{anchor_id}/reject")
-async def api_review_reject(anchor_id: str):
-    """Reject all pending candidates for an anchor."""
-    import sqlite3
-    from core import config as _cfg
-    db_path = _cfg.get("db_path", "data/memory.db")
-    conn = sqlite3.connect(db_path)
-    try:
-        conn.execute(
-            """UPDATE project_work_match_log
-               SET is_correct = 0, source = 'manual'
-               WHERE segment_id = ? AND is_correct = -1""",
-            (anchor_id,),
-        )
-        conn.commit()
-    finally:
-        conn.close()
-    return {"ok": True, "anchor_id": anchor_id}
+class ReviewProposalConfirmPayload(BaseModel):
+    project_id: str
+    deliverable_id: Optional[str] = ""
 
 
-@app.get("/api/review/pending")
-async def api_review_pending():
-    """JSON version for programmatic access / dashboard badge."""
-    return _review_payload()
+class ReviewProposalAssignPayload(BaseModel):
+    project_id: Optional[str] = ""
+    deliverable_id: Optional[str] = ""
 
 
-# ─── Manual per-project daily consolidation (Phase 4) ─────────────────
+@app.get("/api/review/unconsolidated")
+async def api_review_unconsolidated(
+    date: Optional[str] = None,
+    days: int = REVIEW_DEFAULT_DAYS,
+):
+    rp, _ = _review_proposals()
+    return {"segments": rp.list_unconsolidated(date, days=days), "window_days": days}
+
+
+@app.post("/api/review/consolidate")
+async def api_review_consolidate(payload: ReviewConsolidatePayload):
+    rp, _ = _review_proposals()
+    proposals = rp.consolidate(payload.date, days=payload.days)
+    return {"ok": True, "proposals": proposals}
+
+
+@app.get("/api/review/proposals")
+async def api_review_proposals(date: Optional[str] = None):
+    rp, _ = _review_proposals()
+    return {"proposals": rp.list_drafts(date)}
+
+
+@app.post("/api/review/proposals/{proposal_id}/confirm")
+async def api_review_proposal_confirm(proposal_id: str, payload: ReviewProposalConfirmPayload):
+    rp, _ = _review_proposals()
+    result = rp.confirm(proposal_id, payload.project_id, payload.deliverable_id or "")
+    if not result.get("ok"):
+        status = 503 if result.get("error") == "consolidation_locked" else 400
+        raise HTTPException(status_code=status, detail=result)
+    return result
+
+
+@app.post("/api/review/proposals/{proposal_id}/reject")
+async def api_review_proposal_reject(proposal_id: str):
+    rp, _ = _review_proposals()
+    result = rp.reject(proposal_id)
+    if not result.get("ok"):
+        raise HTTPException(status_code=404, detail=result)
+    return result
+
+
+@app.patch("/api/review/proposals/{proposal_id}")
+async def api_review_proposal_assign(proposal_id: str, payload: ReviewProposalAssignPayload):
+    rp, _ = _review_proposals()
+    return rp.set_assignment(
+        proposal_id, payload.project_id or "", payload.deliverable_id or ""
+    )
+
+
+# ─── Manual per-project daily consolidation ──────────────────────────
 
 def _manual_consolidator():
     from consolidation.manual_project import ManualProjectConsolidator
@@ -1448,14 +1738,14 @@ async def api_pm_deliverable_create(payload: PMDeliverableCreate):
         pt_root = Path.home() / "Desktop" / "memory" / "productivity-tracker"
         deliv_path = pt_root / "config" / "deliverables.yaml"
         if deliv_path.exists():
-            raw = _yaml.safe_load(deliv_path.read_text()) or {}
+            raw = _yaml.safe_load(deliv_path.read_text(encoding="utf-8")) or {}
             for d in raw.get("deliverables", []) or []:
                 if d.get("id") == created.get("id"):
                     if payload.deadline: d["deadline"] = payload.deadline
                     if payload.description: d["description"] = payload.description
                     if payload.supercontext: d["supercontext"] = payload.supercontext
                     break
-            deliv_path.write_text(_yaml.safe_dump(raw, sort_keys=False, default_flow_style=False))
+            deliv_path.write_text(_yaml.safe_dump(raw, sort_keys=False, default_flow_style=False), encoding="utf-8")
     except Exception:
         pass
 
@@ -1467,14 +1757,14 @@ async def api_pm_deliverable_create(payload: PMDeliverableCreate):
             pt_root = Path.home() / "Desktop" / "memory" / "productivity-tracker"
             goals_path = pt_root / "config" / "goals.yaml"
             if goals_path.exists():
-                g = _yaml.safe_load(goals_path.read_text()) or {}
+                g = _yaml.safe_load(goals_path.read_text(encoding="utf-8")) or {}
                 for goal in g.get("goals", []) or []:
                     for proj in goal.get("projects", []) or []:
                         if proj.get("id") == payload.project_id:
                             dp = proj.setdefault("deliverable_patterns", {})
                             dp.setdefault(created["id"], [payload.name.split()[0] if payload.name else created["id"]])
                             break
-                goals_path.write_text(_yaml.safe_dump(g, sort_keys=False, default_flow_style=False))
+                goals_path.write_text(_yaml.safe_dump(g, sort_keys=False, default_flow_style=False), encoding="utf-8")
         except Exception:
             pass
 
@@ -1515,7 +1805,7 @@ async def api_pm_project_create(payload: PMProjectCreate):
     raw: Dict[str, Any] = {}
     if goals_path.exists():
         try:
-            raw = _yaml.safe_load(goals_path.read_text()) or {}
+            raw = _yaml.safe_load(goals_path.read_text(encoding="utf-8")) or {}
         except Exception:
             raw = {}
     goals_list = raw.get("goals", []) or []
@@ -1570,7 +1860,7 @@ async def api_pm_project_create(payload: PMProjectCreate):
     }
     target_goal.setdefault("projects", []).append(new_project)
 
-    goals_path.write_text(_yaml.safe_dump(raw, sort_keys=False, default_flow_style=False))
+    goals_path.write_text(_yaml.safe_dump(raw, sort_keys=False, default_flow_style=False), encoding="utf-8")
 
     sync_counts: Dict[str, Any] = {}
     try:
@@ -1587,10 +1877,325 @@ async def api_pm_project_create(payload: PMProjectCreate):
     }
 
 
+class PMProjectUpdate(BaseModel):
+    title: str
+
+
+@app.put("/api/pm/projects/{project_id}")
+async def api_pm_project_update(project_id: str, payload: PMProjectUpdate):
+    """Inline rename a project. Mutates goals.yaml in place — finds the
+    project by id across all goals, updates its title, writes back, and
+    re-runs the YAML→DB sync so the new name surfaces immediately."""
+    import yaml as _yaml
+
+    title = (payload.title or "").strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="title required")
+
+    pt_root = Path.home() / "Desktop" / "memory" / "productivity-tracker"
+    goals_path = pt_root / "config" / "goals.yaml"
+    if not goals_path.exists():
+        raise HTTPException(status_code=404, detail="goals.yaml not found")
+
+    try:
+        raw = _yaml.safe_load(goals_path.read_text()) or {}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"yaml parse: {e}")
+
+    found_goal_id: Optional[str] = None
+    for g in raw.get("goals", []) or []:
+        for p in g.get("projects", []) or []:
+            if p.get("id") == project_id:
+                p["title"] = title
+                found_goal_id = g.get("id")
+                break
+        if found_goal_id is not None:
+            break
+
+    if found_goal_id is None:
+        raise HTTPException(status_code=404, detail=f"project {project_id} not found")
+
+    goals_path.write_text(
+        _yaml.safe_dump(raw, sort_keys=False, default_flow_style=False)
+    )
+
+    sync_counts: Dict[str, Any] = {}
+    try:
+        from sync.yaml_to_db import sync_pm_yaml_to_db
+        sync_counts = sync_pm_yaml_to_db(
+            _orch.db, embedder=_orch.embedder, hyperparams=_orch.hp,
+        )
+    except Exception as e:
+        sync_counts = {"error": str(e)}
+
+    return {
+        "id": project_id,
+        "title": title,
+        "goal_id": found_goal_id,
+        "sync_counts": sync_counts,
+    }
+
+
 @app.get("/api/pm/projects")
 async def api_pm_projects():
     """List active projects (flat, for widget picker)."""
     return {"projects": _orch.db.list_projects(status="active")}
+
+
+# ─── Phase D4: link binding contributed-toggle ───────────────────────
+
+class LinkBindingToggle(BaseModel):
+    link_id: str
+    scope: str
+    scope_id: str
+    contributed: int  # 0 or 1
+
+
+# ─── Phase E: work-match actions + daily feedback ───────────────────
+
+class WorkMatchReassignPayload(BaseModel):
+    project_id: str
+    deliverable_id: str = ""
+
+
+@app.post("/api/work_match/{match_id}/confirm")
+async def api_work_match_confirm(match_id: str):
+    """Flip is_correct=1 on a project_work_match_log row. Used by the
+    Daily view's ✓ button."""
+    conn = sqlite3.connect(_orch.db.db_path)
+    try:
+        cur = conn.execute(
+            "UPDATE project_work_match_log SET is_correct = 1 "
+            "WHERE id = ?",
+            (match_id,),
+        )
+        conn.commit()
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404, detail=f"match {match_id} not found")
+    finally:
+        conn.close()
+    return {"match_id": match_id, "is_correct": 1}
+
+
+@app.post("/api/work_match/{match_id}/remove")
+async def api_work_match_remove(match_id: str):
+    """Strike a wrongly-tagged work item: is_correct=0 + clear the
+    deliverable_id so it no longer counts toward this deliverable's
+    daily view. The segment goes back to the unconsolidated pool on
+    the next consolidate run."""
+    conn = sqlite3.connect(_orch.db.db_path)
+    try:
+        cur = conn.execute(
+            "UPDATE project_work_match_log "
+            "SET is_correct = 0, deliverable_id = '' "
+            "WHERE id = ?",
+            (match_id,),
+        )
+        conn.commit()
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404, detail=f"match {match_id} not found")
+    finally:
+        conn.close()
+    return {"match_id": match_id, "is_correct": 0, "deliverable_id": ""}
+
+
+@app.post("/api/work_match/{match_id}/reassign")
+async def api_work_match_reassign(
+    match_id: str, payload: WorkMatchReassignPayload,
+):
+    """Move a tagged work item to a different project + deliverable.
+    Keeps is_correct=1 (the user is making a positive assertion about
+    the new target, not rejecting the segment)."""
+    if not payload.project_id:
+        raise HTTPException(status_code=400, detail="project_id required")
+    conn = sqlite3.connect(_orch.db.db_path)
+    try:
+        cur = conn.execute(
+            "UPDATE project_work_match_log "
+            "SET project_id = ?, deliverable_id = ?, is_correct = 1 "
+            "WHERE id = ?",
+            (payload.project_id, payload.deliverable_id or "", match_id),
+        )
+        conn.commit()
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404, detail=f"match {match_id} not found")
+    finally:
+        conn.close()
+    return {
+        "match_id": match_id,
+        "project_id": payload.project_id,
+        "deliverable_id": payload.deliverable_id or "",
+        "is_correct": 1,
+    }
+
+
+class DailyFeedbackPayload(BaseModel):
+    feedback_text: str
+
+
+@app.post("/api/daily/{daily_summary_id}/feedback")
+async def api_daily_feedback(
+    daily_summary_id: str, payload: DailyFeedbackPayload,
+):
+    """Free-text feedback on a past daily summary. Phase G's nightly
+    pass picks up daily_feedback rows where applied=0, re-composes the
+    target summary, and flips applied=1."""
+    text = (payload.feedback_text or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="feedback_text required")
+
+    conn = sqlite3.connect(_orch.db.db_path)
+    try:
+        # Confirm the daily exists — feeding back into a phantom row
+        # would just create unprocessable noise for nightly.
+        row = conn.execute(
+            "SELECT id FROM daily_summaries WHERE id = ?",
+            (daily_summary_id,),
+        ).fetchone()
+        if not row:
+            raise HTTPException(
+                status_code=404,
+                detail=f"daily_summary {daily_summary_id} not found",
+            )
+        conn.execute(
+            "INSERT INTO daily_feedback (daily_summary_id, feedback_text) "
+            "VALUES (?, ?)",
+            (daily_summary_id, text[:2000]),
+        )
+        conn.commit()
+        fb_id = conn.execute(
+            "SELECT last_insert_rowid()"
+        ).fetchone()[0]
+    finally:
+        conn.close()
+    return {
+        "id": fb_id,
+        "daily_summary_id": daily_summary_id,
+        "feedback_text": text[:2000],
+        "applied": 0,
+    }
+
+
+@app.patch("/api/links/bindings")
+async def api_link_binding_toggle(payload: LinkBindingToggle):
+    """Flip link_bindings.contributed for a single binding.
+    UI-driven ✓/✗ override on the deliverable page."""
+    if payload.contributed not in (0, 1):
+        raise HTTPException(
+            status_code=400, detail="contributed must be 0 or 1",
+        )
+    if payload.scope not in ("project", "deliverable", "daily",
+                             "work_match", "frame", "segment"):
+        raise HTTPException(
+            status_code=400, detail=f"invalid scope: {payload.scope}",
+        )
+
+    conn = sqlite3.connect(_orch.db.db_path)
+    try:
+        cur = conn.execute(
+            "UPDATE link_bindings SET contributed = ? "
+            "WHERE link_id = ? AND scope = ? AND scope_id = ?",
+            (payload.contributed, payload.link_id,
+             payload.scope, payload.scope_id),
+        )
+        conn.commit()
+        if cur.rowcount == 0:
+            raise HTTPException(
+                status_code=404,
+                detail=(f"binding not found: link_id={payload.link_id} "
+                        f"scope={payload.scope} scope_id={payload.scope_id}"),
+            )
+        row = conn.execute(
+            """SELECT lb.link_id, l.url, l.kind, lb.contributed,
+                      lb.dwell_frames
+               FROM link_bindings lb JOIN links l ON l.id = lb.link_id
+               WHERE lb.link_id = ? AND lb.scope = ? AND lb.scope_id = ?""",
+            (payload.link_id, payload.scope, payload.scope_id),
+        ).fetchone()
+    finally:
+        conn.close()
+
+    if not row:
+        # The UPDATE succeeded but the JOIN returned nothing — orphaned
+        # binding; rare, but bubble it up as 404 rather than crash.
+        raise HTTPException(status_code=404, detail="link missing for binding")
+    return {
+        "link_id": row[0], "url": row[1], "kind": row[2] or "other",
+        "contributed": int(row[3]), "dwell_frames": int(row[4] or 0),
+    }
+
+
+# ─── Phase C2: deliverable section scaffold ──────────────────────────
+
+_DELIVERABLE_SLOTS = (
+    "overview", "progress", "decisions", "questions", "risks", "links",
+)
+_DELIVERABLE_SOURCES = ("user", "auto", "llm")
+
+
+class PMDeliverableSectionUpdate(BaseModel):
+    body_md: str = ""
+    source: str = "user"
+
+
+@app.put("/api/pm/deliverables/{deliverable_id}/sections/{slot}")
+async def api_pm_deliverable_section_update(
+    deliverable_id: str, slot: str,
+    payload: PMDeliverableSectionUpdate,
+):
+    """UPSERT one slot of a deliverable's 6-slot scaffold. Returns the
+    rendered HTML so the UI can swap content without a full reload."""
+    if slot not in _DELIVERABLE_SLOTS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"slot must be one of {_DELIVERABLE_SLOTS}",
+        )
+    if payload.source not in _DELIVERABLE_SOURCES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"source must be one of {_DELIVERABLE_SOURCES}",
+        )
+    if not deliverable_id:
+        raise HTTPException(status_code=400, detail="deliverable_id required")
+
+    body_md = payload.body_md or ""
+    # C3: empty save = "give me the auto-fill back". Saving empty
+    # content with source='user' would land in a confusing state
+    # (auto-fill suppressed, body shown empty), so we coerce to
+    # 'auto' instead. The user can re-save real content to flip
+    # source back to 'user'.
+    effective_source = "auto" if not body_md.strip() else payload.source
+
+    conn = sqlite3.connect(_orch.db.db_path)
+    try:
+        conn.execute(
+            """INSERT INTO deliverable_sections
+               (deliverable_id, slot, body_md, source, updated_at)
+               VALUES (?, ?, ?, ?, datetime('now'))
+               ON CONFLICT(deliverable_id, slot) DO UPDATE SET
+                   body_md = excluded.body_md,
+                   source = excluded.source,
+                   updated_at = excluded.updated_at""",
+            (deliverable_id, slot, body_md, effective_source),
+        )
+        conn.commit()
+        row = conn.execute(
+            "SELECT updated_at FROM deliverable_sections "
+            "WHERE deliverable_id = ? AND slot = ?",
+            (deliverable_id, slot),
+        ).fetchone()
+    finally:
+        conn.close()
+
+    body_html = _markdown_to_html(body_md) if body_md else ""
+    return {
+        "deliverable_id": deliverable_id,
+        "slot": slot,
+        "body_md": body_md,
+        "body_html": body_html,
+        "source": effective_source,
+        "updated_at": row[0] if row else "",
+    }
 
 
 class PMQuickAddPayload(BaseModel):
@@ -2168,7 +2773,7 @@ async def api_harness_get(harness_id: str):
         import json as _json
         bundle_json = Path(rec["bundle_path"]) / "bundle.json"
         if bundle_json.exists():
-            rec["manifest"] = _json.loads(bundle_json.read_text())
+            rec["manifest"] = _json.loads(bundle_json.read_text(encoding="utf-8"))
     except Exception:
         pass
     return rec
@@ -2755,10 +3360,12 @@ async def wiki_productivity(request: Request):
 # ================================================================
 
 if __name__ == "__main__":
+    import os as _os
+    _port = int(_os.environ.get("PORT", "8100"))
     uvicorn.run(
         "server:app",
         host="0.0.0.0",
-        port=8100,
+        port=_port,
         reload=False,
         log_level="info",
     )

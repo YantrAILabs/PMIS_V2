@@ -41,7 +41,7 @@ class DBManager:
         """Initialize database with schema if tables don't exist."""
         schema_path = Path(__file__).parent / "schema.sql"
         if schema_path.exists():
-            schema_sql = schema_path.read_text()
+            schema_sql = schema_path.read_text(encoding="utf-8")
             # Strip comment-only lines that precede the first CREATE
             # and use executescript for reliable multi-statement execution
             try:
@@ -81,6 +81,275 @@ class DBManager:
             );
         """)
         self._conn.commit()
+
+        # Phase A (step 5) — salience columns on work_pages.
+        # ADD COLUMN is idempotent via PRAGMA table_info check since SQLite
+        # has no IF NOT EXISTS for columns.
+        self._ensure_column(
+            "work_pages", "salience", "TEXT DEFAULT 'pending'"
+        )
+        self._ensure_column(
+            "work_pages", "kachra_reason", "TEXT DEFAULT ''"
+        )
+        # Phase B — outcome-shaped rewrite of the raw summary.
+        self._ensure_column(
+            "work_pages", "humanized_summary", "TEXT DEFAULT ''"
+        )
+        self._ensure_column(
+            "work_pages", "humanized_at", "TEXT DEFAULT ''"
+        )
+        self._ensure_column(
+            "work_pages", "humanized_by", "TEXT DEFAULT ''"
+        )
+        # Phase F1 — processed-by-nightly marker on review_proposals so the
+        # Review page can hide items nightly already swept. One-shot backfill
+        # sets pre-existing confirmed rows to their confirmed_at timestamp.
+        self._ensure_column(
+            "review_proposals", "processed_by_nightly_at", "TEXT"
+        )
+        try:
+            self._conn.execute(
+                "UPDATE review_proposals "
+                "SET processed_by_nightly_at = confirmed_at "
+                "WHERE processed_by_nightly_at IS NULL "
+                "  AND status = 'confirmed' "
+                "  AND confirmed_at IS NOT NULL"
+            )
+            self._conn.commit()
+        except sqlite3.Error:
+            pass
+        # Phase C — narrative layer: 1-4 daily stories composed from salient
+        # humanized work_pages. One row per (user, date, narrative ordinal).
+        self._conn.executescript("""
+            CREATE TABLE IF NOT EXISTS work_narratives (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL DEFAULT 'local',
+                date_local TEXT NOT NULL,
+                ordinal INTEGER NOT NULL DEFAULT 0,
+                heading TEXT NOT NULL,
+                body_markdown TEXT NOT NULL,
+                source_page_ids_json TEXT DEFAULT '[]',
+                project_id TEXT DEFAULT '',
+                state TEXT DEFAULT 'open'
+                    CHECK(state IN ('open', 'tagged', 'archived')),
+                generated_at TEXT DEFAULT (datetime('now')),
+                generated_by TEXT DEFAULT '',
+                is_stale INTEGER DEFAULT 0,
+                UNIQUE(user_id, date_local, ordinal)
+            );
+            CREATE INDEX IF NOT EXISTS idx_narratives_user_date
+                ON work_narratives(user_id, date_local);
+            CREATE INDEX IF NOT EXISTS idx_narratives_stale
+                ON work_narratives(is_stale);
+        """)
+        # Prose narrative column — narrator (Phase B3) writes here; readers
+        # fall back to body_markdown when empty.
+        self._ensure_column(
+            "work_narratives", "body_prose", "TEXT DEFAULT ''"
+        )
+        # Weekly prose per goal (Scene 2 inverted Goals) + tracker degradation
+        # incidents (Scene 3 red banner). Both stay empty until later phases
+        # wire writers.
+        self._conn.executescript("""
+            CREATE TABLE IF NOT EXISTS goal_weekly_narratives (
+                goal_id           TEXT NOT NULL,
+                iso_week          TEXT NOT NULL,
+                narrative_prose   TEXT NOT NULL DEFAULT '',
+                minutes_this_week REAL DEFAULT 0,
+                status_this_week  TEXT DEFAULT ''
+                    CHECK(status_this_week IN ('', 'active', 'slowing_down', 'stalled', 'shipped', 'not_started')),
+                generated_at      TEXT DEFAULT (datetime('now')),
+                generated_by      TEXT DEFAULT '',
+                PRIMARY KEY (goal_id, iso_week)
+            );
+            CREATE INDEX IF NOT EXISTS idx_goal_week
+                ON goal_weekly_narratives(iso_week);
+
+            CREATE TABLE IF NOT EXISTS productivity_degradation_log (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                date_local    TEXT NOT NULL,
+                detected_at   TEXT DEFAULT (datetime('now')),
+                reason        TEXT NOT NULL,
+                affected_mins REAL DEFAULT 0,
+                resolved_at   TEXT DEFAULT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_degradation_date
+                ON productivity_degradation_log(date_local);
+            CREATE INDEX IF NOT EXISTS idx_degradation_active
+                ON productivity_degradation_log(resolved_at);
+        """)
+
+        # ────────────────────────────────────────────────────────────────
+        # Phase A — schema for F2+ (links pipeline, daily summaries,
+        # deliverable scaffold, rejection-fingerprint learning).
+        #
+        # Pure schema plumbing: no writers yet. Tables stay empty until
+        # phases B-G wire the data flow.
+        # ────────────────────────────────────────────────────────────────
+        self._conn.executescript("""
+            -- Reusable catalog of URLs / file paths. Bindings attach a
+            -- link to a project, deliverable, daily summary, or individual
+            -- work match. One URL = one row, deduped by URL.
+            CREATE TABLE IF NOT EXISTS links (
+                id         TEXT PRIMARY KEY,
+                url        TEXT NOT NULL UNIQUE,
+                kind       TEXT NOT NULL
+                    CHECK(kind IN ('design','md','code','pdf','web','image','other')),
+                title      TEXT DEFAULT '',
+                created_at TEXT DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_links_kind ON links(kind);
+
+            -- Many-to-many between links and whatever scope tagged them.
+            -- `contributed=1` is the filter a daily summary uses to show
+            -- only the links that directly moved the work forward.
+            -- `dwell_frames` is the raw signal from the frame extractor.
+            CREATE TABLE IF NOT EXISTS link_bindings (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                link_id      TEXT NOT NULL,
+                scope        TEXT NOT NULL
+                    CHECK(scope IN ('project','deliverable','daily',
+                                    'work_match','frame','segment')),
+                scope_id     TEXT NOT NULL,
+                contributed  INTEGER NOT NULL DEFAULT 1,
+                dwell_frames INTEGER DEFAULT 0,
+                added_at     TEXT DEFAULT (datetime('now')),
+                UNIQUE(link_id, scope, scope_id),
+                FOREIGN KEY(link_id) REFERENCES links(id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_bindings_scope
+                ON link_bindings(scope, scope_id);
+            CREATE INDEX IF NOT EXISTS idx_bindings_contrib
+                ON link_bindings(contributed);
+
+            -- One prose row per (project, deliverable, date). Surface for
+            -- the Daily toggle on deliverable pages.
+            CREATE TABLE IF NOT EXISTS daily_summaries (
+                id            TEXT PRIMARY KEY,
+                project_id    TEXT NOT NULL,
+                deliverable_id TEXT DEFAULT '',
+                date          TEXT NOT NULL,
+                body_md       TEXT NOT NULL DEFAULT '',
+                status        TEXT NOT NULL DEFAULT 'auto'
+                    CHECK(status IN ('auto','manual','edited')),
+                composed_at   TEXT DEFAULT (datetime('now')),
+                UNIQUE(project_id, deliverable_id, date)
+            );
+            CREATE INDEX IF NOT EXISTS idx_daily_date
+                ON daily_summaries(date);
+            CREATE INDEX IF NOT EXISTS idx_daily_project
+                ON daily_summaries(project_id, deliverable_id);
+
+            -- Free-text feedback on a past daily summary. Nightly pass
+            -- G2 sweeps `applied=0` rows, re-composes the target summary,
+            -- and flips `applied=1`.
+            CREATE TABLE IF NOT EXISTS daily_feedback (
+                id                INTEGER PRIMARY KEY AUTOINCREMENT,
+                daily_summary_id  TEXT NOT NULL,
+                feedback_text     TEXT NOT NULL,
+                created_at        TEXT DEFAULT (datetime('now')),
+                applied           INTEGER DEFAULT 0,
+                applied_at        TEXT,
+                FOREIGN KEY(daily_summary_id) REFERENCES daily_summaries(id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_daily_fb_pending
+                ON daily_feedback(applied);
+
+            -- Fixed-scaffold content for each deliverable page. One row
+            -- per (deliverable, slot) so a single section can be re-
+            -- generated without clobbering the others.
+            CREATE TABLE IF NOT EXISTS deliverable_sections (
+                deliverable_id TEXT NOT NULL,
+                slot           TEXT NOT NULL
+                    CHECK(slot IN ('overview','progress','decisions',
+                                   'questions','risks','links')),
+                body_md        TEXT NOT NULL DEFAULT '',
+                updated_at     TEXT DEFAULT (datetime('now')),
+                source         TEXT DEFAULT 'auto'
+                    CHECK(source IN ('auto','user','llm')),
+                PRIMARY KEY (deliverable_id, slot)
+            );
+
+            -- Learned rejections: when the user rejects a consolidation
+            -- tree in Review, save its centroid so future runs can skip
+            -- similar clusters automatically.
+            CREATE TABLE IF NOT EXISTS tree_rejection_fingerprints (
+                id                   TEXT PRIMARY KEY,
+                centroid_embedding   BLOB,
+                reason               TEXT DEFAULT '',
+                example_segment_ids  TEXT DEFAULT '[]',
+                created_at           TEXT DEFAULT (datetime('now'))
+            );
+        """)
+
+        # Phase A additions on review_proposals (processed_by_nightly_at
+        # was added in F1). tree_json carries the SC+C+A candidate tree;
+        # auto_attached_to_deliverable_id is set when consolidation
+        # auto-tags a tree above the confidence threshold.
+        self._ensure_column(
+            "review_proposals", "tree_json", "TEXT DEFAULT ''"
+        )
+        self._ensure_column(
+            "review_proposals", "auto_attached_to_deliverable_id",
+            "TEXT DEFAULT ''"
+        )
+
+        # Phase D3: track which match-log rows have already had their
+        # segment_links propagated into link_bindings. Idempotency
+        # marker for the bindings writer.
+        self._ensure_column(
+            "project_work_match_log", "link_bindings_written",
+            "INTEGER DEFAULT 0"
+        )
+
+        # Phase A additions on the productivity-tracker DB (context_1 =
+        # segment rows, context_2 = frame rows). Columns are JSON arrays
+        # populated by phase D's extractor + roll-up. Wrapped in
+        # try/except because the tracker DB lives in a separate path
+        # that may not exist in every environment (CI, fresh checkouts).
+        try:
+            import os
+            tracker_path = os.path.expanduser(
+                "~/.productivity-tracker/tracker.db"
+            )
+            if os.path.exists(tracker_path):
+                tconn = sqlite3.connect(tracker_path)
+                try:
+                    for table, col in (
+                        ("context_2", "extracted_links"),
+                        ("context_1", "segment_links"),
+                    ):
+                        existing = {
+                            r[1] for r in tconn.execute(
+                                f"PRAGMA table_info({table})"
+                            ).fetchall()
+                        }
+                        if col not in existing:
+                            tconn.execute(
+                                f"ALTER TABLE {table} ADD COLUMN "
+                                f"{col} TEXT DEFAULT '[]'"
+                            )
+                    tconn.commit()
+                finally:
+                    tconn.close()
+        except Exception:
+            pass
+
+        self._conn.commit()
+
+    def _ensure_column(self, table: str, column: str, type_sql: str) -> None:
+        """Idempotent ADD COLUMN (SQLite has no IF NOT EXISTS for columns)."""
+        try:
+            cols = {
+                r["name"]
+                for r in self._conn.execute(f"PRAGMA table_info({table})")
+            }
+            if column not in cols:
+                self._conn.execute(
+                    f"ALTER TABLE {table} ADD COLUMN {column} {type_sql}"
+                )
+        except Exception:
+            pass
 
         # Migration: add unique index on conversation_turns if missing
         try:
@@ -420,6 +689,44 @@ class DBManager:
                 )
         except Exception:
             pass
+
+        # Migration (Phase 1 sync protocol): backfill blank match_source to 'nightly'
+        # so pre-existing rows have a non-empty author tag, then enforce uniqueness on
+        # (segment_id, date). This is the DB-level guard that prevents a manual run and
+        # a nightly run from double-counting the same segment on the same date.
+        try:
+            self._conn.execute(
+                "UPDATE activity_time_log SET match_source='nightly' "
+                "WHERE match_source IS NULL OR match_source = ''"
+            )
+            self._conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_atl_segment_date "
+                "ON activity_time_log(segment_id, date)"
+            )
+        except Exception:
+            pass
+
+        # Migration (Phase 3 review redesign): in-flight cluster proposals that
+        # sit between the user clicking Consolidate and confirming/rejecting a
+        # group. status transitions: draft -> confirmed|rejected|superseded.
+        self._conn.executescript("""
+            CREATE TABLE IF NOT EXISTS review_proposals (
+                id TEXT PRIMARY KEY,
+                created_at TEXT DEFAULT (datetime('now')),
+                target_date TEXT NOT NULL,
+                author TEXT NOT NULL DEFAULT 'user',
+                status TEXT NOT NULL DEFAULT 'draft',
+                proposed_content TEXT,
+                segment_ids_json TEXT NOT NULL,
+                project_probs_json TEXT,
+                user_assigned_project_id TEXT DEFAULT '',
+                user_assigned_deliverable_id TEXT DEFAULT '',
+                anchor_node_id TEXT DEFAULT '',
+                confirmed_at TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_rp_date_status
+                ON review_proposals(target_date, status);
+        """)
 
         self._conn.commit()
 
@@ -2091,3 +2398,621 @@ class DBManager:
                 sc_dict["contexts"] = ctx_list
                 result.append(sc_dict)
             return result
+
+    # ═══════════════════════════════════════════════════════════
+    # Work pages — 30-min sync content layer
+    # ═══════════════════════════════════════════════════════════
+
+    def create_work_page(
+        self,
+        title: str,
+        summary: str,
+        date_local: str,
+        sc_id: str = "",
+        ctx_id: str = "",
+        embedding: Optional[np.ndarray] = None,
+        user_id: str = "local",
+    ) -> str:
+        """Create a new open work_page. Returns the generated page_id."""
+        page_id = uuid.uuid4().hex[:16]
+        blob = (
+            embedding.astype(np.float32).tobytes()
+            if embedding is not None
+            else None
+        )
+        self._conn.execute(
+            """
+            INSERT INTO work_pages
+                (id, user_id, title, summary, date_local, sc_id, ctx_id, embedding_blob)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (page_id, user_id, title, summary, date_local, sc_id, ctx_id, blob),
+        )
+        self._conn.commit()
+        return page_id
+
+    def append_to_work_page(
+        self,
+        page_id: str,
+        new_summary: str,
+        new_embedding: Optional[np.ndarray] = None,
+        new_title: Optional[str] = None,
+    ) -> None:
+        """Re-stitch a page after new segments have been added to its cluster."""
+        blob = (
+            new_embedding.astype(np.float32).tobytes()
+            if new_embedding is not None
+            else None
+        )
+        if new_title is not None and blob is not None:
+            self._conn.execute(
+                """UPDATE work_pages SET title=?, summary=?, embedding_blob=?,
+                   last_sync_at=datetime('now') WHERE id=?""",
+                (new_title, new_summary, blob, page_id),
+            )
+        elif new_title is not None:
+            self._conn.execute(
+                """UPDATE work_pages SET title=?, summary=?,
+                   last_sync_at=datetime('now') WHERE id=?""",
+                (new_title, new_summary, page_id),
+            )
+        elif blob is not None:
+            self._conn.execute(
+                """UPDATE work_pages SET summary=?, embedding_blob=?,
+                   last_sync_at=datetime('now') WHERE id=?""",
+                (new_summary, blob, page_id),
+            )
+        else:
+            self._conn.execute(
+                """UPDATE work_pages SET summary=?, last_sync_at=datetime('now')
+                   WHERE id=?""",
+                (new_summary, page_id),
+            )
+        self._conn.commit()
+
+    def add_page_segment(
+        self,
+        page_id: str,
+        segment_id: str,
+        sync_turn: int,
+        weight: float = 1.0,
+    ) -> None:
+        """Attach a tracker segment to a work_page (idempotent on PK)."""
+        self._conn.execute(
+            """INSERT OR IGNORE INTO work_page_anchors
+               (page_id, segment_id, sync_turn, weight) VALUES (?, ?, ?, ?)""",
+            (page_id, segment_id, sync_turn, weight),
+        )
+        self._conn.commit()
+
+    def list_open_work_pages(
+        self, date_local: str, user_id: str = "local"
+    ) -> List[Dict[str, Any]]:
+        """All state=open pages for a day. Decoded embedding on each row."""
+        rows = self._conn.execute(
+            """SELECT id, title, summary, sc_id, ctx_id, embedding_blob,
+                      created_at, last_sync_at
+               FROM work_pages
+               WHERE date_local = ? AND user_id = ? AND state = 'open'
+               ORDER BY last_sync_at DESC""",
+            (date_local, user_id),
+        ).fetchall()
+
+        pages: List[Dict[str, Any]] = []
+        for r in rows:
+            page = dict(r)
+            blob = page.pop("embedding_blob", None)
+            page["embedding"] = (
+                np.frombuffer(blob, dtype=np.float32)
+                if blob is not None
+                else None
+            )
+            pages.append(page)
+        return pages
+
+    def get_work_page(self, page_id: str) -> Optional[Dict[str, Any]]:
+        row = self._conn.execute(
+            "SELECT * FROM work_pages WHERE id = ?", (page_id,)
+        ).fetchone()
+        return dict(row) if row else None
+
+    def list_work_pages_by_state(
+        self,
+        state: str,
+        date_local: Optional[str] = None,
+        user_id: str = "local",
+    ) -> List[Dict[str, Any]]:
+        if date_local:
+            rows = self._conn.execute(
+                """SELECT * FROM work_pages
+                   WHERE state = ? AND date_local = ? AND user_id = ?
+                   ORDER BY created_at DESC""",
+                (state, date_local, user_id),
+            ).fetchall()
+        else:
+            rows = self._conn.execute(
+                """SELECT * FROM work_pages WHERE state = ? AND user_id = ?
+                   ORDER BY created_at DESC""",
+                (state, user_id),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_page_segments(self, page_id: str) -> List[Dict[str, Any]]:
+        rows = self._conn.execute(
+            """SELECT segment_id, sync_turn, weight, added_at
+               FROM work_page_anchors WHERE page_id = ?
+               ORDER BY sync_turn ASC""",
+            (page_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def set_work_page_tag(
+        self,
+        page_id: str,
+        project_id: str,
+        deliverable_id: str = "",
+        tag_state: str = "confirmed",
+        tag_source: str = "user",
+    ) -> None:
+        """Tag a page to a project. state becomes 'tagged' when confirmed."""
+        new_state = "tagged" if tag_state == "confirmed" else "open"
+        self._conn.execute(
+            """UPDATE work_pages
+               SET project_id=?, deliverable_id=?, tag_state=?, tag_source=?,
+                   state=?, tagged_at=datetime('now')
+               WHERE id=?""",
+            (project_id, deliverable_id, tag_state, tag_source, new_state, page_id),
+        )
+        self._conn.commit()
+
+    def get_last_sync_timestamp(
+        self, user_id: str = "local"
+    ) -> Optional[str]:
+        key = f"last_sync_{user_id}"
+        row = self._conn.execute(
+            "SELECT value FROM system_meta WHERE key = ?", (key,)
+        ).fetchone()
+        return row["value"] if row else None
+
+    def set_last_sync_timestamp(
+        self, ts: str, user_id: str = "local"
+    ) -> None:
+        key = f"last_sync_{user_id}"
+        self._conn.execute(
+            """INSERT INTO system_meta (key, value) VALUES (?, ?)
+               ON CONFLICT(key) DO UPDATE SET value = excluded.value""",
+            (key, ts),
+        )
+        self._conn.commit()
+
+    def archive_work_page(
+        self, page_id: str, tag_state: str = "rejected"
+    ) -> None:
+        """Soft-archive a page (user rejected, or TTL-expired). tag_state
+        distinguishes 'rejected' (explicit) from '' (TTL)."""
+        self._conn.execute(
+            """UPDATE work_pages
+               SET state='archived', tag_state=?, tagged_at=datetime('now')
+               WHERE id=?""",
+            (tag_state, page_id),
+        )
+        self._conn.commit()
+
+    def get_next_sync_turn(
+        self, date_local: str, user_id: str = "local"
+    ) -> int:
+        """Next sync_turn ordinal for today (1-indexed)."""
+        row = self._conn.execute(
+            """SELECT COALESCE(MAX(wpa.sync_turn), 0) AS max_turn
+               FROM work_page_anchors wpa
+               JOIN work_pages wp ON wp.id = wpa.page_id
+               WHERE wp.date_local = ? AND wp.user_id = ?""",
+            (date_local, user_id),
+        ).fetchone()
+        return (row["max_turn"] if row else 0) + 1
+
+    # ═══════════════════════════════════════════════════════════
+    # Project digests — employee-first per-project window summaries
+    # ═══════════════════════════════════════════════════════════
+
+    def get_confirmed_pages_for_project_window(
+        self,
+        project_id: str,
+        window_start: str,
+        window_end: str,
+        user_id: str = "local",
+    ) -> List[Dict[str, Any]]:
+        """Confirmed work_pages tagged to a project within the date window.
+        window_start/window_end are inclusive YYYY-MM-DD bounds."""
+        rows = self._conn.execute(
+            """SELECT id, title, summary, date_local, state, tag_state,
+                      project_id, deliverable_id, created_at, tagged_at
+               FROM work_pages
+               WHERE project_id = ? AND user_id = ?
+                 AND state = 'tagged' AND tag_state = 'confirmed'
+                 AND date_local BETWEEN ? AND ?
+               ORDER BY date_local ASC, created_at ASC""",
+            (project_id, user_id, window_start, window_end),
+        ).fetchall()
+        pages: List[Dict[str, Any]] = []
+        for r in rows:
+            page = dict(r)
+            page["segment_count"] = len(self.get_page_segments(page["id"]))
+            pages.append(page)
+        return pages
+
+    def upsert_project_digest(
+        self,
+        project_id: str,
+        window_type: str,
+        window_start: str,
+        window_end: str,
+        summary_markdown: str,
+        key_points: Optional[List[str]] = None,
+        total_minutes: float = 0,
+        source_page_ids: Optional[List[str]] = None,
+        generated_by: str = "manual",
+        user_id: str = "local",
+    ) -> str:
+        """Upsert a digest keyed by (user_id, project_id, window_type, window_start).
+        Returns the digest id (reuses existing on conflict)."""
+        digest_id = uuid.uuid4().hex[:16]
+        self._conn.execute(
+            """INSERT INTO project_digests
+               (id, user_id, project_id, window_type, window_start, window_end,
+                summary_markdown, key_points_json, total_minutes,
+                source_page_ids_json, generated_by, is_stale,
+                generated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, datetime('now'))
+               ON CONFLICT(user_id, project_id, window_type, window_start) DO UPDATE SET
+                   window_end = excluded.window_end,
+                   summary_markdown = excluded.summary_markdown,
+                   key_points_json = excluded.key_points_json,
+                   total_minutes = excluded.total_minutes,
+                   source_page_ids_json = excluded.source_page_ids_json,
+                   generated_by = excluded.generated_by,
+                   is_stale = 0,
+                   generated_at = datetime('now')""",
+            (
+                digest_id, user_id, project_id, window_type,
+                window_start, window_end, summary_markdown,
+                json.dumps(key_points or []),
+                total_minutes,
+                json.dumps(source_page_ids or []),
+                generated_by,
+            ),
+        )
+        self._conn.commit()
+        row = self._conn.execute(
+            """SELECT id FROM project_digests
+               WHERE user_id = ? AND project_id = ?
+                 AND window_type = ? AND window_start = ?""",
+            (user_id, project_id, window_type, window_start),
+        ).fetchone()
+        return row["id"] if row else digest_id
+
+    def list_project_digests(
+        self,
+        project_id: str,
+        window_type: Optional[str] = None,
+        limit: int = 20,
+        user_id: str = "local",
+    ) -> List[Dict[str, Any]]:
+        """Recent digests for a project, newest first."""
+        if window_type:
+            rows = self._conn.execute(
+                """SELECT * FROM project_digests
+                   WHERE project_id = ? AND user_id = ? AND window_type = ?
+                   ORDER BY window_start DESC LIMIT ?""",
+                (project_id, user_id, window_type, limit),
+            ).fetchall()
+        else:
+            rows = self._conn.execute(
+                """SELECT * FROM project_digests
+                   WHERE project_id = ? AND user_id = ?
+                   ORDER BY generated_at DESC LIMIT ?""",
+                (project_id, user_id, limit),
+            ).fetchall()
+        out: List[Dict[str, Any]] = []
+        for r in rows:
+            d = dict(r)
+            try:
+                d["key_points"] = json.loads(d.pop("key_points_json") or "[]")
+            except Exception:
+                d["key_points"] = []
+            try:
+                d["source_page_ids"] = json.loads(d.pop("source_page_ids_json") or "[]")
+            except Exception:
+                d["source_page_ids"] = []
+            out.append(d)
+        return out
+
+    def get_latest_project_digest(
+        self,
+        project_id: str,
+        window_type: str = "day",
+        user_id: str = "local",
+    ) -> Optional[Dict[str, Any]]:
+        rows = self.list_project_digests(
+            project_id, window_type=window_type, limit=1, user_id=user_id
+        )
+        return rows[0] if rows else None
+
+    def mark_project_digests_stale(
+        self, project_id: str, user_id: str = "local"
+    ) -> int:
+        """Flag all digests for a project as stale (call when a source
+        work_page is edited, re-tagged, or archived). Next Dream regenerates."""
+        cur = self._conn.execute(
+            """UPDATE project_digests
+               SET is_stale = 1
+               WHERE project_id = ? AND user_id = ?""",
+            (project_id, user_id),
+        )
+        self._conn.commit()
+        return cur.rowcount or 0
+
+    # ═══════════════════════════════════════════════════════════
+    # Dream auto-match (step 4) — proposed/confirmed bookkeeping
+    # ═══════════════════════════════════════════════════════════
+
+    def count_confirmed_page_tags(self, user_id: str = "local") -> int:
+        """Total human-validated confirmed tags (user-tagged OR user-confirmed
+        Dream proposals — both are training signal). Gates the bootstrap
+        cold start: Dream won't auto-propose until this clears the threshold."""
+        row = self._conn.execute(
+            """SELECT COUNT(*) AS n FROM work_pages
+               WHERE user_id = ? AND tag_state = 'confirmed'""",
+            (user_id,),
+        ).fetchone()
+        return int(row["n"]) if row else 0
+
+    def list_untagged_pages_for_matching(
+        self,
+        user_id: str = "local",
+        since_date: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Pages that Dream's project matcher should consider.
+
+        Includes state='open' with no tag_state (never proposed) AND
+        state='open' with tag_state='proposed' (re-score allowed — HGCN
+        may have moved). Excludes confirmed/rejected/archived/stale.
+        """
+        if since_date:
+            rows = self._conn.execute(
+                """SELECT * FROM work_pages
+                   WHERE user_id = ? AND state = 'open'
+                     AND tag_state IN ('', 'proposed')
+                     AND date_local >= ?
+                   ORDER BY date_local DESC, created_at DESC""",
+                (user_id, since_date),
+            ).fetchall()
+        else:
+            rows = self._conn.execute(
+                """SELECT * FROM work_pages
+                   WHERE user_id = ? AND state = 'open'
+                     AND tag_state IN ('', 'proposed')
+                   ORDER BY date_local DESC, created_at DESC""",
+                (user_id,),
+            ).fetchall()
+        pages: List[Dict[str, Any]] = []
+        for r in rows:
+            page = dict(r)
+            blob = page.pop("embedding_blob", None)
+            page["embedding"] = (
+                np.frombuffer(blob, dtype=np.float32)
+                if blob is not None else None
+            )
+            pages.append(page)
+        return pages
+
+    def set_work_page_proposal(
+        self,
+        page_id: str,
+        project_id: str,
+        deliverable_id: str = "",
+        score: float = 0.0,
+        user_id: str = "local",
+    ) -> None:
+        """Write a Dream-proposed match onto a still-open page. Keeps
+        state='open' so the page stays in the Unassigned lane with a
+        'proposed' banner — user still has to confirm before HGCN sees it."""
+        self._conn.execute(
+            """UPDATE work_pages
+               SET project_id = ?, deliverable_id = ?,
+                   tag_state = 'proposed', tag_source = 'dream_proposed',
+                   rank_score = ?
+               WHERE id = ? AND user_id = ?""",
+            (project_id, deliverable_id, float(score), page_id, user_id),
+        )
+        self._conn.commit()
+
+    def confirm_work_page_proposal(
+        self, page_id: str, user_id: str = "local"
+    ) -> Optional[Dict[str, Any]]:
+        """User ✓ on a proposed tag. Flips to state='tagged' + confirmed,
+        tag_source stays 'dream_proposed' so the lineage survives."""
+        page = self.get_work_page(page_id)
+        if not page:
+            return None
+        if (page.get("tag_state") or "") != "proposed":
+            return None
+        self._conn.execute(
+            """UPDATE work_pages
+               SET state = 'tagged', tag_state = 'confirmed',
+                   tagged_at = datetime('now')
+               WHERE id = ? AND user_id = ?""",
+            (page_id, user_id),
+        )
+        self._conn.commit()
+        return self.get_work_page(page_id)
+
+    # ═══════════════════════════════════════════════════════════
+    # Phase C — work narratives (daily journal stories)
+    # ═══════════════════════════════════════════════════════════
+
+    def upsert_narrative(
+        self,
+        date_local: str,
+        ordinal: int,
+        heading: str,
+        body_markdown: str,
+        source_page_ids: Optional[List[str]] = None,
+        project_id: str = "",
+        generated_by: str = "manual",
+        user_id: str = "local",
+        body_prose: str = "",
+    ) -> str:
+        """Insert or replace a narrative at (user, date, ordinal).
+        Regeneration during the same day simply overwrites."""
+        nid = uuid.uuid4().hex[:16]
+        self._conn.execute(
+            """INSERT INTO work_narratives
+               (id, user_id, date_local, ordinal, heading, body_markdown,
+                body_prose, source_page_ids_json, project_id, generated_by,
+                is_stale, generated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, datetime('now'))
+               ON CONFLICT(user_id, date_local, ordinal) DO UPDATE SET
+                   heading = excluded.heading,
+                   body_markdown = excluded.body_markdown,
+                   body_prose = excluded.body_prose,
+                   source_page_ids_json = excluded.source_page_ids_json,
+                   project_id = excluded.project_id,
+                   generated_by = excluded.generated_by,
+                   is_stale = 0,
+                   generated_at = datetime('now')""",
+            (nid, user_id, date_local, ordinal, heading, body_markdown,
+             body_prose, json.dumps(source_page_ids or []), project_id,
+             generated_by),
+        )
+        self._conn.commit()
+        row = self._conn.execute(
+            """SELECT id FROM work_narratives
+               WHERE user_id=? AND date_local=? AND ordinal=?""",
+            (user_id, date_local, ordinal),
+        ).fetchone()
+        return row["id"] if row else nid
+
+    def clear_narratives_for_date(
+        self, date_local: str, user_id: str = "local"
+    ) -> int:
+        """Wipe narratives for a day before regenerating — keeps
+        (user,date,ordinal) unique without juggling ordinals."""
+        cur = self._conn.execute(
+            """DELETE FROM work_narratives
+               WHERE user_id = ? AND date_local = ?""",
+            (user_id, date_local),
+        )
+        self._conn.commit()
+        return cur.rowcount or 0
+
+    def list_narratives(
+        self,
+        date_local: Optional[str] = None,
+        user_id: str = "local",
+        limit: int = 50,
+    ) -> List[Dict[str, Any]]:
+        if date_local:
+            rows = self._conn.execute(
+                """SELECT * FROM work_narratives
+                   WHERE user_id = ? AND date_local = ?
+                   ORDER BY ordinal ASC""",
+                (user_id, date_local),
+            ).fetchall()
+        else:
+            rows = self._conn.execute(
+                """SELECT * FROM work_narratives
+                   WHERE user_id = ?
+                   ORDER BY date_local DESC, ordinal ASC
+                   LIMIT ?""",
+                (user_id, limit),
+            ).fetchall()
+        out: List[Dict[str, Any]] = []
+        for r in rows:
+            d = dict(r)
+            try:
+                d["source_page_ids"] = json.loads(
+                    d.pop("source_page_ids_json") or "[]"
+                )
+            except Exception:
+                d["source_page_ids"] = []
+            out.append(d)
+        return out
+
+    def mark_narratives_stale(
+        self, date_local: str, user_id: str = "local"
+    ) -> int:
+        cur = self._conn.execute(
+            """UPDATE work_narratives SET is_stale = 1
+               WHERE user_id = ? AND date_local = ?""",
+            (user_id, date_local),
+        )
+        self._conn.commit()
+        return cur.rowcount or 0
+
+    # ─── Goal weekly narratives (Phase C1) ──────────────────────
+
+    def upsert_goal_weekly_narrative(
+        self,
+        goal_id: str,
+        iso_week: str,
+        narrative_prose: str,
+        minutes_this_week: float = 0.0,
+        status_this_week: str = "",
+        generated_by: str = "manual",
+    ) -> None:
+        """Insert or replace the prose summary for one (goal, ISO week).
+        status_this_week must be one of '', 'active', 'slowing_down',
+        'stalled', 'shipped', 'not_started' — enforced by the CHECK
+        constraint in schema.sql."""
+        self._conn.execute(
+            """INSERT INTO goal_weekly_narratives
+                 (goal_id, iso_week, narrative_prose, minutes_this_week,
+                  status_this_week, generated_by, generated_at)
+               VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+               ON CONFLICT(goal_id, iso_week) DO UPDATE SET
+                   narrative_prose   = excluded.narrative_prose,
+                   minutes_this_week = excluded.minutes_this_week,
+                   status_this_week  = excluded.status_this_week,
+                   generated_by      = excluded.generated_by,
+                   generated_at      = datetime('now')""",
+            (goal_id, iso_week, narrative_prose, minutes_this_week,
+             status_this_week, generated_by),
+        )
+        self._conn.commit()
+
+    def list_goal_narratives(
+        self,
+        iso_week: Optional[str] = None,
+        goal_id: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """List goal weekly narratives. Filter by iso_week and/or goal_id."""
+        sql = "SELECT * FROM goal_weekly_narratives WHERE 1=1"
+        params: List[Any] = []
+        if iso_week:
+            sql += " AND iso_week = ?"
+            params.append(iso_week)
+        if goal_id:
+            sql += " AND goal_id = ?"
+            params.append(goal_id)
+        sql += " ORDER BY iso_week DESC, goal_id ASC"
+        rows = self._conn.execute(sql, params).fetchall()
+        return [dict(r) for r in rows]
+
+    def expire_stale_proposals(
+        self, max_age_days: int = 3, user_id: str = "local"
+    ) -> int:
+        """TTL the 'proposed' tag_state: any proposal older than max_age_days
+        is cleared (tag_state='', project_id='') so Dream can re-score it,
+        or it ages out of the lane. Returns rows affected."""
+        cur = self._conn.execute(
+            """UPDATE work_pages
+               SET tag_state = '', tag_source = '',
+                   project_id = '', deliverable_id = '', rank_score = 0
+               WHERE user_id = ? AND state = 'open'
+                 AND tag_state = 'proposed'
+                 AND date_local <= date('now', ? || ' days')""",
+            (user_id, f"-{int(max_age_days)}"),
+        )
+        self._conn.commit()
+        return cur.rowcount or 0

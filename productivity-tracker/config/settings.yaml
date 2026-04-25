@@ -21,13 +21,33 @@ segmentation:
   # Minimum segment length (avoid micro-segments)
   min_segment_secs: 15              # Segments shorter than this get merged with next
 
+llm:
+  # Provider order for frame + segment analysis. First provider wins; next is fallback.
+  # Valid entries: "openai", "ollama"
+  provider_order: ["openai", "ollama"]
+
+openai:
+  # Vision analysis (cloud — tried first)
+  vision_model: "gpt-4o-mini"
+  # Text/segment classification (cloud — tried first)
+  text_model: "gpt-4o-mini"
+  timeout: 45
+  # API key is read from env (OPENAI_API_KEY). If missing, provider auto-skips to next.
+
 ollama:
-  # Vision analysis (local — replaces GPT-4o-mini)
+  # Vision analysis (local fallback) — OFF by default so the 11GB VLM does not
+  # auto-load when OpenAI is the primary. Flip to true only if you want a local
+  # safety net when the OpenAI vision call fails.
+  vision_enabled: false
   vision_model: "qwen2.5vl:3b"
   vision_fallback: "qwen2.5vl:7b"   # Falls back to 7b if 3b fails
 
-  # Text classification (local — replaces GPT-4o-mini)
+  # Text classification (local fallback)
   text_model: "qwen2.5:3b"
+
+  # Keep-alive sent with every Ollama request. "0" = unload the model immediately
+  # after the response. Prevents 5-min-idle RAM residency when fallback does fire.
+  keep_alive: "0"
 
   base_url: "http://localhost:11434"
   timeout: 60

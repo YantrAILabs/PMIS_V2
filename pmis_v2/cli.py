@@ -47,7 +47,7 @@ def _load_session_id():
     """Load conversation_id from persistent session file."""
     if _session_file.exists():
         try:
-            data = json.loads(_session_file.read_text())
+            data = json.loads(_session_file.read_text(encoding="utf-8"))
             return data.get("conversation_id")
         except (json.JSONDecodeError, IOError):
             pass
@@ -60,7 +60,7 @@ def _save_session_id(conversation_id):
     _session_file.write_text(json.dumps({
         "conversation_id": conversation_id,
         "updated_at": datetime.now().isoformat(),
-    }))
+    }), encoding="utf-8")
 
 
 def _clear_session():
@@ -494,6 +494,172 @@ def cmd_command(args):
     return {"command": cmd_name, "result": result_text}
 
 
+@_safe_output
+def cmd_sync_run(args):
+    """Run one 30-min sync pass: tracker segments → work_pages."""
+    from db.manager import DBManager
+    from core import config
+    from sync.lock import sync_lock, SyncBusy
+    from sync.runner import run_sync
+
+    db_path = str(PMIS_DIR / "data" / "memory.db")
+    db = DBManager(db_path)
+    hp = config.get_all()
+    if getattr(args, "model", None):
+        hp["consolidation_model_local"] = args.model
+    target = args.date if getattr(args, "date", None) else None
+
+    try:
+        with sync_lock():
+            result = run_sync(db, hp, target_date=target)
+    except SyncBusy as e:
+        return {"status": "busy", "detail": str(e)}
+    return result
+
+
+@_safe_output
+def cmd_links_populate(args):
+    """D2: extract links from tracker frames, then roll up to segments."""
+    from sync.links_writer import run_links_pass
+    return run_links_pass(since=getattr(args, "since", None))
+
+
+@_safe_output
+def cmd_links_bind(args):
+    """D3: propagate segment_links into link_bindings for confirmed matches."""
+    from sync.link_bindings_writer import bind_recent_matches
+    db_path = str(PMIS_DIR / "data" / "memory.db")
+    return bind_recent_matches(
+        pmis_db_path=db_path,
+        since=getattr(args, "since", None),
+        min_dwell_for_contributed=int(getattr(args, "min_dwell", 2)),
+    )
+
+
+@_safe_output
+def cmd_daily_compose(args):
+    """G: compose missing daily_summaries for the target date."""
+    from sync.daily_summary_writer import compose_missing_daily_summaries
+    db_path = str(PMIS_DIR / "data" / "memory.db")
+    return compose_missing_daily_summaries(
+        db_path, date=getattr(args, "date", None),
+    )
+
+
+@_safe_output
+def cmd_daily_apply_feedback(args):
+    """G: re-compose summaries for queued daily_feedback rows."""
+    from sync.daily_summary_writer import apply_pending_feedback
+    db_path = str(PMIS_DIR / "data" / "memory.db")
+    return apply_pending_feedback(db_path)
+
+
+@_safe_output
+def cmd_dream_match_pages(args):
+    """Dream's gated auto-match over untagged work_pages.
+
+    Bootstrap rule: does nothing until user has confirmed N tags
+    (hyperparameters.yaml: dream_auto_match_min_confirmed). Use --force to
+    bypass the gate for testing.
+    """
+    from db.manager import DBManager
+    from core import config
+    from consolidation.work_page_matcher import run_work_page_matching
+
+    db_path = str(PMIS_DIR / "data" / "memory.db")
+    db = DBManager(db_path)
+    hp = config.get_all()
+    if getattr(args, "model", None):
+        hp["consolidation_model_local"] = args.model
+    return run_work_page_matching(
+        db, hp,
+        force=getattr(args, "force", False),
+        since_date=getattr(args, "since", None),
+    )
+
+
+@_safe_output
+def cmd_sync_rescan_salience(args):
+    """Phase A — re-score every work_page with the kachra filter.
+
+    Idempotent: safe to run anytime. Writes salience + kachra_reason to
+    each page. Use after heuristic tuning or to apply to backfilled data.
+    """
+    from db.manager import DBManager
+    from sync.salience import rescan_all
+
+    db_path = str(PMIS_DIR / "data" / "memory.db")
+    db = DBManager(db_path)
+    return rescan_all(db, date_local=getattr(args, "date", None))
+
+
+@_safe_output
+def cmd_sync_humanize(args):
+    """Phase B — outcome-shaped rewrite of salient work_pages.
+
+    Gemini Flash primary (if GOOGLE_API_KEY set), qwen2.5:7b fallback.
+    Skips already-humanized pages unless --force.
+    """
+    from db.manager import DBManager
+    from core import config
+    from sync.humanizer import humanize_all
+
+    db_path = str(PMIS_DIR / "data" / "memory.db")
+    db = DBManager(db_path)
+    hp = config.get_all()
+    if getattr(args, "model", None):
+        hp["humanize_model_cloud"] = args.model
+    if getattr(args, "local", False):
+        hp["humanize_use_cloud"] = False
+    return humanize_all(
+        db, hp,
+        date_local=getattr(args, "date", None),
+        force=getattr(args, "force", False),
+    )
+
+
+@_safe_output
+def cmd_sync_narrate(args):
+    """Phase C — compose daily journal stories from salient work_pages."""
+    from db.manager import DBManager
+    from core import config
+    from sync.narrator import compose_narratives_for_date
+
+    db_path = str(PMIS_DIR / "data" / "memory.db")
+    db = DBManager(db_path)
+    hp = config.get_all()
+    return compose_narratives_for_date(
+        db, hp,
+        target_date=getattr(args, "date", None),
+        generated_by="manual",
+    )
+
+
+@_safe_output
+def cmd_sync_status(args):
+    """Show last sync watermark and today's open/tagged page counts."""
+    from db.manager import DBManager
+    from datetime import date as _date
+
+    db_path = str(PMIS_DIR / "data" / "memory.db")
+    db = DBManager(db_path)
+    today = _date.today().isoformat()
+
+    watermark = db.get_last_sync_timestamp() or ""
+    open_pages = db.list_work_pages_by_state("open", date_local=today)
+    tagged_pages = db.list_work_pages_by_state("tagged", date_local=today)
+    return {
+        "date": today,
+        "last_watermark": watermark,
+        "open_count": len(open_pages),
+        "tagged_count": len(tagged_pages),
+        "open_preview": [
+            {"id": p["id"], "title": p["title"][:60]}
+            for p in open_pages[:5]
+        ],
+    }
+
+
 # ================================================================
 # ARGUMENT PARSER
 # ================================================================
@@ -535,6 +701,116 @@ def build_parser():
     consolidate_p.add_argument("--today", action="store_true",
                                help="Force-consolidate today even before the 18:00 cutoff")
     subparsers.add_parser("orphans", help="List orphan anchors")
+
+    # sync subcommands (30-min content-layer sync)
+    sync_parser = subparsers.add_parser("sync", help="30-min work_pages sync")
+    sync_sub = sync_parser.add_subparsers(dest="sync_command")
+    sync_run_p = sync_sub.add_parser("run", help="Run one sync pass now")
+    sync_run_p.add_argument(
+        "--date", default=None, help="Target date YYYY-MM-DD (default: today)"
+    )
+    sync_run_p.add_argument(
+        "--model", default=None,
+        help="Override LLM model for title/summary (default: from hyperparameters.yaml)"
+    )
+    sync_sub.add_parser("status", help="Show watermark + today's page counts")
+    sync_rescan_p = sync_sub.add_parser(
+        "rescan-salience",
+        help="Re-score all work_pages with the kachra filter (retroactive)",
+    )
+    sync_rescan_p.add_argument(
+        "--date", default=None, help="Limit rescan to one YYYY-MM-DD"
+    )
+    sync_hum_p = sync_sub.add_parser(
+        "humanize",
+        help="Rewrite salient work_page summaries as outcomes (Phase B)",
+    )
+    sync_hum_p.add_argument(
+        "--date", default=None, help="Limit to one YYYY-MM-DD"
+    )
+    sync_hum_p.add_argument(
+        "--force", action="store_true",
+        help="Rewrite even pages already humanized",
+    )
+    sync_hum_p.add_argument(
+        "--model", default=None,
+        help="Override Gemini model name (cloud path)",
+    )
+    sync_hum_p.add_argument(
+        "--local", action="store_true",
+        help="Force local qwen2.5:7b, skip Gemini even if API key is set",
+    )
+    sync_narr_p = sync_sub.add_parser(
+        "narrate",
+        help="Compose 1-4 daily journal stories from salient work_pages",
+    )
+    sync_narr_p.add_argument(
+        "--date", default=None, help="Target date YYYY-MM-DD (default today)"
+    )
+
+    # links subcommands (Phase D2 — populate context_2.extracted_links
+    # then roll up to context_1.segment_links).
+    links_parser = subparsers.add_parser(
+        "links", help="Links pipeline (D2): extract from frames + roll up to segments",
+    )
+    links_sub = links_parser.add_subparsers(dest="links_command")
+    links_pop_p = links_sub.add_parser(
+        "populate",
+        help="Run extractor over unscanned frames, then roll up to segments",
+    )
+    links_pop_p.add_argument(
+        "--since", default=None,
+        help="ISO timestamp; limit to frames newer than this (default: full backfill)",
+    )
+    links_bind_p = links_sub.add_parser(
+        "bind",
+        help="Propagate segment_links into link_bindings for confirmed matches (D3)",
+    )
+    links_bind_p.add_argument(
+        "--since", default=None,
+        help="ISO timestamp on matched_at; default: process all unbound matches",
+    )
+    links_bind_p.add_argument(
+        "--min-dwell", type=int, default=2,
+        help="Frames a URL must appear in for contributed=1 (default: 2)",
+    )
+
+    # daily subcommands (Phase G — auto-compose + feedback apply).
+    daily_parser = subparsers.add_parser(
+        "daily", help="Daily summary auto-compose + feedback apply (G)",
+    )
+    daily_sub = daily_parser.add_subparsers(dest="daily_command")
+    daily_compose_p = daily_sub.add_parser(
+        "compose",
+        help="Compose missing daily_summaries for the given date",
+    )
+    daily_compose_p.add_argument(
+        "--date", default=None,
+        help="Target date YYYY-MM-DD (default: yesterday)",
+    )
+    daily_sub.add_parser(
+        "apply-feedback",
+        help="Apply queued daily_feedback rows by re-composing affected summaries",
+    )
+
+    # dream subcommands (Phase 9 auto-match + future consolidations)
+    dream_parser = subparsers.add_parser("dream", help="Dream / nightly ops")
+    dream_sub = dream_parser.add_subparsers(dest="dream_command")
+    dream_match_p = dream_sub.add_parser(
+        "match-pages", help="Gated auto-match over untagged work_pages"
+    )
+    dream_match_p.add_argument(
+        "--force", action="store_true",
+        help="Bypass the bootstrap confirmed-tag gate (for testing)",
+    )
+    dream_match_p.add_argument(
+        "--model", default=None,
+        help="Override embed/LLM model for this run",
+    )
+    dream_match_p.add_argument(
+        "--since", default=None,
+        help="Only consider pages with date_local >= YYYY-MM-DD",
+    )
 
     # goal subcommands
     goal_parser = subparsers.add_parser("goal", help="Goal management")
@@ -616,6 +892,38 @@ def main():
         cmd_feedback(args)
     elif args.command == "command":
         cmd_command(args)
+    elif args.command == "sync":
+        if args.sync_command == "run":
+            cmd_sync_run(args)
+        elif args.sync_command == "status":
+            cmd_sync_status(args)
+        elif args.sync_command == "rescan-salience":
+            cmd_sync_rescan_salience(args)
+        elif args.sync_command == "humanize":
+            cmd_sync_humanize(args)
+        elif args.sync_command == "narrate":
+            cmd_sync_narrate(args)
+        else:
+            parser.parse_args(["sync", "--help"])
+    elif args.command == "links":
+        if args.links_command == "populate":
+            cmd_links_populate(args)
+        elif args.links_command == "bind":
+            cmd_links_bind(args)
+        else:
+            parser.parse_args(["links", "--help"])
+    elif args.command == "daily":
+        if args.daily_command == "compose":
+            cmd_daily_compose(args)
+        elif args.daily_command == "apply-feedback":
+            cmd_daily_apply_feedback(args)
+        else:
+            parser.parse_args(["daily", "--help"])
+    elif args.command == "dream":
+        if args.dream_command == "match-pages":
+            cmd_dream_match_pages(args)
+        else:
+            parser.parse_args(["dream", "--help"])
     else:
         parser.print_help()
         sys.exit(1)

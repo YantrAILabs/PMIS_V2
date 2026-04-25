@@ -121,9 +121,65 @@ class ScreenshotCapture:
             logger.error(f"PyObjC screenshot failed: {e}")
             return None
 
-    def cleanup_old(self, max_age_secs: int = 3600):
-        """Remove screenshots older than max_age_secs."""
-        now = datetime.now().timestamp()
-        for f in self.screenshot_dir.glob("frame_*.jpg"):
-            if now - f.stat().st_mtime > max_age_secs:
-                f.unlink(missing_ok=True)
+    def generate_thumbnail(self, jpeg_path: str, target_width: int = 256) -> str | None:
+        """Write a small thumbnail next to the full JPEG (same stem, `.thumb.jpg`).
+        Thumbnails are retained permanently so an audit trail survives even after
+        the full JPEG is reclaimed post-sync. Returns the thumbnail path or None.
+        """
+        p = Path(jpeg_path)
+        if not p.exists() or p.suffix.lower() != ".jpg":
+            return None
+        thumb = p.with_suffix(".thumb.jpg")
+        if thumb.exists():
+            return str(thumb)
+        try:
+            img = Image.open(p)
+            w, h = img.size
+            if w > target_width:
+                ratio = target_width / w
+                img = img.resize((target_width, int(h * ratio)), Image.LANCZOS)
+            if img.mode == "RGBA":
+                img = img.convert("RGB")
+            img.save(thumb, "JPEG", quality=50, optimize=True)
+            return str(thumb)
+        except Exception as e:
+            logger.warning(f"thumbnail generation failed for {p.name}: {e}")
+            return None
+
+    def cleanup_synced(self, db) -> int:
+        """Delete full JPEGs for segments that are synced to memory AND
+        tagged to a project. Thumbnails are always retained. Returns the
+        number of JPEGs reclaimed.
+
+        Safe under concurrent capture: we only touch files listed in a
+        segment's `frame_paths_json`, which is frozen at segment-close time.
+        Uses a raw sqlite3 connection (not the SQLAlchemy session) so the
+        scan is cheap and doesn't lock the session pool.
+        """
+        import json
+        import sqlite3
+        # db.engine.url looks like "sqlite:///<path>" — extract the path.
+        db_path = str(db.engine.url).replace("sqlite:///", "")
+        removed = 0
+        try:
+            conn = sqlite3.connect(db_path)
+            rows = conn.execute(
+                "SELECT frame_paths_json FROM context_1 "
+                "WHERE synced_to_memory = 1 AND project_id != '' "
+                "  AND frame_paths_json IS NOT NULL AND frame_paths_json != ''"
+            ).fetchall()
+            conn.close()
+        except Exception as e:
+            logger.warning(f"cleanup_synced query failed: {e}")
+            return 0
+
+        for (paths_json,) in rows:
+            try:
+                for path in json.loads(paths_json):
+                    f = Path(path)
+                    if f.exists() and f.suffix.lower() == ".jpg" and ".thumb." not in f.name:
+                        f.unlink(missing_ok=True)
+                        removed += 1
+            except Exception:
+                continue
+        return removed

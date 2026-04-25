@@ -266,10 +266,10 @@ step 4 "Environment configuration"
 
 ENV_FILE="$TRACKER_DIR/.env"
 if [[ -f "$ENV_FILE" ]]; then
-    if grep -q "your-openai-api-key-here" "$ENV_FILE" 2>/dev/null; then
-        warn "Existing .env has placeholder API key — will prompt for real key"
+    if grep -qE "prome_your-personal-access-token-here|your-openai-api-key-here|your-account\.workers\.dev" "$ENV_FILE" 2>/dev/null; then
+        warn "Existing .env has placeholders — will prompt for real values"
     else
-        info "Existing .env found with API key, preserving..."
+        info "Existing .env found, preserving..."
         ok ".env preserved"
         SKIP_KEY_PROMPT=true
     fi
@@ -277,33 +277,58 @@ fi
 
 if [[ -z "${SKIP_KEY_PROMPT:-}" ]]; then
     echo ""
-    echo -e "  ${YELLOW}OpenAI API key required for ChatGPT Vision (screenshot analysis).${NC}"
-    echo -e "  ${YELLOW}Get one at: https://platform.openai.com/api-keys${NC}"
+    echo -e "  ${YELLOW}This tracker talks to OpenAI through a company proxy.${NC}"
+    echo -e "  ${YELLOW}Your admin should have given you:${NC}"
+    echo -e "  ${YELLOW}  1. A proxy URL  (e.g. https://prome-openai-proxy.<account>.workers.dev)${NC}"
+    echo -e "  ${YELLOW}  2. A personal access token  (starts with prome_)${NC}"
     echo ""
 
-    API_KEY=""
+    # Proxy URL
+    PROXY_URL=""
     ATTEMPTS=0
     while [[ $ATTEMPTS -lt 2 ]]; do
-        read -p "  Enter your OpenAI API key (sk-...), or press Enter to skip: " API_KEY
-        if [[ -z "$API_KEY" ]]; then
-            warn "No API key entered — daemon will fail on screenshot analysis."
-            warn "Add it later: edit $ENV_FILE"
-            API_KEY="your-openai-api-key-here"
+        read -p "  Proxy URL (leave blank to skip): " PROXY_URL
+        if [[ -z "$PROXY_URL" ]]; then
+            warn "No proxy URL — daemon screenshot analysis will fail until set."
+            PROXY_URL="https://prome-openai-proxy.your-account.workers.dev/v1"
             break
-        elif [[ "$API_KEY" == sk-* ]] && [[ ${#API_KEY} -ge 20 ]]; then
-            ok "API key accepted"
+        elif [[ "$PROXY_URL" == https://* ]]; then
+            # Ensure it ends with /v1
+            PROXY_URL="${PROXY_URL%/}"
+            [[ "$PROXY_URL" != */v1 ]] && PROXY_URL="$PROXY_URL/v1"
+            ok "Proxy URL accepted: $PROXY_URL"
             break
         else
-            warn "API key should start with 'sk-' and be at least 20 characters."
+            warn "Proxy URL should start with https://"
             ATTEMPTS=$((ATTEMPTS + 1))
-            if [[ $ATTEMPTS -ge 2 ]]; then
-                warn "Using entered value as-is. Edit $ENV_FILE later if needed."
-            fi
+            [[ $ATTEMPTS -ge 2 ]] && warn "Using entered value as-is."
+        fi
+    done
+
+    # Access token
+    ACCESS_TOKEN=""
+    ATTEMPTS=0
+    while [[ $ATTEMPTS -lt 2 ]]; do
+        read -p "  Personal access token (prome_...): " ACCESS_TOKEN
+        if [[ -z "$ACCESS_TOKEN" ]]; then
+            warn "No token entered — daemon will fail on screenshot analysis."
+            warn "Add it later: edit $ENV_FILE"
+            ACCESS_TOKEN="prome_your-personal-access-token-here"
+            break
+        elif [[ "$ACCESS_TOKEN" == prome_* ]] && [[ ${#ACCESS_TOKEN} -ge 20 ]]; then
+            ok "Access token accepted"
+            break
+        else
+            warn "Token should start with 'prome_' and be at least 20 chars."
+            ATTEMPTS=$((ATTEMPTS + 1))
+            [[ $ATTEMPTS -ge 2 ]] && warn "Using entered value as-is."
         fi
     done
 
     cp "$TRACKER_DIR/.env.example" "$ENV_FILE"
-    sed -i '' "s|your-openai-api-key-here|$API_KEY|g" "$ENV_FILE"
+    # Replace both placeholders. sed delimiters use | since URLs contain /.
+    sed -i '' "s|prome_your-personal-access-token-here|$ACCESS_TOKEN|g" "$ENV_FILE"
+    sed -i '' "s|https://prome-openai-proxy.your-account.workers.dev/v1|$PROXY_URL|g" "$ENV_FILE"
     sed -i '' "s|__HOME__|$HOME|g" "$ENV_FILE"
     sed -i '' "s|__REPO__|$REPO_DIR|g" "$ENV_FILE"
     ok ".env created"

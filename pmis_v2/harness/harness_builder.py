@@ -124,7 +124,7 @@ class HarnessBuilder:
         (bundle_path / "context").mkdir(exist_ok=True)
 
         # ── problem_statement.md
-        (bundle_path / "problem_statement.md").write_text(bundle.problem_statement_md)
+        (bundle_path / "problem_statement.md").write_text(bundle.problem_statement_md, encoding="utf-8")
 
         # ── context/*.md  (one per anchor, ranked by value_score+similarity)
         positive_anchors = [a for a in bundle.anchors_used if not a.get("is_negative")]
@@ -136,7 +136,7 @@ class HarnessBuilder:
             slug = _slugify(preview.split(".")[0] or f"anchor-{idx}")
             fname = f"{idx:02d}_{slug}.md"
             body = self._render_context_file(a, full, idx, kind="positive")
-            (bundle_path / "context" / fname).write_text(body)
+            (bundle_path / "context" / fname).write_text(body, encoding="utf-8")
             context_manifest.append({"file": f"context/{fname}", **a})
 
         pitfalls_dir = bundle_path / "pitfalls"
@@ -150,7 +150,7 @@ class HarnessBuilder:
                 slug = _slugify(preview.split(".")[0] or f"pitfall-{idx}")
                 fname = f"{idx:02d}_{slug}.md"
                 body = self._render_context_file(n, full, idx, kind="pitfall")
-                (pitfalls_dir / fname).write_text(body)
+                (pitfalls_dir / fname).write_text(body, encoding="utf-8")
                 pitfalls_manifest.append({"file": f"pitfalls/{fname}", **n})
                 pitfalls_block_lines.append(f"- `pitfalls/{fname}` — {preview[:100]}")
         else:
@@ -173,7 +173,7 @@ class HarnessBuilder:
             "trigger_source": trigger_source,
             "pattern_signature": pattern_signature,
         }
-        (bundle_path / "bundle.json").write_text(json.dumps(manifest, indent=2))
+        (bundle_path / "bundle.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 
         # ── CLAUDE.md (executor role)
         (bundle_path / "CLAUDE.md").write_text(CLAUDE_MD_TEMPLATE.format(
@@ -183,7 +183,7 @@ class HarnessBuilder:
             pitfalls_block="\n".join(pitfalls_block_lines),
             harness_id=harness_id,
             generated_at=bundle.generated_at,
-        ))
+        ), encoding="utf-8")
 
         # ── DB row
         title = title_override or f"Harness for {deliverable.get('name','')}"

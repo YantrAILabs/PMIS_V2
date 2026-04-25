@@ -23,13 +23,13 @@ from __future__ import annotations
 
 import os
 import sys
-import time
-import atexit
 import logging
 import sqlite3
 from datetime import datetime, date, timedelta
 from pathlib import Path
 from typing import Optional, Dict, Any, List
+
+from consolidation.lock import consolidation_lock, LockBusy
 
 logger = logging.getLogger("pmis.runner")
 
@@ -55,20 +55,20 @@ def _acquire_lock() -> bool:
             age = 0
         if age < LOCK_STALE_SECONDS:
             try:
-                existing = LOCK_PATH.read_text().strip()
+                existing = LOCK_PATH.read_text(encoding="utf-8").strip()
             except OSError:
                 existing = "?"
             logger.info("Runner lock held by pid=%s (age %.0fs); skipping.", existing, age)
             return False
         logger.warning("Stale runner lock (age %.0fs); overriding.", age)
-    LOCK_PATH.write_text(str(os.getpid()))
+    LOCK_PATH.write_text(str(os.getpid()), encoding="utf-8")
     atexit.register(_release_lock)
     return True
 
 
 def _release_lock() -> None:
     try:
-        if LOCK_PATH.exists() and LOCK_PATH.read_text().strip() == str(os.getpid()):
+        if LOCK_PATH.exists() and LOCK_PATH.read_text(encoding="utf-8").strip() == str(os.getpid()):
             LOCK_PATH.unlink()
     except Exception:
         pass
@@ -161,9 +161,6 @@ def run_idempotent(
         if not os.path.isabs(db_path):
             db_path = str(PMIS_DIR / db_path)
 
-    if not _acquire_lock():
-        return {"ok": False, "reason": "another_runner_active"}
-
     summary: Dict[str, Any] = {
         "ok": True,
         "started_at": datetime.now().isoformat(timespec="seconds"),
@@ -172,58 +169,62 @@ def run_idempotent(
     }
 
     try:
-        hp = _cfg.get_all()
-        db = DBManager(db_path)
+        with consolidation_lock("global", kind="nightly"):
+            hp = _cfg.get_all()
+            db = DBManager(db_path)
 
-        today = date.today()
-        last = _get_last_date(db_path)
-        if last is None:
-            # First ever run — only do today (or only past day if before
-            # evening cutoff). Don't try to consolidate the entire history.
-            last = today - timedelta(days=1)
+            today = date.today()
+            last = _get_last_date(db_path)
+            if last is None:
+                # First ever run — only do today (or only past day if before
+                # evening cutoff). Don't try to consolidate the entire history.
+                last = today - timedelta(days=1)
 
-        # Catch up missed FULL days: (last+1) .. (today-1)
-        days: List[date] = []
-        cursor = last + timedelta(days=1)
-        while cursor < today:
-            days.append(cursor)
-            cursor += timedelta(days=1)
+            # Catch up missed FULL days: (last+1) .. (today-1)
+            days: List[date] = []
+            cursor = last + timedelta(days=1)
+            while cursor < today:
+                days.append(cursor)
+                cursor += timedelta(days=1)
 
-        # Should today also run?
-        now = datetime.now()
-        should_include_today = (
-            include_today is True
-            or (include_today is None and now.hour >= evening_cutoff_hour and last < today)
-        )
-        if should_include_today:
-            days.append(today)
+            # Should today also run?
+            now = datetime.now()
+            should_include_today = (
+                include_today is True
+                or (include_today is None and now.hour >= evening_cutoff_hour and last < today)
+            )
+            if should_include_today:
+                days.append(today)
 
-        if not days:
-            summary["skipped_reason"] = "nothing_to_do"
+            if not days:
+                summary["skipped_reason"] = "nothing_to_do"
+                return summary
+
+            for d in days:
+                logger.info("Runner: consolidating %s", d.isoformat())
+                # NightlyConsolidation is date-agnostic — its sub-passes use
+                # today() internally. For catch-up days we set an environment
+                # flag so date-aware passes (activity_merge, project_matcher)
+                # use the target date instead of today.
+                os.environ["PMIS_CONSOLIDATION_DATE"] = d.isoformat()
+                try:
+                    engine = NightlyConsolidation(db, hp)
+                    results = engine.run()
+                finally:
+                    os.environ.pop("PMIS_CONSOLIDATION_DATE", None)
+
+                summary["days_run"].append({
+                    "date": d.isoformat(),
+                    "total_actions": sum(len(v) for v in results.values() if isinstance(v, list)),
+                })
+                _set_last_date(db_path, d)
+
+            summary["finished_at"] = datetime.now().isoformat(timespec="seconds")
             return summary
 
-        for d in days:
-            logger.info("Runner: consolidating %s", d.isoformat())
-            # NightlyConsolidation is date-agnostic — its sub-passes use
-            # today() internally. For catch-up days we set an environment
-            # flag so date-aware passes (activity_merge, project_matcher)
-            # use the target date instead of today.
-            os.environ["PMIS_CONSOLIDATION_DATE"] = d.isoformat()
-            try:
-                engine = NightlyConsolidation(db, hp)
-                results = engine.run()
-            finally:
-                os.environ.pop("PMIS_CONSOLIDATION_DATE", None)
-
-            summary["days_run"].append({
-                "date": d.isoformat(),
-                "total_actions": sum(len(v) for v in results.values() if isinstance(v, list)),
-            })
-            _set_last_date(db_path, d)
-
-        summary["finished_at"] = datetime.now().isoformat(timespec="seconds")
-        return summary
-
+    except LockBusy as e:
+        logger.info("Runner: %s", e)
+        return {"ok": False, "reason": "another_runner_active", "detail": str(e)}
     except Exception as e:
         logger.exception("Runner failed: %s", e)
         summary["ok"] = False

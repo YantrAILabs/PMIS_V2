@@ -35,6 +35,8 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 
+from consolidation.lock import consolidation_lock, LockBusy
+
 logger = logging.getLogger("pmis.manual_project")
 
 TRACKER_DB = os.path.expanduser("~/.productivity-tracker/tracker.db")
@@ -188,6 +190,9 @@ class ManualProjectConsolidator:
         1. Create an ANC memory_node under the project's SC/CTX.
         2. Write activity_time_log rows for every segment (so nightly skips).
         3. Write one project_work_match_log row with source='manual_consolidation'.
+
+        Holds consolidation_lock scope='date:<target_date>' so a concurrent
+        nightly run (global) or same-date manual run cannot race this write.
         """
         from core.memory_node import MemoryNode, MemoryLevel
         from core.temporal import temporal_encode, compute_era
@@ -195,6 +200,31 @@ class ManualProjectConsolidator:
 
         if not final_markdown.strip():
             return {"ok": False, "error": "empty markdown"}
+
+        try:
+            with consolidation_lock(f"date:{target_date}", kind="manual"):
+                return self._commit_locked(
+                    project_id, target_date, final_markdown, segments
+                )
+        except LockBusy as e:
+            return {
+                "ok": False,
+                "error": "consolidation_locked",
+                "detail": str(e),
+                "retry_after_secs": e.retry_after_secs,
+            }
+
+    def _commit_locked(
+        self,
+        project_id: str,
+        target_date: str,
+        final_markdown: str,
+        segments: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """Inner commit — runs under the date-scoped consolidation lock."""
+        from core.memory_node import MemoryNode, MemoryLevel
+        from core.temporal import temporal_encode, compute_era
+        from ingestion.embedder import Embedder
 
         hp = self.hp
         embedder = Embedder(hyperparams=hp)
@@ -242,14 +272,18 @@ class ManualProjectConsolidator:
             tree_id = self._tree_id_for(project_sc) or "default"
             self.db.attach_to_parent(node.id, project_sc, tree_id)
 
-        # Write activity_time_log + mark consolidated
+        # Write activity_time_log + mark consolidated.
+        # INSERT OR IGNORE respects the UNIQUE(segment_id, date) guard so a
+        # concurrent/earlier writer — typically nightly — keeps its row rather
+        # than being clobbered. Manual tries to claim its segments first under
+        # the date-scoped lock; any IGNOREd rows mean nightly already had them.
         pconn = sqlite3.connect(self.db.db_path)
         total_duration = 0
         for seg in segments:
             dur = seg.get("duration_secs", 10)
             total_duration += dur
             pconn.execute(
-                """INSERT INTO activity_time_log
+                """INSERT OR IGNORE INTO activity_time_log
                    (segment_id, memory_node_id, matched_ctx_id, matched_sc_id,
                     duration_seconds, date, project_id, match_source)
                    VALUES (?, ?, ?, ?, ?, ?, ?, 'manual_consolidation')""",
