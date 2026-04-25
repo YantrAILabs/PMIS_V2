@@ -1436,16 +1436,20 @@ async def wiki_goals(request: Request):
 #                                   selected. 404 when did not under pid.
 
 @app.get("/wiki/goals/p/{project_id}", response_class=HTMLResponse)
-async def wiki_project_detail(request: Request, project_id: str):
+async def wiki_project_detail(
+    request: Request, project_id: str,
+    view: str = "overall", date: Optional[str] = None,
+):
     wiki = _get_wiki()
-    data = wiki.render_project_detail(project_id)
+    data = wiki.render_project_detail(project_id, view=view, date=date)
     if data is None:
         raise HTTPException(status_code=404, detail=f"project {project_id} not found")
     if data["deliverables"]:
         first_id = data["deliverables"][0].get("id") or ""
         if first_id:
+            qs = f"?view={view}" + (f"&date={date}" if date else "")
             return RedirectResponse(
-                url=f"/wiki/goals/p/{project_id}/d/{first_id}",
+                url=f"/wiki/goals/p/{project_id}/d/{first_id}{qs}",
                 status_code=302,
             )
     return templates.TemplateResponse(request, "wiki_project.html", data)
@@ -1457,9 +1461,12 @@ async def wiki_project_detail(request: Request, project_id: str):
 )
 async def wiki_project_deliverable(
     request: Request, project_id: str, deliverable_id: str,
+    view: str = "overall", date: Optional[str] = None,
 ):
     wiki = _get_wiki()
-    data = wiki.render_project_detail(project_id, deliverable_id)
+    data = wiki.render_project_detail(
+        project_id, deliverable_id, view=view, date=date,
+    )
     if data is None:
         raise HTTPException(status_code=404, detail=f"project {project_id} not found")
     if data["selected_deliverable"] is None:
@@ -1942,6 +1949,131 @@ class LinkBindingToggle(BaseModel):
     scope: str
     scope_id: str
     contributed: int  # 0 or 1
+
+
+# ─── Phase E: work-match actions + daily feedback ───────────────────
+
+class WorkMatchReassignPayload(BaseModel):
+    project_id: str
+    deliverable_id: str = ""
+
+
+@app.post("/api/work_match/{match_id}/confirm")
+async def api_work_match_confirm(match_id: str):
+    """Flip is_correct=1 on a project_work_match_log row. Used by the
+    Daily view's ✓ button."""
+    conn = sqlite3.connect(_orch.db.db_path)
+    try:
+        cur = conn.execute(
+            "UPDATE project_work_match_log SET is_correct = 1 "
+            "WHERE id = ?",
+            (match_id,),
+        )
+        conn.commit()
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404, detail=f"match {match_id} not found")
+    finally:
+        conn.close()
+    return {"match_id": match_id, "is_correct": 1}
+
+
+@app.post("/api/work_match/{match_id}/remove")
+async def api_work_match_remove(match_id: str):
+    """Strike a wrongly-tagged work item: is_correct=0 + clear the
+    deliverable_id so it no longer counts toward this deliverable's
+    daily view. The segment goes back to the unconsolidated pool on
+    the next consolidate run."""
+    conn = sqlite3.connect(_orch.db.db_path)
+    try:
+        cur = conn.execute(
+            "UPDATE project_work_match_log "
+            "SET is_correct = 0, deliverable_id = '' "
+            "WHERE id = ?",
+            (match_id,),
+        )
+        conn.commit()
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404, detail=f"match {match_id} not found")
+    finally:
+        conn.close()
+    return {"match_id": match_id, "is_correct": 0, "deliverable_id": ""}
+
+
+@app.post("/api/work_match/{match_id}/reassign")
+async def api_work_match_reassign(
+    match_id: str, payload: WorkMatchReassignPayload,
+):
+    """Move a tagged work item to a different project + deliverable.
+    Keeps is_correct=1 (the user is making a positive assertion about
+    the new target, not rejecting the segment)."""
+    if not payload.project_id:
+        raise HTTPException(status_code=400, detail="project_id required")
+    conn = sqlite3.connect(_orch.db.db_path)
+    try:
+        cur = conn.execute(
+            "UPDATE project_work_match_log "
+            "SET project_id = ?, deliverable_id = ?, is_correct = 1 "
+            "WHERE id = ?",
+            (payload.project_id, payload.deliverable_id or "", match_id),
+        )
+        conn.commit()
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404, detail=f"match {match_id} not found")
+    finally:
+        conn.close()
+    return {
+        "match_id": match_id,
+        "project_id": payload.project_id,
+        "deliverable_id": payload.deliverable_id or "",
+        "is_correct": 1,
+    }
+
+
+class DailyFeedbackPayload(BaseModel):
+    feedback_text: str
+
+
+@app.post("/api/daily/{daily_summary_id}/feedback")
+async def api_daily_feedback(
+    daily_summary_id: str, payload: DailyFeedbackPayload,
+):
+    """Free-text feedback on a past daily summary. Phase G's nightly
+    pass picks up daily_feedback rows where applied=0, re-composes the
+    target summary, and flips applied=1."""
+    text = (payload.feedback_text or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="feedback_text required")
+
+    conn = sqlite3.connect(_orch.db.db_path)
+    try:
+        # Confirm the daily exists — feeding back into a phantom row
+        # would just create unprocessable noise for nightly.
+        row = conn.execute(
+            "SELECT id FROM daily_summaries WHERE id = ?",
+            (daily_summary_id,),
+        ).fetchone()
+        if not row:
+            raise HTTPException(
+                status_code=404,
+                detail=f"daily_summary {daily_summary_id} not found",
+            )
+        conn.execute(
+            "INSERT INTO daily_feedback (daily_summary_id, feedback_text) "
+            "VALUES (?, ?)",
+            (daily_summary_id, text[:2000]),
+        )
+        conn.commit()
+        fb_id = conn.execute(
+            "SELECT last_insert_rowid()"
+        ).fetchone()[0]
+    finally:
+        conn.close()
+    return {
+        "id": fb_id,
+        "daily_summary_id": daily_summary_id,
+        "feedback_text": text[:2000],
+        "applied": 0,
+    }
 
 
 @app.patch("/api/links/bindings")

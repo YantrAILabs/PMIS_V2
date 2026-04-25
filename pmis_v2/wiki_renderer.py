@@ -1166,6 +1166,109 @@ class WikiRenderer:
             }
         return out
 
+    def load_daily_view(
+        self, deliverable_id: str, date: str,
+    ) -> Dict[str, Any]:
+        """Phase E — read surface for the Daily pane on a deliverable.
+
+        Returns:
+            {
+                tagged_items: [{match_id, segment_id, work_description,
+                                 time_mins, matched_at, is_correct,
+                                 project_id, deliverable_id}, ...],
+                daily_summary: {id, body_md, body_html, status,
+                                composed_at, project_id, deliverable_id,
+                                date} or None,
+                total_minutes: float,
+                contributing_links: [{link_id, url, kind, dwell_frames,
+                                      contributed}, ...],
+                can_feedback: bool   # True for past dates only.
+                date: YYYY-MM-DD
+                deliverable_id: str
+            }
+        """
+        from datetime import date as _date
+        out: Dict[str, Any] = {
+            "tagged_items": [],
+            "daily_summary": None,
+            "total_minutes": 0.0,
+            "contributing_links": [],
+            "can_feedback": False,
+            "date": date,
+            "deliverable_id": deliverable_id,
+        }
+        if not deliverable_id or not date:
+            return out
+
+        try:
+            today_iso = _date.today().isoformat()
+            out["can_feedback"] = date < today_iso
+        except Exception:
+            out["can_feedback"] = False
+
+        try:
+            cursor = self.db._conn.execute(
+                """SELECT id, segment_id, project_id, deliverable_id,
+                          work_description, time_mins, matched_at,
+                          is_correct
+                   FROM project_work_match_log
+                   WHERE deliverable_id = ?
+                     AND DATE(matched_at) = ?
+                   ORDER BY matched_at DESC""",
+                (deliverable_id, date),
+            )
+            rows = cursor.fetchall()
+            total = 0.0
+            for r in rows:
+                mins = float(r[5] or 0.0)
+                total += mins
+                out["tagged_items"].append({
+                    "match_id": r[0],
+                    "segment_id": r[1] or "",
+                    "project_id": r[2] or "",
+                    "deliverable_id": r[3] or "",
+                    "work_description": r[4] or "",
+                    "time_mins": round(mins, 2),
+                    "matched_at": r[6] or "",
+                    "is_correct": int(r[7]) if r[7] is not None else -1,
+                })
+            out["total_minutes"] = round(total, 1)
+        except Exception:
+            logger.exception("load_daily_view tagged_items failed")
+
+        # Daily summary row (if any).
+        try:
+            row = self.db._conn.execute(
+                """SELECT id, project_id, deliverable_id, date, body_md,
+                          status, composed_at
+                   FROM daily_summaries
+                   WHERE deliverable_id = ? AND date = ?""",
+                (deliverable_id, date),
+            ).fetchone()
+            if row:
+                body_md = row[4] or ""
+                out["daily_summary"] = {
+                    "id": row[0],
+                    "project_id": row[1] or "",
+                    "deliverable_id": row[2] or "",
+                    "date": row[3] or date,
+                    "body_md": body_md,
+                    "body_html": _section_md_to_html(body_md) if body_md else "",
+                    "status": row[5] or "auto",
+                    "composed_at": row[6] or "",
+                }
+        except Exception:
+            logger.exception("load_daily_view daily_summary failed")
+
+        # Reuse load_deliverable_links for the contributing strip — same
+        # bindings drive both Overall and Daily views, so the user sees
+        # consistent attribution.
+        out["contributing_links"] = [
+            r for r in self.load_deliverable_links(deliverable_id)
+            if r["contributed"] == 1
+        ]
+        return out
+
     def load_deliverable_links(
         self, deliverable_id: str,
     ) -> List[Dict[str, Any]]:
@@ -1307,6 +1410,7 @@ class WikiRenderer:
 
     def render_project_detail(
         self, project_id: str, deliverable_id: Optional[str] = None,
+        view: str = "overall", date: Optional[str] = None,
     ) -> Optional[Dict]:
         """Project shell-view data for /wiki/goals/p/{pid}[/d/{did}].
 
@@ -1356,6 +1460,14 @@ class WikiRenderer:
         # Renders in the right rail; informational only.
         project_links_rollup = self.project_link_rollup(project_id)
 
+        # Phase E: daily view payload when ?view=daily is requested AND a
+        # deliverable is selected. Resolves date to today when not given.
+        daily_view: Optional[Dict[str, Any]] = None
+        if view == "daily" and selected and selected.get("id"):
+            from datetime import date as _date
+            target_date = (date or _date.today().isoformat())[:10]
+            daily_view = self.load_daily_view(selected["id"], target_date)
+
         return {
             "project": project,
             "deliverables": deliverables,
@@ -1364,6 +1476,8 @@ class WikiRenderer:
             "sections": sections,
             "section_order": list(section_order),
             "project_links_rollup": project_links_rollup,
+            "view": view,
+            "daily_view": daily_view,
             "parent_goal": ({
                 "id": parent_goal.get("id"),
                 "title": parent_goal.get("title", ""),

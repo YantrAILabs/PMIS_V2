@@ -233,6 +233,130 @@
   .pjd-link-toggle.active { color: #16a34a; }
   .pjd-link-toggle.cross.active { color: #dc2626; }
 
+  /* ─── E: Daily view ─── */
+  .pjd-daily-head {
+    display: flex; align-items: center; gap: 12px;
+    padding: 8px 0; border-bottom: 1px solid var(--bg3);
+    margin-bottom: 16px;
+  }
+  .pjd-daily-datepick {
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 4px 8px; font-size: 13px; font-family: inherit;
+  }
+  .pjd-daily-total { font-size: 12px; color: var(--fg3); font-variant-numeric: tabular-nums; }
+
+  .pjd-daily-section { margin-top: 22px; }
+  .pjd-daily-section-title {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;
+    color: var(--fg3); font-weight: 600; margin-bottom: 8px;
+  }
+  .pjd-daily-items { display: flex; flex-direction: column; }
+  .pjd-daily-item {
+    display: grid;
+    grid-template-columns: 70px 1fr auto;
+    gap: 10px; align-items: center;
+    padding: 8px 0; border-bottom: 1px solid var(--bg3); font-size: 13px;
+  }
+  .pjd-daily-item:last-child { border-bottom: none; }
+  .pjd-daily-item-meta { font-size: 11px; color: var(--fg3); display: flex; gap: 6px; }
+  .pjd-daily-time { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--fg2); }
+  .pjd-daily-mins { font-variant-numeric: tabular-nums; }
+  .pjd-daily-item-desc {
+    color: var(--fg); overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap; min-width: 0;
+  }
+  .pjd-daily-item.struck .pjd-daily-item-desc {
+    text-decoration: line-through; color: var(--fg3);
+  }
+  .pjd-daily-item-actions { display: flex; gap: 4px; }
+  .pjd-daily-confirm, .pjd-daily-strike {
+    border: 1px solid var(--border); background: transparent;
+    color: var(--fg3); font-size: 12px; line-height: 1;
+    padding: 3px 8px; border-radius: 4px; cursor: pointer;
+  }
+  .pjd-daily-confirm.active { background: #dcfce7; border-color: #86efac; color: #14532d; }
+  .pjd-daily-strike:hover { background: #fee2e2; border-color: #fca5a5; color: #991b1b; }
+
+  .pjd-daily-summary {
+    border: 1px solid var(--bg3); border-radius: 6px; padding: 12px 14px;
+    background: var(--bg2);
+  }
+  .pjd-daily-summary-meta {
+    font-size: 11px; color: var(--fg3); margin-bottom: 8px;
+    display: flex; gap: 10px; align-items: center;
+  }
+  .pjd-daily-status {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px;
+    padding: 1px 6px; border-radius: 3px; font-weight: 600;
+    background: var(--bg3); color: var(--fg2);
+  }
+  .pjd-daily-status-auto { background: var(--bg3); }
+  .pjd-daily-status-manual { background: #dbeafe; color: #1e3a8a; }
+  .pjd-daily-status-edited { background: #fef3c7; color: #92400e; }
+  .pjd-daily-summary-body { font-size: 13px; color: var(--fg2); line-height: 1.7; }
+  .pjd-daily-summary-body p { margin: 4px 0 8px; }
+  .pjd-daily-summary-body h2 { font-size: 15px; margin: 10px 0 4px; padding: 0; border: none; }
+  .pjd-daily-summary-missing {
+    color: var(--fg3); font-style: italic; padding: 16px;
+    border: 1px dashed var(--border); border-radius: 6px; font-size: 13px;
+  }
+
+  .pjd-daily-links-strip {
+    display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px;
+    padding-top: 10px; border-top: 1px dashed var(--bg3);
+  }
+  .pjd-daily-link-chip {
+    display: flex; align-items: center; gap: 5px;
+    background: var(--bg); border: 1px solid var(--border);
+    padding: 3px 7px; border-radius: 4px; font-size: 11px;
+    text-decoration: none; color: var(--fg2); max-width: 100%;
+  }
+  .pjd-daily-link-chip:hover { border-color: var(--accent); text-decoration: none; }
+  .pjd-daily-link-url {
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    max-width: 220px;
+  }
+
+  .pjd-daily-feedback {
+    margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--bg3);
+  }
+  .pjd-daily-feedback-label { font-size: 11px; color: var(--fg3); margin-bottom: 4px; }
+  .pjd-daily-feedback-text {
+    width: 100%; min-height: 60px; padding: 6px 8px;
+    border: 1px solid var(--border); border-radius: 4px;
+    font-family: inherit; font-size: 12px; resize: vertical;
+  }
+  .pjd-daily-feedback-save {
+    margin-top: 6px; padding: 4px 12px; font-size: 12px;
+    background: var(--accent); color: white; border: none;
+    border-radius: 4px; cursor: pointer;
+  }
+  .pjd-daily-feedback-status { margin-left: 10px; font-size: 11px; }
+  .pjd-daily-feedback-status.ok { color: #16a34a; }
+  .pjd-daily-feedback-status.err { color: #dc2626; }
+
+  /* Reassign popover */
+  .pjd-pop {
+    position: fixed; z-index: 100;
+    background: white; border: 1px solid var(--border);
+    border-radius: 6px; padding: 12px;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.15); min-width: 240px;
+  }
+  .pjd-pop-row { margin: 4px 0; }
+  .pjd-pop-row label { font-size: 11px; color: var(--fg3); text-transform: uppercase; letter-spacing: 0.4px; }
+  .pjd-pop-row select {
+    width: 100%; padding: 4px 6px; font-size: 12px;
+    border: 1px solid var(--border); border-radius: 3px;
+  }
+  .pjd-pop-actions { display: flex; gap: 6px; margin-top: 8px; }
+  .pjd-pop-actions button {
+    padding: 4px 10px; font-size: 12px; border-radius: 3px;
+    border: 1px solid var(--border); background: var(--bg);
+    cursor: pointer;
+  }
+  .pjd-pop-primary { background: var(--accent) !important; color: white; border-color: var(--accent) !important; }
+  .pjd-pop-cancel { color: var(--fg3); }
+
   /* Right rail — project rollup */
   .pjd-rollup-link {
     display: flex; align-items: center; gap: 6px;
@@ -373,11 +497,94 @@
     </div>
 
     <div id="pjd-daily-pane" style="display:none;">
-      <div class="pjd-daily-stub">
-        <strong>Daily view arrives in Phase E.</strong><br>
-        Today's auto-tagged work with ✓/✗ + the composed daily summary
-        with contributing links and minutes will land here.
+      {% if daily_view %}
+      <div class="pjd-daily-head">
+        <input type="date" id="pjd-daily-date" value="{{ daily_view.date }}"
+               class="pjd-daily-datepick">
+        <span class="pjd-daily-total">{{ daily_view.total_minutes }}m total</span>
       </div>
+
+      <section class="pjd-daily-section">
+        <div class="pjd-daily-section-title">Today's tagged work · {{ daily_view.tagged_items|length }}</div>
+        {% if daily_view.tagged_items %}
+        <div class="pjd-daily-items">
+          {% for it in daily_view.tagged_items %}
+          <div class="pjd-daily-item" data-match-id="{{ it.match_id }}">
+            <div class="pjd-daily-item-meta">
+              <span class="pjd-daily-time">{{ it.matched_at[11:16] }}</span>
+              <span class="pjd-daily-mins">{{ it.time_mins }}m</span>
+            </div>
+            <div class="pjd-daily-item-desc">{{ it.work_description[:160] }}</div>
+            <div class="pjd-daily-item-actions">
+              <button class="pjd-daily-confirm {% if it.is_correct == 1 %}active{% endif %}"
+                      data-match-id="{{ it.match_id }}" title="Confirm">✓</button>
+              <button class="pjd-daily-strike" data-match-id="{{ it.match_id }}" title="Reassign or remove">✗</button>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="pjd-section-empty">No work tagged to this deliverable on {{ daily_view.date }}.</div>
+        {% endif %}
+      </section>
+
+      <section class="pjd-daily-section">
+        <div class="pjd-daily-section-title">Daily summary</div>
+        {% if daily_view.daily_summary %}
+        <div class="pjd-daily-summary"
+             data-daily-id="{{ daily_view.daily_summary.id }}">
+          <div class="pjd-daily-summary-meta">
+            <span class="pjd-daily-status pjd-daily-status-{{ daily_view.daily_summary.status }}">{{ daily_view.daily_summary.status }}</span>
+            {% if daily_view.daily_summary.composed_at %}<span>composed {{ daily_view.daily_summary.composed_at[:16] }}</span>{% endif %}
+          </div>
+          <div class="pjd-daily-summary-body">{{ daily_view.daily_summary.body_html|safe }}</div>
+          {% if daily_view.contributing_links %}
+          <div class="pjd-daily-links-strip">
+            {% for lk in daily_view.contributing_links %}
+            <a class="pjd-daily-link-chip" href="{{ lk.url }}" target="_blank" rel="noopener" title="{{ lk.url }}">
+              <span class="pjd-link-kind k-{{ lk.kind }}">{{ lk.kind }}</span>
+              <span class="pjd-daily-link-url">{{ lk.url }}</span>
+              <span class="pjd-link-dwell">{{ lk.dwell_frames }}f</span>
+            </a>
+            {% endfor %}
+          </div>
+          {% endif %}
+          {% if daily_view.can_feedback %}
+          <div class="pjd-daily-feedback" data-daily-id="{{ daily_view.daily_summary.id }}">
+            <div class="pjd-daily-feedback-label">Feedback (applied next nightly):</div>
+            <textarea class="pjd-daily-feedback-text" placeholder="What's wrong with this summary, or what should change?"></textarea>
+            <button class="pjd-daily-feedback-save">Send to nightly</button>
+            <span class="pjd-daily-feedback-status"></span>
+          </div>
+          {% endif %}
+        </div>
+        {% else %}
+        <div class="pjd-daily-summary-missing">
+          No summary yet for {{ daily_view.date }}. Auto-compose runs in nightly (Phase G).
+        </div>
+        {% endif %}
+      </section>
+
+      <!-- Reassign popover (hidden until ✗ click) -->
+      <div id="pjd-reassign-pop" class="pjd-pop" style="display:none;">
+        <div class="pjd-pop-row"><label>Reassign to:</label></div>
+        <div class="pjd-pop-row">
+          <select id="pjd-pop-project"></select>
+        </div>
+        <div class="pjd-pop-row">
+          <select id="pjd-pop-deliverable"></select>
+        </div>
+        <div class="pjd-pop-row pjd-pop-actions">
+          <button id="pjd-pop-reassign" class="pjd-pop-primary">Reassign</button>
+          <button id="pjd-pop-remove">Remove</button>
+          <button id="pjd-pop-cancel" class="pjd-pop-cancel">Cancel</button>
+        </div>
+      </div>
+      {% else %}
+      <div class="pjd-daily-stub">
+        <strong>Daily view requires a deliverable.</strong>
+      </div>
+      {% endif %}
     </div>
     {% else %}
     <section class="pjd-deliv-header">
@@ -558,6 +765,174 @@
     if (!editBtn) return;
     e.preventDefault();
     openEditor(editBtn.dataset.slot);
+  });
+
+  // ─── E: Daily date picker ─────────────────────────────────────
+  const dateInput = document.getElementById('pjd-daily-date');
+  if (dateInput) {
+    dateInput.addEventListener('change', (e) => {
+      const url = new URL(window.location.href);
+      url.searchParams.set('view', 'daily');
+      url.searchParams.set('date', e.target.value);
+      window.location.href = url.toString();
+    });
+  }
+
+  // ─── E: ✓ confirm a tagged work item ─────────────────────────
+  document.addEventListener('click', async (e) => {
+    const btn = e.target.closest('.pjd-daily-confirm');
+    if (!btn) return;
+    const matchId = btn.dataset.matchId;
+    btn.disabled = true;
+    try {
+      const r = await fetch(`/api/work_match/${encodeURIComponent(matchId)}/confirm`, {
+        method: 'POST',
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      btn.classList.add('active');
+    } catch (err) {
+      alert('Confirm failed: ' + err.message);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  // ─── E: ✗ opens reassign/remove popover ───────────────────────
+  let popContext = null;  // {matchId, row}
+
+  function fetchProjectsAndDeliverables() {
+    return fetch('/api/pm/deliverables').then(r => r.json()).catch(() => ({deliverables: []}));
+  }
+
+  async function openReassignPop(matchId, anchorEl) {
+    const pop = document.getElementById('pjd-reassign-pop');
+    if (!pop) return;
+    popContext = {matchId, row: anchorEl.closest('.pjd-daily-item')};
+
+    // Fetch deliverables (each row carries project_id + project_name).
+    const data = await fetchProjectsAndDeliverables();
+    const projectSel = document.getElementById('pjd-pop-project');
+    const delivSel = document.getElementById('pjd-pop-deliverable');
+    projectSel.innerHTML = '';
+    delivSel.innerHTML = '';
+
+    // Build distinct project list from deliverables payload.
+    const byProject = new Map();
+    for (const d of data.deliverables || []) {
+      if (!d.project_id) continue;
+      if (!byProject.has(d.project_id)) {
+        byProject.set(d.project_id, {name: d.project_name || d.project_id, delivs: []});
+      }
+      byProject.get(d.project_id).delivs.push({id: d.deliverable_id, name: d.name});
+    }
+    for (const [pid, info] of byProject) {
+      const opt = document.createElement('option');
+      opt.value = pid; opt.textContent = info.name;
+      projectSel.appendChild(opt);
+    }
+    function refreshDelivs() {
+      const pid = projectSel.value;
+      const info = byProject.get(pid);
+      delivSel.innerHTML = '';
+      const blank = document.createElement('option');
+      blank.value = ''; blank.textContent = '(no deliverable)';
+      delivSel.appendChild(blank);
+      for (const d of (info ? info.delivs : [])) {
+        const opt = document.createElement('option');
+        opt.value = d.id; opt.textContent = d.name;
+        delivSel.appendChild(opt);
+      }
+    }
+    projectSel.addEventListener('change', refreshDelivs);
+    refreshDelivs();
+
+    // Position next to the ✗ button.
+    const rect = anchorEl.getBoundingClientRect();
+    pop.style.top = (rect.bottom + window.scrollY + 4) + 'px';
+    pop.style.left = (rect.left + window.scrollX - 200) + 'px';
+    pop.style.display = 'block';
+  }
+
+  function closePop() {
+    const pop = document.getElementById('pjd-reassign-pop');
+    if (pop) pop.style.display = 'none';
+    popContext = null;
+  }
+
+  document.addEventListener('click', (e) => {
+    const strike = e.target.closest('.pjd-daily-strike');
+    if (strike) {
+      e.preventDefault();
+      openReassignPop(strike.dataset.matchId, strike);
+      return;
+    }
+    if (e.target.id === 'pjd-pop-cancel') {
+      closePop();
+      return;
+    }
+    if (e.target.id === 'pjd-pop-remove' && popContext) {
+      const ctx = popContext;
+      fetch(`/api/work_match/${encodeURIComponent(ctx.matchId)}/remove`, {method: 'POST'})
+        .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); })
+        .then(() => {
+          if (ctx.row) ctx.row.classList.add('struck');
+          closePop();
+        })
+        .catch(err => alert('Remove failed: ' + err.message));
+      return;
+    }
+    if (e.target.id === 'pjd-pop-reassign' && popContext) {
+      const ctx = popContext;
+      const project_id = document.getElementById('pjd-pop-project').value;
+      const deliverable_id = document.getElementById('pjd-pop-deliverable').value;
+      fetch(`/api/work_match/${encodeURIComponent(ctx.matchId)}/reassign`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({project_id, deliverable_id}),
+      }).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); })
+        .then(() => {
+          if (ctx.row) ctx.row.classList.add('struck');
+          closePop();
+        })
+        .catch(err => alert('Reassign failed: ' + err.message));
+      return;
+    }
+    // Click outside the popover closes it.
+    if (popContext && !e.target.closest('#pjd-reassign-pop') && !e.target.closest('.pjd-daily-strike')) {
+      closePop();
+    }
+  });
+
+  // ─── E: feedback save ─────────────────────────────────────────
+  document.addEventListener('click', async (e) => {
+    const save = e.target.closest('.pjd-daily-feedback-save');
+    if (!save) return;
+    const wrap = save.closest('.pjd-daily-feedback');
+    const dailyId = wrap.dataset.dailyId;
+    const ta = wrap.querySelector('.pjd-daily-feedback-text');
+    const status = wrap.querySelector('.pjd-daily-feedback-status');
+    const text = (ta.value || '').trim();
+    if (!text) { status.textContent = 'enter feedback first'; status.className = 'pjd-daily-feedback-status err'; return; }
+    save.disabled = true;
+    try {
+      const r = await fetch(`/api/daily/${encodeURIComponent(dailyId)}/feedback`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({feedback_text: text}),
+      });
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        throw new Error(j.detail || `HTTP ${r.status}`);
+      }
+      ta.value = '';
+      status.textContent = 'queued for nightly';
+      status.className = 'pjd-daily-feedback-status ok';
+    } catch (err) {
+      status.textContent = err.message;
+      status.className = 'pjd-daily-feedback-status err';
+    } finally {
+      save.disabled = false;
+    }
   });
 
   // ─── D4: ✓/✗ contributed toggle on link rows ────────────────────
