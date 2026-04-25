@@ -1053,6 +1053,61 @@ class WikiRenderer:
     def render_pm_projects(self) -> Dict:
         return self._render_pm_projects()
 
+    def render_project_detail(
+        self, project_id: str, deliverable_id: Optional[str] = None,
+    ) -> Optional[Dict]:
+        """Project shell-view data for /wiki/goals/p/{pid}[/d/{did}].
+
+        Returns None when project_id is not present in goals.yaml — the
+        caller should 404 in that case. When deliverable_id is given but
+        not under this project, `selected_deliverable` is None and the
+        caller should 404 as well; this method does not differentiate
+        between "no selection requested" and "bad selection requested".
+
+        Reuses _render_pm_projects so deliverable pulse stats stay in
+        sync with the Goals landing — no duplicated enrichment logic.
+        """
+        pm = self._render_pm_projects()
+
+        project: Optional[Dict] = None
+        parent_goal: Optional[Dict] = None
+        for g in pm.get("goals", []) or []:
+            for p in g.get("projects", []) or []:
+                if p.get("id") == project_id:
+                    project = p
+                    parent_goal = g
+                    break
+            if project is not None:
+                break
+
+        if project is None:
+            return None
+
+        deliverables: List[Dict] = list(project.get("deliverables") or [])
+        selected: Optional[Dict] = None
+        if deliverable_id:
+            selected = next(
+                (d for d in deliverables if d.get("id") == deliverable_id),
+                None,
+            )
+
+        return {
+            "project": project,
+            "deliverables": deliverables,
+            "selected_deliverable": selected,
+            "selected_deliverable_id": deliverable_id or "",
+            "parent_goal": ({
+                "id": parent_goal.get("id"),
+                "title": parent_goal.get("title", ""),
+            } if parent_goal else None),
+            "breadcrumb": [
+                {"label": "Goals", "href": "/wiki/goals"},
+                {"label": (parent_goal or {}).get("title", "Goal"),
+                 "href": "/wiki/goals"},
+                {"label": project.get("title", project_id), "href": ""},
+            ],
+        }
+
     def save_pm_goals(self, goals_payload: List[Dict]) -> Dict:
         """Persist goals.yaml from an API payload, stripping runtime-only
         enrichment fields so the file stays a clean spec. Returns the

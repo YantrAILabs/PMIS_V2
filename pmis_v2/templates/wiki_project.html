@@ -1,0 +1,296 @@
+{% extends "wiki_base.html" %}
+{% block title %}{{ project.title }} — Project — ProMe{% endblock %}
+
+{% block content %}
+<style>
+  /* Phase C1: project shell view. Breaks out of wiki-content's 900px
+     cap to use a 3-column grid: 220 sidebar | flex main | 260 rail. */
+  .pjd-shell {
+    margin: -32px -24px 0;  /* counteract wiki-content's 32/24 padding */
+    padding: 24px;
+    display: grid;
+    grid-template-columns: 220px minmax(0, 1fr) 260px;
+    gap: 24px;
+    align-items: start;
+    min-height: calc(100vh - 90px);
+  }
+  @media (max-width: 1100px) {
+    .pjd-shell { grid-template-columns: 220px minmax(0, 1fr); }
+    .pjd-rail { display: none; }
+  }
+  @media (max-width: 760px) {
+    .pjd-shell { grid-template-columns: minmax(0, 1fr); padding: 16px; }
+    .pjd-side { display: none; }
+  }
+
+  /* ─── sidebar ─── */
+  .pjd-side {
+    position: sticky; top: 80px;
+    align-self: start;
+    border-right: 1px solid var(--border);
+    padding-right: 12px;
+  }
+  .pjd-side-section {
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-size: 10px;
+    color: var(--fg3);
+    font-weight: 600;
+    margin: 0 0 6px;
+  }
+  .pjd-side-link {
+    display: flex; align-items: center; gap: 6px;
+    padding: 5px 8px;
+    border-radius: 4px;
+    font-size: 13px;
+    color: var(--fg2);
+    text-decoration: none;
+  }
+  .pjd-side-link:hover { background: var(--bg2); color: var(--fg); text-decoration: none; }
+  .pjd-side-link.active {
+    background: var(--bg3); color: var(--fg); font-weight: 600;
+  }
+  .pjd-side-link .pjd-side-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--bg3); flex-shrink: 0;
+  }
+  .pjd-side-link.alive .pjd-side-dot { background: #22c55e; }
+  .pjd-side-mins {
+    margin-left: auto; font-size: 11px; color: var(--fg3);
+    font-variant-numeric: tabular-nums;
+  }
+  .pjd-side-add {
+    margin-top: 8px;
+    width: 100%;
+    background: transparent;
+    border: 1px dashed var(--border);
+    color: var(--fg3);
+    font-size: 12px;
+    padding: 5px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    text-align: left;
+  }
+  .pjd-side-add:hover { color: var(--fg); border-color: var(--purple); }
+
+  /* ─── main ─── */
+  .pjd-main { min-width: 0; }
+  .pjd-breadcrumb { font-size: 12px; color: var(--fg3); margin-bottom: 14px; }
+  .pjd-breadcrumb a { color: var(--fg3); }
+  .pjd-breadcrumb a:hover { color: var(--link); text-decoration: underline; }
+  .pjd-breadcrumb .sep { margin: 0 6px; opacity: 0.5; }
+
+  .pjd-title { font-size: 24px; font-weight: 700; color: var(--fg); margin-bottom: 4px; }
+  .pjd-subtitle { font-size: 13px; color: var(--fg3); margin-bottom: 18px; }
+
+  .pjd-deliv-header {
+    margin-top: 18px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .pjd-deliv-header h2 {
+    font-size: 18px; font-weight: 600; color: var(--fg);
+    margin: 0 0 4px; padding-bottom: 0; border-bottom: none;
+  }
+  .pjd-deliv-header .meta {
+    font-size: 12px; color: var(--fg3);
+  }
+
+  .pjd-placeholder {
+    margin-top: 24px;
+    padding: 24px;
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    color: var(--fg3);
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  .pjd-placeholder strong { color: var(--fg2); }
+  .pjd-placeholder code {
+    background: var(--bg2); padding: 1px 6px; border-radius: 4px;
+    font-size: 12px;
+  }
+
+  /* ─── rail ─── */
+  .pjd-rail {
+    position: sticky; top: 80px;
+    align-self: start;
+    border-left: 1px solid var(--border);
+    padding-left: 16px;
+  }
+  .pjd-rail-section {
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-size: 10px;
+    color: var(--fg3);
+    font-weight: 600;
+    margin: 0 0 6px;
+  }
+  .pjd-rail-section + .pjd-rail-section { margin-top: 18px; }
+  .pjd-rail-stat {
+    font-size: 13px; color: var(--fg2); display: flex;
+    justify-content: space-between; padding: 3px 0;
+  }
+  .pjd-rail-stat .v {
+    font-variant-numeric: tabular-nums; color: var(--fg);
+    font-weight: 500;
+  }
+</style>
+
+<div class="pjd-shell">
+  <!-- sidebar: deliverables -->
+  <aside class="pjd-side">
+    <p class="pjd-side-section">Deliverables</p>
+    {% if deliverables %}
+      {% for d in deliverables %}
+      <a class="pjd-side-link {% if d.id == selected_deliverable_id %}active{% endif %} {% if d.alive %}alive{% endif %}"
+         href="/wiki/goals/p/{{ project.id }}/d/{{ d.id }}">
+        <span class="pjd-side-dot"></span>
+        <span class="pjd-side-name">{{ d.name }}</span>
+        {% if d.mins_7d %}<span class="pjd-side-mins">{{ d.mins_7d|round|int }}m</span>{% endif %}
+      </a>
+      {% endfor %}
+    {% else %}
+      <div style="font-size:12px;color:var(--fg3);font-style:italic;padding:6px 0;">
+        No deliverables yet.
+      </div>
+    {% endif %}
+    <button class="pjd-side-add" data-project-id="{{ project.id }}">+ Add deliverable</button>
+  </aside>
+
+  <!-- main -->
+  <main class="pjd-main">
+    <div class="pjd-breadcrumb">
+      {% for crumb in breadcrumb %}
+        {% if crumb.href %}<a href="{{ crumb.href }}">{{ crumb.label }}</a>{% else %}{{ crumb.label }}{% endif %}
+        {% if not loop.last %}<span class="sep">›</span>{% endif %}
+      {% endfor %}
+    </div>
+
+    <h1 class="pjd-title">{{ project.title }}</h1>
+    <div class="pjd-subtitle">
+      Status: {{ project.status }}
+      {% if project.target_week %} · Target: {{ project.target_week }}{% endif %}
+      · Pulse: {{ project.pulse_mins_7d|round|int }}m · 7d
+      {% if parent_goal %} · Goal: {{ parent_goal.title }}{% endif %}
+    </div>
+
+    {% if selected_deliverable %}
+    <section class="pjd-deliv-header">
+      <h2>{{ selected_deliverable.name }}</h2>
+      <div class="meta">
+        {% if selected_deliverable.mins_7d %}
+          {{ selected_deliverable.mins_7d|round|int }}m · 7d
+        {% else %}
+          No tracked time in the last 7 days
+        {% endif %}
+        {% if selected_deliverable.alive %} · alive{% endif %}
+      </div>
+    </section>
+    <div class="pjd-placeholder">
+      <strong>Deliverable scaffold lands in C2.</strong>
+      Six sections (Overview · Progress · Decisions · Open questions · Risks · Contributing links)
+      will fill from the <code>deliverable_sections</code> table (Phase A) and the
+      tree-prose renderer from F5a.
+    </div>
+    {% else %}
+    <section class="pjd-deliv-header">
+      <h2>Project overview</h2>
+      <div class="meta">No deliverable selected. Add one in the sidebar to start tracking work against it.</div>
+    </section>
+    <div class="pjd-placeholder">
+      <strong>This project has no deliverables yet.</strong>
+      Click <em>+ Add deliverable</em> in the sidebar to create the first one.
+      Deliverable detail pages arrive in C2.
+    </div>
+    {% endif %}
+  </main>
+
+  <!-- right rail: pulse + meta -->
+  <aside class="pjd-rail">
+    <p class="pjd-rail-section">Project pulse · 7d</p>
+    <div class="pjd-rail-stat">
+      <span>Total minutes</span><span class="v">{{ project.pulse_mins_7d|round|int }}</span>
+    </div>
+    <div class="pjd-rail-stat">
+      <span>Days since pulse</span><span class="v">{{ project.days_since_pulse if project.days_since_pulse is not none else '—' }}</span>
+    </div>
+    <div class="pjd-rail-stat">
+      <span>Column</span><span class="v">{{ project.column }}</span>
+    </div>
+
+    {% if deliverables %}
+    <p class="pjd-rail-section">Deliverables</p>
+    <div class="pjd-rail-stat">
+      <span>Total</span><span class="v">{{ deliverables|length }}</span>
+    </div>
+    <div class="pjd-rail-stat">
+      <span>Alive</span><span class="v">{{ deliverables|selectattr('alive')|list|length }}</span>
+    </div>
+    {% endif %}
+
+    {% if project.inception_date %}
+    <p class="pjd-rail-section">Lifecycle</p>
+    <div class="pjd-rail-stat">
+      <span>Inception</span><span class="v">{{ project.inception_date }}</span>
+    </div>
+    {% if project.latest_event %}
+    <div class="pjd-rail-stat">
+      <span>Latest</span><span class="v">{{ project.latest_event.event }}</span>
+    </div>
+    {% endif %}
+    {% endif %}
+  </aside>
+</div>
+
+<script>
+(function() {
+  // Reuse the Phase B "+ Add deliverable" pattern: button → input → POST → reload.
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.pjd-side-add');
+    if (!btn) return;
+    const projectId = btn.dataset.projectId;
+    if (!projectId) return;
+
+    const inp = document.createElement('input');
+    inp.type = 'text';
+    inp.placeholder = 'Deliverable name';
+    inp.style.cssText = 'width:100%;padding:5px 8px;border:1px solid var(--purple);border-radius:4px;font-size:13px;font-family:inherit;';
+    btn.replaceWith(inp);
+    inp.focus();
+
+    let settled = false;
+    const settle = async (commit) => {
+      if (settled) return;
+      settled = true;
+      const name = inp.value.trim();
+      if (!commit || !name) {
+        inp.replaceWith(btn);
+        return;
+      }
+      inp.disabled = true;
+      try {
+        const r = await fetch('/api/pm/deliverables', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, project_id: projectId }),
+        });
+        if (!r.ok) {
+          const err = await r.json().catch(() => ({}));
+          throw new Error(err.detail || `HTTP ${r.status}`);
+        }
+        window.location.reload();
+      } catch (err) {
+        inp.replaceWith(btn);
+        alert('Add deliverable failed: ' + err.message);
+      }
+    };
+    inp.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') { ev.preventDefault(); settle(true); }
+      else if (ev.key === 'Escape') { ev.preventDefault(); settle(false); }
+    });
+    inp.addEventListener('blur', () => settle(true));
+  });
+})();
+</script>
+{% endblock %}

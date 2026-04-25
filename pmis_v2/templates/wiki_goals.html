@@ -608,6 +608,19 @@
     transition: all 0.12s;
   }
   .pk-pb-add-project:hover { color: var(--fg, #1f1f1f); border-color: var(--accent, #8b5cf6); }
+  .pk-pb-open {
+    margin-left: 4px;
+    background: transparent; border: 1px solid transparent;
+    color: var(--fg3, #6b7280); font-size: 14px; line-height: 1;
+    padding: 2px 8px; border-radius: 4px;
+    text-decoration: none; cursor: pointer;
+    transition: all 0.12s;
+  }
+  .pk-pb-open:hover {
+    color: var(--accent, #8b5cf6);
+    border-color: var(--accent, #8b5cf6);
+    text-decoration: none;
+  }
   .pk-pb-input {
     background: var(--bg2, #fff);
     border: 1px solid var(--accent, #8b5cf6);
@@ -716,6 +729,8 @@
             {% endif %}
             <button class="pk-pb-add-deliv" data-project-id="{{ p.id }}"
                     title="Add deliverable to this project">+ deliverable</button>
+            <a class="pk-pb-open" href="/wiki/goals/p/{{ p.id }}"
+               title="Open project detail">→</a>
           </div>
           {% endfor %}
           {% endif %}

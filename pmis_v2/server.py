@@ -34,7 +34,7 @@ sys.path.insert(0, str(PMIS_DIR))
 sys.path.insert(0, str(REPO_ROOT))
 
 from fastapi import FastAPI, Request, Query, Header, Depends, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
@@ -1425,6 +1425,48 @@ async def wiki_goals(request: Request):
     except Exception:
         data["review_pending_count"] = 0
     return templates.TemplateResponse(request, "wiki_goals.html", data)
+
+
+# ─── Phase C: project shell view ─────────────────────────────────────
+#
+# /wiki/goals/p/{pid}            — opens first deliverable, or Overview
+#                                   when the project has none yet.
+# /wiki/goals/p/{pid}/d/{did}    — same shell with a specific deliverable
+#                                   selected. 404 when did not under pid.
+
+@app.get("/wiki/goals/p/{project_id}", response_class=HTMLResponse)
+async def wiki_project_detail(request: Request, project_id: str):
+    wiki = _get_wiki()
+    data = wiki.render_project_detail(project_id)
+    if data is None:
+        raise HTTPException(status_code=404, detail=f"project {project_id} not found")
+    if data["deliverables"]:
+        first_id = data["deliverables"][0].get("id") or ""
+        if first_id:
+            return RedirectResponse(
+                url=f"/wiki/goals/p/{project_id}/d/{first_id}",
+                status_code=302,
+            )
+    return templates.TemplateResponse(request, "wiki_project.html", data)
+
+
+@app.get(
+    "/wiki/goals/p/{project_id}/d/{deliverable_id}",
+    response_class=HTMLResponse,
+)
+async def wiki_project_deliverable(
+    request: Request, project_id: str, deliverable_id: str,
+):
+    wiki = _get_wiki()
+    data = wiki.render_project_detail(project_id, deliverable_id)
+    if data is None:
+        raise HTTPException(status_code=404, detail=f"project {project_id} not found")
+    if data["selected_deliverable"] is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"deliverable {deliverable_id} not under project {project_id}",
+        )
+    return templates.TemplateResponse(request, "wiki_project.html", data)
 
 
 # ─── Review tab ───────────────────────────────────────────────────────
