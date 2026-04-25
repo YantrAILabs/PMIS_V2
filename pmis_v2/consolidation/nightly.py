@@ -122,6 +122,14 @@ class NightlyConsolidation:
         # 10. Time assignment.
         results["time_assigned"] = self._pass_time_assignment()
 
+        # 10b. Phase G — auto-compose missing daily summaries for
+        #      yesterday + apply any queued daily_feedback rows.
+        try:
+            from sync.daily_summary_writer import run_daily_pass
+            results["daily_summaries"] = [run_daily_pass(self.db.db_path)]
+        except Exception as e:
+            results["daily_summaries"] = [{"status": "error", "error": str(e)}]
+
         # Persist all collected actions.
         for action in self.actions_log:
             self.db.log_consolidation(action)

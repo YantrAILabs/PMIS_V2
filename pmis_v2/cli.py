@@ -537,6 +537,24 @@ def cmd_links_bind(args):
 
 
 @_safe_output
+def cmd_daily_compose(args):
+    """G: compose missing daily_summaries for the target date."""
+    from sync.daily_summary_writer import compose_missing_daily_summaries
+    db_path = str(PMIS_DIR / "data" / "memory.db")
+    return compose_missing_daily_summaries(
+        db_path, date=getattr(args, "date", None),
+    )
+
+
+@_safe_output
+def cmd_daily_apply_feedback(args):
+    """G: re-compose summaries for queued daily_feedback rows."""
+    from sync.daily_summary_writer import apply_pending_feedback
+    db_path = str(PMIS_DIR / "data" / "memory.db")
+    return apply_pending_feedback(db_path)
+
+
+@_safe_output
 def cmd_dream_match_pages(args):
     """Dream's gated auto-match over untagged work_pages.
 
@@ -757,6 +775,24 @@ def build_parser():
         help="Frames a URL must appear in for contributed=1 (default: 2)",
     )
 
+    # daily subcommands (Phase G — auto-compose + feedback apply).
+    daily_parser = subparsers.add_parser(
+        "daily", help="Daily summary auto-compose + feedback apply (G)",
+    )
+    daily_sub = daily_parser.add_subparsers(dest="daily_command")
+    daily_compose_p = daily_sub.add_parser(
+        "compose",
+        help="Compose missing daily_summaries for the given date",
+    )
+    daily_compose_p.add_argument(
+        "--date", default=None,
+        help="Target date YYYY-MM-DD (default: yesterday)",
+    )
+    daily_sub.add_parser(
+        "apply-feedback",
+        help="Apply queued daily_feedback rows by re-composing affected summaries",
+    )
+
     # dream subcommands (Phase 9 auto-match + future consolidations)
     dream_parser = subparsers.add_parser("dream", help="Dream / nightly ops")
     dream_sub = dream_parser.add_subparsers(dest="dream_command")
@@ -876,6 +912,13 @@ def main():
             cmd_links_bind(args)
         else:
             parser.parse_args(["links", "--help"])
+    elif args.command == "daily":
+        if args.daily_command == "compose":
+            cmd_daily_compose(args)
+        elif args.daily_command == "apply-feedback":
+            cmd_daily_apply_feedback(args)
+        else:
+            parser.parse_args(["daily", "--help"])
     elif args.command == "dream":
         if args.dream_command == "match-pages":
             cmd_dream_match_pages(args)
