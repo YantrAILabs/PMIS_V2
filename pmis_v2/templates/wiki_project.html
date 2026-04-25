@@ -196,6 +196,58 @@
   }
   .pjd-daily-stub strong { color: var(--fg2); }
 
+  /* ─── D4: Contributing links strip ─── */
+  .pjd-link-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 0; font-size: 13px;
+    border-bottom: 1px solid var(--bg3);
+  }
+  .pjd-link-row:last-child { border-bottom: none; }
+  .pjd-link-row.muted { opacity: 0.45; }
+  .pjd-link-kind {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px;
+    padding: 1px 6px; border-radius: 3px;
+    background: var(--bg3); color: var(--fg2); font-weight: 600;
+    flex-shrink: 0;
+  }
+  .pjd-link-kind.k-design { background: #fef3c7; color: #92400e; }
+  .pjd-link-kind.k-code { background: #dcfce7; color: #14532d; }
+  .pjd-link-kind.k-pdf { background: #fee2e2; color: #991b1b; }
+  .pjd-link-kind.k-md { background: #dbeafe; color: #1e3a8a; }
+  .pjd-link-kind.k-image { background: #f3e8ff; color: #581c87; }
+  .pjd-link-kind.k-web { background: var(--bg3); color: var(--fg2); }
+  .pjd-link-url {
+    flex: 1; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    color: var(--link);
+  }
+  .pjd-link-dwell {
+    font-size: 11px; color: var(--fg3); font-variant-numeric: tabular-nums;
+  }
+  .pjd-link-toggle {
+    cursor: pointer; border: none; background: transparent;
+    font-size: 14px; padding: 2px 6px; border-radius: 3px;
+    color: var(--fg3); transition: background 0.12s;
+  }
+  .pjd-link-toggle:hover { background: var(--bg3); }
+  .pjd-link-toggle.active { color: #16a34a; }
+  .pjd-link-toggle.cross.active { color: #dc2626; }
+
+  /* Right rail — project rollup */
+  .pjd-rollup-link {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; padding: 3px 0;
+    overflow: hidden;
+  }
+  .pjd-rollup-link .pjd-rollup-url {
+    flex: 1; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    color: var(--link);
+  }
+  .pjd-rollup-link .pjd-rollup-dwell {
+    font-size: 11px; color: var(--fg3);
+  }
+
   /* ─── rail ─── */
   .pjd-rail {
     position: sticky; top: 80px;
@@ -293,7 +345,22 @@
             </div>
           </div>
           <div class="pjd-section-body" data-slot-body="{{ slot }}">
-            {% if s.is_empty %}
+            {% if slot == "links" and s.link_rows %}
+              {% for lk in s.link_rows %}
+              <div class="pjd-link-row {% if not lk.contributed %}muted{% endif %}"
+                   data-link-id="{{ lk.link_id }}">
+                <span class="pjd-link-kind k-{{ lk.kind }}">{{ lk.kind }}</span>
+                <a class="pjd-link-url" href="{{ lk.url }}" target="_blank" rel="noopener">{{ lk.url }}</a>
+                <span class="pjd-link-dwell">{{ lk.dwell_frames }}f</span>
+                <button class="pjd-link-toggle check {% if lk.contributed %}active{% endif %}"
+                        data-link-id="{{ lk.link_id }}" data-deliverable-id="{{ selected_deliverable.id }}"
+                        data-target="1" title="Contributed">✓</button>
+                <button class="pjd-link-toggle cross {% if not lk.contributed %}active{% endif %}"
+                        data-link-id="{{ lk.link_id }}" data-deliverable-id="{{ selected_deliverable.id }}"
+                        data-target="0" title="Not contributed">✗</button>
+              </div>
+              {% endfor %}
+            {% elif s.is_empty %}
               <div class="pjd-section-empty">
                 <a class="pjd-section-edit-empty" data-slot="{{ slot }}">Click to add</a>
               </div>
@@ -345,6 +412,17 @@
     <div class="pjd-rail-stat">
       <span>Alive</span><span class="v">{{ deliverables|selectattr('alive')|list|length }}</span>
     </div>
+    {% endif %}
+
+    {% if project_links_rollup %}
+    <p class="pjd-rail-section">Contributing links · {{ project_links_rollup|length }}</p>
+    {% for lk in project_links_rollup %}
+    <div class="pjd-rollup-link">
+      <span class="pjd-link-kind k-{{ lk.kind }}">{{ lk.kind }}</span>
+      <a class="pjd-rollup-url" href="{{ lk.url }}" target="_blank" rel="noopener" title="{{ lk.url }}">{{ lk.url }}</a>
+      <span class="pjd-rollup-dwell">{{ lk.dwell_total }}f</span>
+    </div>
+    {% endfor %}
     {% endif %}
 
     {% if project.inception_date %}
@@ -480,6 +558,45 @@
     if (!editBtn) return;
     e.preventDefault();
     openEditor(editBtn.dataset.slot);
+  });
+
+  // ─── D4: ✓/✗ contributed toggle on link rows ────────────────────
+  document.addEventListener('click', async (e) => {
+    const btn = e.target.closest('.pjd-link-toggle');
+    if (!btn) return;
+    const linkId = btn.dataset.linkId;
+    const deliverableId = btn.dataset.deliverableId;
+    const target = parseInt(btn.dataset.target, 10);
+    if (!linkId || !deliverableId) return;
+
+    btn.disabled = true;
+    try {
+      const r = await fetch('/api/links/bindings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          link_id: linkId, scope: 'deliverable',
+          scope_id: deliverableId, contributed: target,
+        }),
+      });
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        throw new Error(j.detail || `HTTP ${r.status}`);
+      }
+      const j = await r.json();
+      const row = btn.closest('.pjd-link-row');
+      if (row) {
+        row.classList.toggle('muted', !j.contributed);
+        const check = row.querySelector('.pjd-link-toggle.check');
+        const cross = row.querySelector('.pjd-link-toggle.cross');
+        if (check) check.classList.toggle('active', !!j.contributed);
+        if (cross) cross.classList.toggle('active', !j.contributed);
+      }
+    } catch (err) {
+      alert('Toggle failed: ' + err.message);
+    } finally {
+      btn.disabled = false;
+    }
   });
 
   // Reuse the Phase B "+ Add deliverable" pattern: button → input → POST → reload.

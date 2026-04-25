@@ -1935,6 +1935,64 @@ async def api_pm_projects():
     return {"projects": _orch.db.list_projects(status="active")}
 
 
+# ─── Phase D4: link binding contributed-toggle ───────────────────────
+
+class LinkBindingToggle(BaseModel):
+    link_id: str
+    scope: str
+    scope_id: str
+    contributed: int  # 0 or 1
+
+
+@app.patch("/api/links/bindings")
+async def api_link_binding_toggle(payload: LinkBindingToggle):
+    """Flip link_bindings.contributed for a single binding.
+    UI-driven ✓/✗ override on the deliverable page."""
+    if payload.contributed not in (0, 1):
+        raise HTTPException(
+            status_code=400, detail="contributed must be 0 or 1",
+        )
+    if payload.scope not in ("project", "deliverable", "daily",
+                             "work_match", "frame", "segment"):
+        raise HTTPException(
+            status_code=400, detail=f"invalid scope: {payload.scope}",
+        )
+
+    conn = sqlite3.connect(_orch.db.db_path)
+    try:
+        cur = conn.execute(
+            "UPDATE link_bindings SET contributed = ? "
+            "WHERE link_id = ? AND scope = ? AND scope_id = ?",
+            (payload.contributed, payload.link_id,
+             payload.scope, payload.scope_id),
+        )
+        conn.commit()
+        if cur.rowcount == 0:
+            raise HTTPException(
+                status_code=404,
+                detail=(f"binding not found: link_id={payload.link_id} "
+                        f"scope={payload.scope} scope_id={payload.scope_id}"),
+            )
+        row = conn.execute(
+            """SELECT lb.link_id, l.url, l.kind, lb.contributed,
+                      lb.dwell_frames
+               FROM link_bindings lb JOIN links l ON l.id = lb.link_id
+               WHERE lb.link_id = ? AND lb.scope = ? AND lb.scope_id = ?""",
+            (payload.link_id, payload.scope, payload.scope_id),
+        ).fetchone()
+    finally:
+        conn.close()
+
+    if not row:
+        # The UPDATE succeeded but the JOIN returned nothing — orphaned
+        # binding; rare, but bubble it up as 404 rather than crash.
+        raise HTTPException(status_code=404, detail="link missing for binding")
+    return {
+        "link_id": row[0], "url": row[1], "kind": row[2] or "other",
+        "contributed": int(row[3]), "dwell_frames": int(row[4] or 0),
+    }
+
+
 # ─── Phase C2: deliverable section scaffold ──────────────────────────
 
 _DELIVERABLE_SLOTS = (

@@ -1134,6 +1134,7 @@ class WikiRenderer:
             # empty) — respect that and don't auto-fill.
             auto_filled = False
             tagged_count = 0
+            link_rows: List[Dict[str, Any]] = []
             if (not body_md.strip()) and source != "user":
                 if slot == "progress":
                     body_md, tagged_count = (
@@ -1141,6 +1142,15 @@ class WikiRenderer:
                     )
                     if body_md:
                         auto_filled = True
+                elif slot == "links":
+                    # D4: structured payload, not markdown — the template
+                    # renders a chip list with toggle buttons, so we leave
+                    # body_md/body_html empty and stash the rows in
+                    # `link_rows` for the template.
+                    link_rows = self.load_deliverable_links(deliverable_id)
+                    if link_rows:
+                        auto_filled = True
+                        tagged_count = len(link_rows)
 
             out[slot] = {
                 "slot": slot,
@@ -1149,11 +1159,99 @@ class WikiRenderer:
                 "body_html": _section_md_to_html(body_md) if body_md else "",
                 "source": source,
                 "updated_at": saved.get("updated_at", ""),
-                "is_empty": not bool(body_md.strip()),
+                "is_empty": not bool(body_md.strip()) and not link_rows,
                 "auto_filled": auto_filled,
                 "tagged_count": tagged_count,
+                "link_rows": link_rows,
             }
         return out
+
+    def load_deliverable_links(
+        self, deliverable_id: str,
+    ) -> List[Dict[str, Any]]:
+        """Phase D4 — return all link_bindings for this deliverable as
+        a sorted list. Order: contributed=1 first, then dwell desc."""
+        if not deliverable_id:
+            return []
+        try:
+            cursor = self.db._conn.execute(
+                """SELECT lb.link_id, l.url, l.kind, lb.contributed,
+                          lb.dwell_frames
+                   FROM link_bindings lb
+                   JOIN links l ON l.id = lb.link_id
+                   WHERE lb.scope = 'deliverable' AND lb.scope_id = ?
+                   ORDER BY lb.contributed DESC, lb.dwell_frames DESC,
+                            l.url ASC""",
+                (deliverable_id,),
+            )
+            return [
+                {
+                    "link_id": r[0],
+                    "url": r[1],
+                    "kind": r[2] or "other",
+                    "contributed": int(r[3] or 0),
+                    "dwell_frames": int(r[4] or 0),
+                }
+                for r in cursor.fetchall()
+            ]
+        except Exception:
+            logger.exception("load_deliverable_links failed")
+            return []
+
+    def project_link_rollup(
+        self, project_id: str, limit: int = 5,
+    ) -> List[Dict[str, Any]]:
+        """Phase D4 — aggregate contributed=1 link_bindings across every
+        deliverable belonging to `project_id`. URL-deduped; total dwell
+        summed across deliverables. Top `limit` by summed dwell."""
+        if not project_id:
+            return []
+
+        # Resolve the project's deliverable IDs from goals.yaml — the same
+        # source render_project_detail uses, so the rollup matches what
+        # the user sees in the sidebar.
+        deliverable_ids: List[str] = []
+        try:
+            pm = self._render_pm_projects()
+            for g in pm.get("goals", []) or []:
+                for p in g.get("projects", []) or []:
+                    if p.get("id") == project_id:
+                        for d in p.get("deliverables") or []:
+                            did = d.get("id")
+                            if did:
+                                deliverable_ids.append(did)
+                        break
+        except Exception:
+            return []
+
+        if not deliverable_ids:
+            return []
+
+        placeholders = ",".join("?" * len(deliverable_ids))
+        try:
+            cursor = self.db._conn.execute(
+                f"""SELECT l.url, l.kind, SUM(lb.dwell_frames) AS dwell_sum
+                    FROM link_bindings lb
+                    JOIN links l ON l.id = lb.link_id
+                    WHERE lb.scope = 'deliverable'
+                      AND lb.contributed = 1
+                      AND lb.scope_id IN ({placeholders})
+                    GROUP BY l.url, l.kind
+                    ORDER BY dwell_sum DESC, l.url ASC
+                    LIMIT ?""",
+                deliverable_ids + [int(limit)],
+            )
+            return [
+                {
+                    "url": r[0],
+                    "kind": r[1] or "other",
+                    "dwell_total": int(r[2] or 0),
+                }
+                for r in cursor.fetchall()
+            ]
+        except Exception:
+            logger.exception("project_link_rollup failed")
+            return []
 
     def _progress_from_tagged_proposals(
         self, deliverable_id: str, limit: int = 10,
@@ -1254,6 +1352,10 @@ class WikiRenderer:
             sections = self.load_deliverable_sections(selected["id"])
             section_order = self.DELIVERABLE_SLOT_ORDER
 
+        # Phase D4: top contributed links across the whole project.
+        # Renders in the right rail; informational only.
+        project_links_rollup = self.project_link_rollup(project_id)
+
         return {
             "project": project,
             "deliverables": deliverables,
@@ -1261,6 +1363,7 @@ class WikiRenderer:
             "selected_deliverable_id": deliverable_id or "",
             "sections": sections,
             "section_order": list(section_order),
+            "project_links_rollup": project_links_rollup,
             "parent_goal": ({
                 "id": parent_goal.get("id"),
                 "title": parent_goal.get("title", ""),
