@@ -219,7 +219,7 @@ class TrainingCorpusExporter:
         existing: Dict[str, Any] = {}
         if manifest_path.exists():
             try:
-                existing = json.loads(manifest_path.read_text())
+                existing = json.loads(manifest_path.read_text(encoding="utf-8"))
             except Exception:
                 existing = {}
         runs = existing.get("runs", [])
@@ -231,4 +231,4 @@ class TrainingCorpusExporter:
         existing["runs"] = runs[-50:]
         existing["last_run_at"] = runs[-1]["at"]
         existing["corpus_root"] = str(self.corpus_root)
-        manifest_path.write_text(json.dumps(existing, indent=2))
+        manifest_path.write_text(json.dumps(existing, indent=2), encoding="utf-8")

@@ -47,7 +47,7 @@ def _load_session_id():
     """Load conversation_id from persistent session file."""
     if _session_file.exists():
         try:
-            data = json.loads(_session_file.read_text())
+            data = json.loads(_session_file.read_text(encoding="utf-8"))
             return data.get("conversation_id")
         except (json.JSONDecodeError, IOError):
             pass
@@ -60,7 +60,7 @@ def _save_session_id(conversation_id):
     _session_file.write_text(json.dumps({
         "conversation_id": conversation_id,
         "updated_at": datetime.now().isoformat(),
-    }))
+    }), encoding="utf-8")
 
 
 def _clear_session():

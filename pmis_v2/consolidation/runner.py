@@ -35,6 +35,43 @@ logger = logging.getLogger("pmis.runner")
 
 
 PMIS_DIR = Path(__file__).resolve().parent.parent
+LOCK_PATH = PMIS_DIR / "data" / "nightly.lock"
+LOCK_STALE_SECONDS = 30 * 60  # 30 min — longer than any sane run
+
+
+# ---------------------------------------------------------------------
+# Lock file
+# ---------------------------------------------------------------------
+
+
+def _acquire_lock() -> bool:
+    """Try to acquire the runner lock. Returns False if another runner is
+    active. A lock older than LOCK_STALE_SECONDS is overridden."""
+    LOCK_PATH.parent.mkdir(parents=True, exist_ok=True)
+    if LOCK_PATH.exists():
+        try:
+            age = time.time() - LOCK_PATH.stat().st_mtime
+        except OSError:
+            age = 0
+        if age < LOCK_STALE_SECONDS:
+            try:
+                existing = LOCK_PATH.read_text(encoding="utf-8").strip()
+            except OSError:
+                existing = "?"
+            logger.info("Runner lock held by pid=%s (age %.0fs); skipping.", existing, age)
+            return False
+        logger.warning("Stale runner lock (age %.0fs); overriding.", age)
+    LOCK_PATH.write_text(str(os.getpid()), encoding="utf-8")
+    atexit.register(_release_lock)
+    return True
+
+
+def _release_lock() -> None:
+    try:
+        if LOCK_PATH.exists() and LOCK_PATH.read_text(encoding="utf-8").strip() == str(os.getpid()):
+            LOCK_PATH.unlink()
+    except Exception:
+        pass
 
 
 # ---------------------------------------------------------------------
