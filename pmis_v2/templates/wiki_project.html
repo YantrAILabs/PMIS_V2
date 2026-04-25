@@ -284,7 +284,11 @@
           <div class="pjd-section-head">
             <h3>{{ s.label }}</h3>
             <div>
-              {% if s.updated_at %}<span class="pjd-section-meta">edited {{ s.updated_at[:10] }} · {{ s.source }}</span>{% endif %}
+              {% if s.auto_filled %}
+                <span class="pjd-section-meta" title="Auto-rendered from confirmed and auto-attached proposals">auto · {{ s.tagged_count }} tagged</span>
+              {% elif s.updated_at %}
+                <span class="pjd-section-meta">edited {{ s.updated_at[:10] }} · {{ s.source }}</span>
+              {% endif %}
               <button class="pjd-section-edit" data-slot="{{ slot }}">edit</button>
             </div>
           </div>

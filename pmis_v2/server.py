@@ -1969,6 +1969,12 @@ async def api_pm_deliverable_section_update(
         raise HTTPException(status_code=400, detail="deliverable_id required")
 
     body_md = payload.body_md or ""
+    # C3: empty save = "give me the auto-fill back". Saving empty
+    # content with source='user' would land in a confusing state
+    # (auto-fill suppressed, body shown empty), so we coerce to
+    # 'auto' instead. The user can re-save real content to flip
+    # source back to 'user'.
+    effective_source = "auto" if not body_md.strip() else payload.source
 
     conn = sqlite3.connect(_orch.db.db_path)
     try:
@@ -1980,7 +1986,7 @@ async def api_pm_deliverable_section_update(
                    body_md = excluded.body_md,
                    source = excluded.source,
                    updated_at = excluded.updated_at""",
-            (deliverable_id, slot, body_md, payload.source),
+            (deliverable_id, slot, body_md, effective_source),
         )
         conn.commit()
         row = conn.execute(
@@ -1997,7 +2003,7 @@ async def api_pm_deliverable_section_update(
         "slot": slot,
         "body_md": body_md,
         "body_html": body_html,
-        "source": payload.source,
+        "source": effective_source,
         "updated_at": row[0] if row else "",
     }
 

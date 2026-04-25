@@ -10,10 +10,13 @@ Pages: index, SC, CTX, ANC, goals, feedback, health, log, diagnostics.
 
 import json
 import hashlib
+import logging
 import numpy as np
 import sqlite3
 from datetime import datetime
 from typing import Dict, List, Any, Optional, Set, Tuple
+
+logger = logging.getLogger("pmis.wiki_renderer")
 
 
 def _section_md_to_html(body_md: str) -> str:
@@ -1095,7 +1098,13 @@ class WikiRenderer:
     ) -> Dict[str, Dict[str, Any]]:
         """Return the 6-slot scaffold for `deliverable_id`. Always
         returns every slot — missing rows surface as empty bodies so
-        the template doesn't have to handle absence per-slot."""
+        the template doesn't have to handle absence per-slot.
+
+        C3: an eligible slot (no row OR source='auto' with empty body)
+        is auto-filled at read time. Currently only the `progress`
+        slot uses auto-fill; other slots remain empty until the user
+        edits them. The returned dict carries `auto_filled` so the
+        template can label it accordingly."""
         rows: Dict[str, Dict[str, Any]] = {}
         try:
             cursor = self.db._conn.execute(
@@ -1118,16 +1127,85 @@ class WikiRenderer:
         for slot in self.DELIVERABLE_SLOT_ORDER:
             saved = rows.get(slot, {})
             body_md = saved.get("body_md", "")
+            source = saved.get("source", "auto")
+
+            # Eligible: no saved content AND the slot's source isn't 'user'.
+            # 'user' source means the human has explicitly saved (even
+            # empty) — respect that and don't auto-fill.
+            auto_filled = False
+            tagged_count = 0
+            if (not body_md.strip()) and source != "user":
+                if slot == "progress":
+                    body_md, tagged_count = (
+                        self._progress_from_tagged_proposals(deliverable_id)
+                    )
+                    if body_md:
+                        auto_filled = True
+
             out[slot] = {
                 "slot": slot,
                 "label": self.DELIVERABLE_SLOT_LABELS[slot],
                 "body_md": body_md,
                 "body_html": _section_md_to_html(body_md) if body_md else "",
-                "source": saved.get("source", "auto"),
+                "source": source,
                 "updated_at": saved.get("updated_at", ""),
                 "is_empty": not bool(body_md.strip()),
+                "auto_filled": auto_filled,
+                "tagged_count": tagged_count,
             }
         return out
+
+    def _progress_from_tagged_proposals(
+        self, deliverable_id: str, limit: int = 10,
+    ) -> Tuple[str, int]:
+        """Render the deliverable's recent confirmed / auto_attached
+        proposals as wiki prose for the Progress slot. Returns
+        (markdown, count). Empty markdown when no eligible proposals."""
+        if not deliverable_id:
+            return "", 0
+        try:
+            from wiki_tree_prose import render_tree_as_prose
+        except Exception:
+            return "", 0
+
+        try:
+            cursor = self.db._conn.execute(
+                """SELECT tree_json, confirmed_at, status
+                   FROM review_proposals
+                   WHERE (user_assigned_deliverable_id = ?
+                          OR auto_attached_to_deliverable_id = ?)
+                     AND status IN ('confirmed', 'auto_attached')
+                     AND tree_json IS NOT NULL
+                     AND tree_json != ''
+                   ORDER BY confirmed_at DESC
+                   LIMIT ?""",
+                (deliverable_id, deliverable_id, int(limit)),
+            )
+            rows = cursor.fetchall()
+        except Exception:
+            logger.exception("_progress_from_tagged_proposals query failed")
+            return "", 0
+
+        chunks: List[str] = []
+        for tree_json, confirmed_at, status in rows:
+            try:
+                tree = json.loads(tree_json)
+            except Exception:
+                continue
+            prose = render_tree_as_prose(tree)
+            if not prose:
+                continue
+            date_str = (confirmed_at or "")[:10]
+            badge = (
+                "*auto-attached*" if status == "auto_attached"
+                else "*confirmed*"
+            )
+            header = f"*on {date_str}* · {badge}" if date_str else badge
+            chunks.append(f"{header}\n\n{prose}")
+
+        if not chunks:
+            return "", 0
+        return "\n\n---\n\n".join(chunks), len(chunks)
 
     def render_project_detail(
         self, project_id: str, deliverable_id: Optional[str] = None,
