@@ -294,6 +294,14 @@ class DBManager:
             "TEXT DEFAULT ''"
         )
 
+        # Phase D3: track which match-log rows have already had their
+        # segment_links propagated into link_bindings. Idempotency
+        # marker for the bindings writer.
+        self._ensure_column(
+            "project_work_match_log", "link_bindings_written",
+            "INTEGER DEFAULT 0"
+        )
+
         # Phase A additions on the productivity-tracker DB (context_1 =
         # segment rows, context_2 = frame rows). Columns are JSON arrays
         # populated by phase D's extractor + roll-up. Wrapped in

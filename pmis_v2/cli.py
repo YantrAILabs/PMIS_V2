@@ -525,6 +525,18 @@ def cmd_links_populate(args):
 
 
 @_safe_output
+def cmd_links_bind(args):
+    """D3: propagate segment_links into link_bindings for confirmed matches."""
+    from sync.link_bindings_writer import bind_recent_matches
+    db_path = str(PMIS_DIR / "data" / "memory.db")
+    return bind_recent_matches(
+        pmis_db_path=db_path,
+        since=getattr(args, "since", None),
+        min_dwell_for_contributed=int(getattr(args, "min_dwell", 2)),
+    )
+
+
+@_safe_output
 def cmd_dream_match_pages(args):
     """Dream's gated auto-match over untagged work_pages.
 
@@ -732,6 +744,18 @@ def build_parser():
         "--since", default=None,
         help="ISO timestamp; limit to frames newer than this (default: full backfill)",
     )
+    links_bind_p = links_sub.add_parser(
+        "bind",
+        help="Propagate segment_links into link_bindings for confirmed matches (D3)",
+    )
+    links_bind_p.add_argument(
+        "--since", default=None,
+        help="ISO timestamp on matched_at; default: process all unbound matches",
+    )
+    links_bind_p.add_argument(
+        "--min-dwell", type=int, default=2,
+        help="Frames a URL must appear in for contributed=1 (default: 2)",
+    )
 
     # dream subcommands (Phase 9 auto-match + future consolidations)
     dream_parser = subparsers.add_parser("dream", help="Dream / nightly ops")
@@ -848,6 +872,8 @@ def main():
     elif args.command == "links":
         if args.links_command == "populate":
             cmd_links_populate(args)
+        elif args.links_command == "bind":
+            cmd_links_bind(args)
         else:
             parser.parse_args(["links", "--help"])
     elif args.command == "dream":

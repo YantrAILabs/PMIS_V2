@@ -97,6 +97,18 @@ class NightlyConsolidation:
         # 9. Project matching (tagged-session inherit + semantic for untagged).
         results["project_matches"] = self._pass_project_matching()
 
+        # 9c. D3 — propagate segment_links into link_bindings for any
+        #     project_work_match_log row landed against a deliverable.
+        try:
+            from sync.link_bindings_writer import bind_recent_matches
+            min_dwell = int(self.hp.get("link_contribution_min_dwell", 2))
+            results["link_bindings"] = [bind_recent_matches(
+                pmis_db_path=self.db.db_path,
+                min_dwell_for_contributed=min_dwell,
+            )]
+        except Exception as e:
+            results["link_bindings"] = [{"status": "error", "error": str(e)}]
+
         # 9b. Work-page auto-match — bootstrap-gated, writes tag_state=proposed
         #     on state=open pages. User confirms via the Unassigned lane
         #     morning review; only confirmed tags feed next nightly's HGCN.
