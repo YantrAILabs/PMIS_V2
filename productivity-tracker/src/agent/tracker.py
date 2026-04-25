@@ -229,6 +229,7 @@ class ProductivityTracker:
                     target_segment_id=self._current_segment_id,
                     target_frame_number=frame["frame_number"],
                     frame_timestamp=frame["timestamp"],
+                    screenshot_path=frame.get("path", ""),
                     raw_text=result.get("text", ""),
                     detailed_summary=result.get("task", ""),
                     worker_type=worker,
@@ -279,6 +280,15 @@ class ProductivityTracker:
             # Worker type: any human input in the segment = human work
             segment_worker = "human" if human_frames > 0 else "ai"
 
+            # Snapshot the frame paths into Context1 before the buffer is cleared.
+            # frame_paths_json is the source of truth for which JPEGs belong to
+            # this segment; cleanup_synced() uses it to reclaim disk only for
+            # segments that have already made it all the way to memory + a tag.
+            import json as _json
+            frame_paths = [f["path"] for f in self._frame_buffer if f.get("path")]
+            frame_paths_json = _json.dumps(frame_paths)
+            segment_dir = str(Path(frame_paths[0]).parent) if frame_paths else ""
+
             # Store in Context 1
             self.db.insert_context1(
                 timestamp_start=start,
@@ -292,9 +302,12 @@ class ProductivityTracker:
                 target_segment_id=segment_id,
                 target_segment_length_secs=duration_secs,
                 worker=segment_worker,
+                short_title=classification.get("short_title", "")[:200],
                 detailed_summary=classification.get("detailed_summary", ""),
                 human_frame_count=human_frames,
                 ai_frame_count=ai_frames,
+                segment_dir=segment_dir,
+                frame_paths_json=frame_paths_json,
             )
 
             logger.info(
@@ -307,11 +320,14 @@ class ProductivityTracker:
         except Exception as e:
             logger.error(f"Segment finalization failed for {segment_id}: {e}")
 
-        # FIX M3: Only clear state on success. On error, leave segment for retry.
         if success:
+            # Generate thumbnails (cheap, best-effort) before releasing the buffer.
+            # Full JPEGs stay on disk until cleanup_synced() reclaims them —
+            # only segments that reach synced_to_memory=1 AND have a project_id
+            # are eligible for full-JPEG deletion. Thumbnails are forever.
             for frame in self._frame_buffer:
                 try:
-                    Path(frame["path"]).unlink(missing_ok=True)
+                    self.screenshot.generate_thumbnail(frame["path"])
                 except Exception:
                     pass
             self._frame_buffer = []
@@ -468,6 +484,15 @@ class ProductivityTracker:
                     f"{result.get('matches_found', 0)} matched "
                     f"(avg {result.get('avg_match_pct', 0):.1f}%)"
                 )
+
+                # Reclaim disk: any segment that just reached synced+tagged
+                # state is eligible to lose its full JPEGs (thumbnails remain).
+                try:
+                    reclaimed = self.screenshot.cleanup_synced(self.db)
+                    if reclaimed:
+                        logger.info(f"cleanup_synced: reclaimed {reclaimed} full JPEGs")
+                except Exception as e:
+                    logger.warning(f"cleanup_synced failed (non-fatal): {e}")
 
             except Exception as e:
                 logger.error(f"30-min memory sync failed: {e}")

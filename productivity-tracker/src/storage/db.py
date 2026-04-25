@@ -55,6 +55,9 @@ class Database:
             "context_node_id": "TEXT DEFAULT ''",
             "anchor_node_id": "TEXT DEFAULT ''",
             "match_score": "REAL DEFAULT 0.0",
+            "segment_dir": "TEXT DEFAULT ''",
+            "frame_paths_json": "TEXT DEFAULT ''",
+            "short_title": "TEXT DEFAULT ''",
         }
         for col, typedef in c1_new.items():
             if col not in c1_cols:
@@ -68,6 +71,7 @@ class Database:
         c2_new = {
             "has_keyboard_activity": "BOOLEAN DEFAULT 0",
             "has_mouse_activity": "BOOLEAN DEFAULT 0",
+            "screenshot_path": "TEXT DEFAULT ''",
         }
         for col, typedef in c2_new.items():
             if col not in c2_cols:

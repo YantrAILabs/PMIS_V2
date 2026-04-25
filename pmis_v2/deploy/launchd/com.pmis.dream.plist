@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.pmis.dream</string>
+
+  <!-- Same TCC workaround as com.pmis.sync — python3 directly, no shell. -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/homebrew/bin/python3</string>
+    <string>__REPO_ROOT__/pmis_v2/deploy/launchd/run_dream.py</string>
+  </array>
+
+  <!-- Run once a day at 18:00 local. -->
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>18</integer>
+    <key>Minute</key>
+    <integer>0</integer>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <false/>
+
+  <key>WorkingDirectory</key>
+  <string>__REPO_ROOT__/pmis_v2</string>
+
+  <key>StandardOutPath</key>
+  <string>__REPO_ROOT__/pmis_v2/logs/scheduler/dream.stdout.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>__REPO_ROOT__/pmis_v2/logs/scheduler/dream.stderr.log</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>PYTHONPATH</key>
+    <string>__REPO_ROOT__/pmis_v2</string>
+  </dict>
+</dict>
+</plist>

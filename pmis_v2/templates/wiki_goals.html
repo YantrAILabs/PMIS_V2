@@ -37,170 +37,12 @@
   .pk-save-state.saved { color:#22c55e; }
 
   /* ─── Column header strip ─── */
-  .pk-col-head-row {
-    display:grid;
-    grid-template-columns: 200px repeat(5, 1fr);
-    gap:8px;
-    padding:6px 0 10px;
-    border-bottom:1px solid var(--border);
-    position:sticky; top:56px; z-index:2;
-    background:var(--bg, #0a0a0f);
-  }
-  .pk-col-head {
-    font-size:10px; letter-spacing:0.8px; text-transform:uppercase;
-    color:var(--fg3); font-weight:600;
-    display:flex; align-items:center; gap:6px;
-  }
-  .pk-col-head .cnt {
-    background:var(--bg2, rgba(255,255,255,0.04));
-    border:1px solid var(--border);
-    padding:1px 6px; border-radius:9px; font-size:10px; font-weight:500;
-    color:var(--fg2);
-  }
-  .pk-col-head .hint {
-    color:var(--fg3); font-weight:400; text-transform:none; letter-spacing:0; font-size:10px;
-  }
-
+  /* Status dots still used next to counts in the goals header. */
   .pk-col-swatch { width:8px; height:8px; border-radius:50%; display:inline-block; }
-  .sw-spark    { background:rgba(148,163,184,0.5); }
   .sw-alive    { background:#22c55e; }
   .sw-cooling  { background:#f59e0b; }
   .sw-cold     { background:#64748b; }
   .sw-shipped  { background:#8b5cf6; }
-
-  /* ─── Swimlane (per goal) ─── */
-  .pk-lane {
-    display:grid;
-    grid-template-columns: 200px repeat(5, 1fr);
-    gap:8px;
-    border-bottom:1px solid var(--border);
-    padding:12px 0;
-  }
-  .pk-lane:last-of-type { border-bottom:none; }
-
-  .pk-goal {
-    padding-right:8px;
-    border-right:1px solid var(--border);
-  }
-  .pk-goal-head { margin-bottom:4px; }
-  .pk-goal-status {
-    display:inline-block; font-size:9px; font-weight:700;
-    letter-spacing:0.7px; padding:2px 7px; border-radius:3px;
-    cursor:pointer; user-select:none; transition:all 0.15s;
-    border:1px solid transparent;
-  }
-  .pk-goal-status:hover { filter:brightness(1.15); }
-  .pk-goal-status.st-active {
-    background:rgba(34,197,94,0.1); color:#22c55e;
-    border-color:rgba(34,197,94,0.3);
-  }
-  .pk-goal-status.st-paused {
-    background:rgba(245,158,11,0.12); color:#f59e0b;
-    border-color:rgba(245,158,11,0.35);
-  }
-  .pk-goal-status.st-done {
-    background:rgba(139,92,246,0.12); color:#8b5cf6;
-    border-color:rgba(139,92,246,0.35);
-  }
-  .pk-goal-title {
-    font-weight:600; font-size:14px; color:var(--fg);
-    display:block; margin-bottom:4px; word-break:break-word;
-  }
-  .pk-goal-why {
-    font-size:11px; color:var(--fg3); font-style:italic;
-    line-height:1.5; margin-bottom:6px; word-break:break-word;
-  }
-  .pk-goal-counts {
-    font-size:10px; color:var(--fg3); margin-bottom:8px;
-    font-variant-numeric:tabular-nums;
-  }
-  .pk-goal-counts .alive   { color:#22c55e; font-weight:500; }
-  .pk-goal-counts .shipped { color:#8b5cf6; font-weight:500; }
-  .pk-goal-actions { display:flex; gap:6px; flex-wrap:wrap; }
-  .pk-goal-mini {
-    background:transparent; border:1px dashed var(--border);
-    color:var(--fg3); font-size:10px; padding:2px 6px;
-    border-radius:3px; cursor:pointer;
-  }
-  .pk-goal-mini:hover { color:var(--fg); border-color:var(--accent,#8b5cf6); }
-
-  /* ─── Column cell ─── */
-  .pk-cell {
-    min-height:40px;
-    padding:2px;
-    display:flex; flex-direction:column; gap:6px;
-  }
-  .pk-cell-empty {
-    color:rgba(148,163,184,0.35); font-size:10px; font-style:italic;
-    text-align:center; padding:10px 6px;
-    border:1px dashed rgba(148,163,184,0.12); border-radius:4px;
-  }
-
-  /* ─── Project card ─── */
-  .pk-card {
-    background:var(--bg2, rgba(255,255,255,0.02));
-    border:1px solid var(--border);
-    border-left:3px solid rgba(148,163,184,0.4);
-    border-radius:5px;
-    padding:8px 10px;
-    cursor:pointer;
-    transition:border-color 0.15s, background 0.15s, transform 0.12s;
-  }
-  .pk-card:hover {
-    border-color:var(--accent,#8b5cf6);
-    background:rgba(139,92,246,0.05);
-    transform:translateY(-1px);
-  }
-  .pk-card.col-spark    { border-left-color:rgba(148,163,184,0.5); }
-  .pk-card.col-alive    { border-left-color:#22c55e; background:rgba(34,197,94,0.05); }
-  .pk-card.col-cooling  { border-left-color:#f59e0b; background:rgba(245,158,11,0.04); }
-  .pk-card.col-cold     { border-left-color:#64748b; opacity:0.72; }
-  .pk-card.col-shipped  { border-left-color:#8b5cf6; opacity:0.85; }
-
-  .pk-card-title {
-    font-size:12px; font-weight:600; color:var(--fg);
-    line-height:1.35; margin-bottom:5px;
-    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
-    overflow:hidden;
-  }
-
-  .pk-card-spark {
-    display:inline-grid; grid-template-columns:repeat(7, 6px);
-    gap:1px; align-items:end; height:14px;
-    margin-right:6px; vertical-align:middle;
-  }
-  .pk-card-spark .c {
-    display:block; width:6px; background:rgba(148,163,184,0.12);
-    border-radius:1px; min-height:1px;
-  }
-  .pk-card-spark .c.lit { background:currentColor; }
-
-  .pk-card-meta {
-    display:flex; align-items:center; justify-content:space-between;
-    font-size:10px; color:var(--fg3); gap:6px;
-  }
-  .pk-card-meta .mins { font-variant-numeric:tabular-nums; color:var(--fg2); }
-  .pk-card.col-alive   .pk-card-meta .mins { color:#22c55e; }
-  .pk-card.col-cooling .pk-card-meta .mins { color:#f59e0b; }
-
-  .pk-card-target {
-    font-size:10px; color:var(--fg3);
-    padding:1px 5px; border:1px solid var(--border);
-    border-radius:3px; white-space:nowrap;
-  }
-  .pk-card-target.soon { color:#f59e0b; border-color:rgba(245,158,11,0.4); }
-  .pk-card-target.overdue { color:#ef4444; border-color:rgba(239,68,68,0.45); background:rgba(239,68,68,0.08); }
-  .pk-card-target.now { color:#22c55e; border-color:rgba(34,197,94,0.45); }
-
-  .pk-dots {
-    display:flex; gap:3px; margin-top:5px; flex-wrap:wrap;
-  }
-  .pk-dot {
-    width:6px; height:6px; border-radius:50%;
-    background:rgba(148,163,184,0.25);
-  }
-  .pk-dot.alive { background:#22c55e; }
-  .pk-dot.dormant { background:rgba(148,163,184,0.4); }
 
   /* ─── Drawer ─── */
   .pk-drawer-backdrop {
@@ -301,6 +143,499 @@
       grid-template-columns: 150px repeat(5, 1fr);
     }
   }
+
+  /* ─── Unassigned lane (today's open work_pages) ─── */
+  .pk-unassigned {
+    margin: 0 0 20px 0;
+    padding: 12px 14px;
+    background: var(--bg2, #12121a);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+  }
+  .pk-unassigned-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-bottom: 10px;
+  }
+  .pk-unassigned-head h2 {
+    margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .02em;
+    color: var(--fg, #e5e5e5);
+  }
+  .pk-unassigned-count {
+    background: #f59e0b; color: #0a0a0f; border-radius: 9px;
+    padding: 0 7px; font-size: 10px; margin-left: 8px; font-weight: 600;
+  }
+  .pk-unassigned-hint { font-size: 11px; color: var(--fg2, #9ca3af); }
+  .pk-unassigned-strip {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 8px;
+    max-height: 340px;
+    overflow-y: auto;
+  }
+  .pk-up-card {
+    background: var(--bg1, #0a0a0f);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 8px 10px 4px 10px;
+    font-size: 12px;
+    transition: opacity .2s, border-color .15s;
+  }
+  .pk-up-card:hover { border-color: var(--accent, #8b5cf6); }
+  .pk-up-card.tagging { opacity: .5; pointer-events: none; }
+  .pk-up-title {
+    font-weight: 600; color: var(--fg, #e5e5e5); margin-bottom: 4px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .pk-up-sparkle {
+    font-size: 10px; opacity: .75; margin-right: 2px; cursor: help;
+  }
+  .pk-up-card[data-humanized="1"] .pk-up-summary {
+    color: var(--fg, #e5e5e5);
+  }
+  .pk-up-summary {
+    color: var(--fg2, #9ca3af);
+    font-size: 11px; line-height: 1.35; margin-bottom: 6px;
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .pk-up-meta {
+    display: flex; justify-content: space-between; align-items: center;
+    border-top: 1px solid var(--border); padding-top: 5px;
+  }
+  .pk-up-segs { font-size: 10px; color: var(--fg3, #6b7280); }
+  .pk-up-date-pill {
+    display: inline-block; font-size: 9px; padding: 1px 6px;
+    background: rgba(107,114,128,.18); color: var(--fg3, #6b7280);
+    border-radius: 8px; margin-right: 6px; letter-spacing: .02em;
+    text-transform: uppercase;
+  }
+  .pk-story-date-pill {
+    font-size: 9px; padding: 1px 6px;
+    background: rgba(139,92,246,.15); color: var(--fg2, #9ca3af);
+    border-radius: 8px; margin-left: 6px; letter-spacing: .02em;
+    vertical-align: middle;
+  }
+  .pk-up-actions { display: flex; gap: 4px; }
+  .pk-up-tag, .pk-up-reject {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--fg, #e5e5e5);
+    border-radius: 3px; padding: 2px 8px; font-size: 10px; cursor: pointer;
+    line-height: 1.4;
+  }
+  .pk-up-tag:hover {
+    background: var(--accent, #8b5cf6); color: white; border-color: transparent;
+  }
+  .pk-up-reject:hover {
+    background: #991b1b; color: white; border-color: transparent;
+  }
+
+  /* Dream-proposed tag banner inside a card */
+  .pk-up-proposed {
+    margin: 4px 0 6px; padding: 4px 7px;
+    background: rgba(245, 158, 11, .1);
+    border: 1px solid rgba(245, 158, 11, .4);
+    border-radius: 3px; font-size: 10px;
+    display: flex; align-items: center; gap: 6px;
+    color: var(--fg, #e5e5e5);
+  }
+  .pk-up-proposed-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #f59e0b; flex: 0 0 auto;
+  }
+  .pk-up-proposed-label { flex: 1 1 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pk-up-confirm {
+    background: var(--accent, #8b5cf6); color: white; border: none;
+    border-radius: 3px; padding: 2px 7px; font-size: 10px; cursor: pointer;
+    line-height: 1.4;
+  }
+  .pk-up-confirm:hover { background: #7c3aed; }
+
+  /* Phase A — kachra folded footer */
+  .pk-kachra-footer {
+    margin-top: 12px; padding: 8px 10px;
+    border-top: 1px dashed var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 11px; color: var(--fg3, #6b7280); cursor: pointer;
+    user-select: none;
+  }
+  .pk-kachra-footer:hover { color: var(--fg2, #9ca3af); }
+  .pk-kachra-footer-reasons { font-size: 10px; opacity: .8; }
+  .pk-kachra-caret { transition: transform .18s; display: inline-block; }
+  .pk-kachra-footer.open .pk-kachra-caret { transform: rotate(90deg); }
+
+  .pk-kachra-strip {
+    display: none;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 8px; margin-top: 8px; opacity: .75;
+  }
+  .pk-kachra-strip.open { display: grid; }
+  .pk-k-card {
+    background: var(--bg1, #0a0a0f);
+    border: 1px dashed var(--border); border-radius: 4px;
+    padding: 6px 8px; font-size: 11px;
+    transition: opacity .2s;
+  }
+  .pk-k-card.tagging { opacity: .4; pointer-events: none; }
+  .pk-k-title {
+    font-weight: 500; color: var(--fg2, #9ca3af); margin-bottom: 3px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .pk-k-meta {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 6px; font-size: 10px;
+  }
+  .pk-k-reason {
+    background: rgba(107, 114, 128, .15);
+    color: var(--fg3, #6b7280);
+    border-radius: 3px; padding: 1px 6px;
+  }
+  .pk-k-revive {
+    background: transparent; border: 1px solid var(--border); color: var(--fg2);
+    border-radius: 3px; padding: 2px 7px; font-size: 10px; cursor: pointer;
+  }
+  .pk-k-revive:hover {
+    background: var(--accent, #8b5cf6); color: white; border-color: transparent;
+  }
+
+  /* Phase C — today's stories section */
+  .pk-stories {
+    margin: 0 0 18px 0; padding: 14px 16px;
+    background: linear-gradient(180deg, rgba(139,92,246,.08) 0%, transparent 100%);
+    border: 1px solid var(--border); border-radius: 6px;
+  }
+  .pk-stories-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-bottom: 10px;
+  }
+  .pk-stories-head h2 {
+    margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .02em;
+    color: var(--fg, #e5e5e5);
+  }
+  .pk-stories-refresh {
+    background: transparent; border: 1px solid var(--border); color: var(--fg2);
+    border-radius: 3px; padding: 2px 8px; font-size: 10px; cursor: pointer;
+  }
+  .pk-stories-refresh:hover {
+    background: var(--accent, #8b5cf6); color: white; border-color: transparent;
+  }
+  .pk-stories-refresh[disabled] { opacity: .5; cursor: progress; }
+  .pk-stories-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 10px;
+  }
+  .pk-story-card {
+    background: var(--bg1, #0a0a0f);
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 10px 12px; font-size: 12px;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .pk-story-heading {
+    font-weight: 600; color: var(--fg, #e5e5e5);
+    font-size: 13px; line-height: 1.3;
+  }
+  .pk-story-body {
+    color: var(--fg2, #9ca3af); font-size: 11px; line-height: 1.45;
+  }
+  .pk-story-body ul { margin: 0; padding-left: 16px; }
+  .pk-story-body li { margin-bottom: 3px; }
+  /* Prose paragraphs get higher contrast on the near-black card and a
+     touch more leading since there's no bullet structure to guide the eye.
+     We hard-code the light text color here because the surrounding page
+     palette is light-mode (dark fg on light bg) while the story card is
+     intentionally dark. */
+  .pk-story-prose {
+    margin: 0;
+    color: #e8e8ea;
+    font-size: 12px;
+    line-height: 1.6;
+  }
+  .pk-story-heading {
+    color: #ffffff;
+  }
+  .pk-story-body ul,
+  .pk-story-body li {
+    color: #cdd0d4;
+  }
+  .pk-story-meta {
+    font-size: 10px; color: var(--fg3, #6b7280);
+    border-top: 1px dashed var(--border); padding-top: 5px;
+    display: flex; justify-content: space-between;
+  }
+  .pk-stories-empty {
+    font-size: 11px; color: var(--fg3, #6b7280);
+    padding: 8px 0; text-align: center; font-style: italic;
+  }
+
+  .pk-up-picker {
+    position: absolute; z-index: 50;
+    background: var(--bg2, #12121a); border: 1px solid var(--border);
+    border-radius: 6px; padding: 4px; min-width: 240px; max-height: 320px;
+    overflow-y: auto; box-shadow: 0 8px 24px rgba(0,0,0,.5);
+  }
+  .pk-up-picker-goal {
+    font-size: 10px; color: var(--fg3, #6b7280);
+    padding: 6px 8px 2px; text-transform: uppercase; letter-spacing: .05em;
+  }
+  .pk-up-picker-item {
+    display: block; width: 100%; text-align: left;
+    background: transparent; border: none; color: var(--fg, #e5e5e5);
+    padding: 6px 10px; font-size: 12px; border-radius: 3px; cursor: pointer;
+  }
+  .pk-up-picker-item:hover { background: var(--accent, #8b5cf6); color: white; }
+  .pk-up-picker-deliv { padding-left: 20px; color: var(--fg2, #9ca3af); font-size: 11px; }
+  .pk-up-picker-empty {
+    padding: 12px; color: var(--fg3, #6b7280); font-size: 11px; text-align: center;
+  }
+
+  /* ─── Project Report button + drawer ─── */
+  .pk-card { position: relative; }
+  .pk-card-report {
+    position: absolute; top: 4px; right: 4px;
+    background: transparent; border: none; cursor: pointer;
+    font-size: 11px; padding: 2px 4px; border-radius: 3px;
+    opacity: 0; transition: opacity .15s, background .15s;
+    line-height: 1;
+  }
+  .pk-card:hover .pk-card-report { opacity: .7; }
+  .pk-card-report:hover { opacity: 1; background: rgba(139, 92, 246, .15); }
+
+  .pk-report-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,.5);
+    z-index: 90; display: none;
+  }
+  .pk-report-backdrop.open { display: block; }
+  .pk-report-drawer {
+    position: fixed; top: 0; right: 0; bottom: 0;
+    width: min(520px, 100%); z-index: 91;
+    background: var(--bg1, #0a0a0f); border-left: 1px solid var(--border);
+    box-shadow: -8px 0 24px rgba(0,0,0,.4);
+    transform: translateX(100%); transition: transform .25s ease;
+    display: flex; flex-direction: column;
+  }
+  .pk-report-drawer.open { transform: translateX(0); }
+  .pk-report-head {
+    padding: 14px 16px; border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+    flex: 0 0 auto;
+  }
+  .pk-report-head h3 { margin: 0; font-size: 14px; font-weight: 600; color: var(--fg, #e5e5e5); }
+  .pk-report-close {
+    background: transparent; border: 1px solid var(--border); color: var(--fg);
+    border-radius: 3px; padding: 3px 8px; font-size: 11px; cursor: pointer;
+  }
+  .pk-report-actions {
+    display: flex; gap: 6px; flex-wrap: wrap;
+    padding: 10px 16px; border-bottom: 1px solid var(--border);
+    flex: 0 0 auto;
+  }
+  .pk-report-btn {
+    background: transparent; border: 1px solid var(--border); color: var(--fg);
+    border-radius: 4px; padding: 4px 10px; font-size: 11px; cursor: pointer;
+  }
+  .pk-report-btn:hover {
+    background: var(--accent, #8b5cf6); color: white; border-color: transparent;
+  }
+  .pk-report-btn.primary {
+    background: var(--accent, #8b5cf6); color: white; border-color: transparent;
+  }
+  .pk-report-custom {
+    display: flex; gap: 4px; align-items: center;
+    margin-left: auto; font-size: 11px; color: var(--fg2, #9ca3af);
+  }
+  .pk-report-custom input[type=date] {
+    background: var(--bg2, #12121a); color: var(--fg);
+    border: 1px solid var(--border); border-radius: 3px;
+    padding: 2px 4px; font-size: 11px;
+  }
+  .pk-report-body {
+    flex: 1 1 auto; overflow-y: auto; padding: 14px 16px;
+    font-size: 12px; line-height: 1.5; color: var(--fg, #e5e5e5);
+  }
+  .pk-report-body h2 { font-size: 15px; margin: 0 0 8px; }
+  .pk-report-body h3 { font-size: 12px; margin: 14px 0 6px;
+                        color: var(--fg2, #9ca3af); text-transform: uppercase;
+                        letter-spacing: .04em; }
+  .pk-report-body ul { margin: 6px 0 10px 16px; padding: 0; }
+  .pk-report-body li { margin-bottom: 3px; }
+  .pk-report-body strong { color: var(--fg, #e5e5e5); }
+  .pk-report-meta {
+    font-size: 10px; color: var(--fg3, #6b7280);
+    margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px dashed var(--border);
+  }
+  .pk-report-list {
+    margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border);
+  }
+  .pk-report-list-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 6px 0; font-size: 11px; cursor: pointer;
+    border-bottom: 1px dotted var(--border);
+  }
+  .pk-report-list-item:hover { color: var(--accent, #8b5cf6); }
+  .pk-report-list-empty {
+    font-size: 11px; color: var(--fg3, #6b7280); padding: 8px 0;
+  }
+  .pk-report-loading {
+    padding: 20px; text-align: center;
+    color: var(--fg2, #9ca3af); font-size: 11px;
+  }
+
+  /* ─── Phase C2 — Goals hero cards ─── */
+  .pk-goal-hero {
+    display: flex; flex-direction: column; gap: 12px;
+    margin: 16px 0 24px;
+  }
+  .pk-goal-card {
+    background: var(--bg2, #f8f9fa); border: 1px solid var(--border);
+    border-radius: 12px; padding: 16px 18px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .pk-goal-card-top {
+    display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+  }
+  .pk-goal-card-title {
+    font-size: 17px; font-weight: 700; color: var(--fg);
+    letter-spacing: -0.01em;
+  }
+  .pk-goal-card-outcome {
+    color: var(--fg3, #6b7280); font-size: 13px; font-weight: 400;
+  }
+  .pk-goal-card-meta {
+    margin-left: auto; font-size: 12px; color: var(--fg3, #6b7280);
+  }
+  .pk-goal-card-narrative {
+    background: var(--bg, #ffffff); border: 1px dashed var(--border);
+    border-radius: 8px; padding: 12px 14px;
+    font-size: 14px; line-height: 1.6; color: var(--fg);
+  }
+  .pk-goal-card-weeks {
+    display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px;
+  }
+  .pk-goal-week-cell {
+    background: var(--bg, #ffffff); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 10px; min-height: 52px;
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .pk-goal-week-cell .wk {
+    font-size: 10px; font-weight: 600; color: var(--fg3, #6b7280);
+    letter-spacing: .06em;
+  }
+  .pk-goal-week-cell .mins {
+    font-size: 14px; font-weight: 700; color: var(--fg);
+  }
+  .pk-goal-week-cell.pulse-hot {
+    background: #e7f5ed; border-color: #bfe2cc;
+  }
+  .pk-goal-week-cell.pulse-warm {
+    background: #fbf3df; border-color: #e8d8a5;
+  }
+  .pk-goal-week-cell.pulse-light { opacity: 0.85; }
+  .pk-goal-week-cell.pulse-cold { opacity: 0.55; }
+  .pk-goal-week-cell.current {
+    outline: 2px solid var(--fg); outline-offset: 1px;
+  }
+  .pk-pill {
+    display: inline-flex; align-items: center;
+    font-size: 10px; font-weight: 600; padding: 2px 8px;
+    border-radius: 999px; letter-spacing: 0.04em;
+  }
+  .pk-pill.status-active      { background: #e7f5ed; color: #1f8a50; }
+  .pk-pill.status-slowing_down{ background: #fbf3df; color: #b4870b; }
+  .pk-pill.status-stalled     { background: #fbeeee; color: #b34545; }
+  .pk-pill.status-shipped     { background: #e9f0fb; color: #3a6bca; }
+  .pk-pill.status-not_started { background: var(--bg3, #f4f4f2); color: var(--fg3, #6b7280); border: 1px dashed var(--border); }
+
+  /* ─── Phase C3 — evidence drawer ─── */
+  .pk-goal-evidence {
+    border-top: 1px dashed var(--border); margin-top: 2px;
+  }
+  .pk-goal-evidence > summary {
+    cursor: pointer; font-size: 12px; color: var(--fg3, #6b7280);
+    list-style: none; padding: 8px 0 4px;
+  }
+  .pk-goal-evidence > summary:hover { color: var(--fg); }
+  .pk-goal-evidence > summary::-webkit-details-marker { display: none; }
+  .pk-goal-evidence > summary::before { content: "▸ "; }
+  .pk-goal-evidence[open] > summary::before { content: "▾ "; }
+  .pk-goal-evidence-body { padding: 4px 2px 4px; }
+  .pk-goal-evidence-section-label {
+    font-size: 10px; font-weight: 600; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--fg3, #6b7280);
+    margin: 8px 0 4px;
+  }
+  .pk-goal-project-row {
+    display: flex; gap: 10px; align-items: center;
+    font-size: 13px; padding: 4px 0; color: var(--fg2, #4b4b4b);
+  }
+  .pk-goal-project-title { color: var(--fg); font-weight: 500; }
+  .pk-goal-project-mins { color: var(--fg3, #6b7280); font-variant-numeric: tabular-nums; }
+  .pk-goal-project-target {
+    background: var(--bg3, #f4f4f2); color: var(--fg2, #4b4b4b);
+    font-size: 11px; padding: 1px 6px; border-radius: 999px;
+  }
+  .pk-goal-project-dots { display: inline-flex; gap: 4px; }
+  .pk-goal-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--bg3, #d8d8d4); }
+  .pk-goal-dot.alive { background: #22c55e; }
+  .pk-goal-evidence-stories {
+    margin: 4px 0 0 18px; font-size: 13px; line-height: 1.6;
+    color: var(--fg2, #4b4b4b);
+  }
+  .pk-goal-evidence-stories li + li { margin-top: 4px; }
+  .pk-goal-evidence-empty {
+    font-size: 12px; color: var(--fg3, #6b7280); font-style: italic;
+    padding: 8px 0 4px;
+  }
+  /* ─── Phase B: inline add/rename affordances ─── */
+  .pk-pb-rename { cursor: text; border-radius: 3px; padding: 1px 3px; margin-left: -3px; }
+  .pk-pb-rename:hover { background: var(--bg3, #f4f4f2); }
+  .pk-pb-rename:focus {
+    outline: 1px solid var(--accent, #8b5cf6);
+    background: var(--bg2, #fff);
+  }
+  .pk-pb-add-deliv {
+    margin-left: auto;
+    background: transparent; border: 1px dashed var(--border, #d8d8d4);
+    color: var(--fg3, #6b7280); font-size: 11px;
+    padding: 1px 8px; border-radius: 4px; cursor: pointer;
+    transition: all 0.12s;
+  }
+  .pk-pb-add-deliv:hover { color: var(--fg, #1f1f1f); border-color: var(--accent, #8b5cf6); }
+  .pk-pb-add-project-row { margin-top: 6px; }
+  .pk-pb-add-project {
+    background: transparent; border: 1px dashed var(--border, #d8d8d4);
+    color: var(--fg3, #6b7280); font-size: 12px;
+    padding: 3px 10px; border-radius: 4px; cursor: pointer;
+    transition: all 0.12s;
+  }
+  .pk-pb-add-project:hover { color: var(--fg, #1f1f1f); border-color: var(--accent, #8b5cf6); }
+  .pk-pb-open {
+    margin-left: 4px;
+    background: transparent; border: 1px solid transparent;
+    color: var(--fg3, #6b7280); font-size: 14px; line-height: 1;
+    padding: 2px 8px; border-radius: 4px;
+    text-decoration: none; cursor: pointer;
+    transition: all 0.12s;
+  }
+  .pk-pb-open:hover {
+    color: var(--accent, #8b5cf6);
+    border-color: var(--accent, #8b5cf6);
+    text-decoration: none;
+  }
+  .pk-pb-input {
+    background: var(--bg2, #fff);
+    border: 1px solid var(--accent, #8b5cf6);
+    color: var(--fg, #1f1f1f);
+    font-size: 13px; padding: 2px 8px; border-radius: 4px;
+    min-width: 200px;
+    font-family: inherit;
+  }
+  .pk-pb-input.busy { opacity: 0.6; pointer-events: none; }
+  .pk-pb-error { color: #ef4444; font-size: 11px; margin-left: 6px; }
+
+  .pk-goal-evidence-empty code {
+    background: var(--bg3, #f4f4f2); padding: 1px 6px; border-radius: 4px;
+    font-size: 11px; font-style: normal;
+  }
 </style>
 
 <div class="pk"
@@ -311,50 +646,269 @@
     <div class="pk-topbar-left">
       <h1 style="margin:0;">Goals</h1>
       <div class="pk-meta">
-        {{ pm_goals|length }} goal{% if pm_goals|length != 1 %}s{% endif %} ·
-        <span class="dot sw-alive"></span>{{ pm_column_counts.alive }} alive ·
-        <span class="dot sw-cooling"></span>{{ pm_column_counts.cooling }} cooling ·
-        <span class="dot sw-cold"></span>{{ pm_column_counts.cold }} cold ·
-        <span class="dot sw-shipped"></span>{{ pm_column_counts.shipped }} shipped
+        {{ goals_with_narratives|length }} goal{% if goals_with_narratives|length != 1 %}s{% endif %} ·
+        <span class="dot sw-alive"></span>{{ hero_counts.active }} active ·
+        <span class="dot sw-cooling"></span>{{ hero_counts.slowing_down }} slowing down ·
+        <span class="dot sw-cold"></span>{{ hero_counts.stalled }} stalled ·
+        <span class="dot sw-shipped"></span>{{ hero_counts.shipped }} shipped
+        {% if hero_counts.not_started %} ·
+        <span class="dot" style="background:#6b7280;"></span>{{ hero_counts.not_started }} not started
+        {% endif %}
+        · <span style="color:var(--fg3);">{{ current_iso_week }}</span>
       </div>
     </div>
     <div class="pk-actions">
-      <!-- Phase 3 toggle: Projects ⇄ Review -->
-      <div class="pk-toggle" role="tablist" aria-label="View switch"
-           style="display:inline-flex;border:1px solid var(--border);border-radius:6px;overflow:hidden;margin-right:8px;">
-        <a href="/wiki/goals" role="tab" aria-selected="true"
-           style="padding:5px 12px;font-size:12px;background:var(--accent,#8b5cf6);color:white;text-decoration:none;">Projects</a>
-        <a href="/wiki/review" role="tab" aria-selected="false"
-           style="padding:5px 12px;font-size:12px;color:var(--fg2);text-decoration:none;">
-          Review{% if review_pending_count %}
-          <span style="background:#f59e0b;color:#0a0a0f;border-radius:9px;padding:0 6px;font-size:10px;margin-left:4px;">{{ review_pending_count }}</span>
-          {% endif %}
-        </a>
-      </div>
+      <a href="/wiki/review"
+         style="padding:5px 12px;font-size:12px;color:var(--fg2);text-decoration:none;
+                border:1px solid var(--border);border-radius:6px;margin-right:8px;
+                display:inline-flex;align-items:center;gap:6px;">
+        Review
+        {% if review_pending_count %}
+        <span style="background:#f59e0b;color:#0a0a0f;border-radius:9px;padding:0 6px;font-size:10px;">{{ review_pending_count }}</span>
+        {% endif %}
+        <span style="color:var(--fg3);">→</span>
+      </a>
+      <button class="pk-btn" id="pk-compose-goal-narratives"
+              title="Regenerate all goals' weekly prose from tracker + stories">
+        ↻ Compose
+      </button>
       <span class="pk-save-state saved" id="pk-save-state">All changes saved</span>
       <button class="pk-btn" id="pk-add-goal">+ Goal</button>
       <button class="pk-btn primary" id="pk-save" disabled>Save</button>
     </div>
   </div>
 
-  <div id="pk-lanes">
-    {% if pm_goals %}
-      {% for g in pm_goals %}
-      {% include "_pm_goal.html" %}
-      {% endfor %}
-    {% else %}
-      <div class="pk-lane" style="grid-template-columns:1fr;">
-        <div class="pk-cell-empty" style="border:none;">
-          No goals yet. Click <strong>+ Goal</strong> above to add one.
-        </div>
+  <!-- Phase C2 — Goals hero: prose + weekly pulse, ABOVE everything else -->
+  {% if goals_with_narratives %}
+  <section class="pk-goal-hero">
+    {% for gh in goals_with_narratives %}
+    <article class="pk-goal-card" data-goal-id="{{ gh.id }}">
+      <div class="pk-goal-card-top">
+        <span class="pk-pill status-{{ gh.status }}">{{ gh.status.replace('_', ' ')|upper }}</span>
+        <span class="pk-goal-card-title">{{ gh.title }}</span>
+        {% if gh.outcome %}
+        <span class="pk-goal-card-outcome">· {{ gh.outcome }}</span>
+        {% endif %}
+        <span class="pk-goal-card-meta">
+          {{ gh.n_projects }} project{% if gh.n_projects != 1 %}s{% endif %} ·
+          {{ gh.minutes_this_week|round|int }}m this week
+        </span>
       </div>
+      <div class="pk-goal-card-narrative">{{ gh.narrative_prose }}</div>
+      <div class="pk-goal-card-weeks">
+        {% for w in gh.weekly_pulse %}
+        <div class="pk-goal-week-cell pulse-{{ w.bucket }}{% if w.is_current %} current{% endif %}"
+             title="{{ w.iso_week }} · {{ w.mins }}m">
+          <div class="wk">{{ w.iso_week.split('-W')[1] and ('W' + w.iso_week.split('-W')[1]) }}</div>
+          <div class="mins">{{ w.mins }}m</div>
+        </div>
+        {% endfor %}
+      </div>
+      <details class="pk-goal-evidence">
+        <summary>
+          Evidence · {{ gh.n_projects }} project{% if gh.n_projects != 1 %}s{% endif %}
+          · {{ gh.minutes_this_week|round|int }}m this week
+        </summary>
+        <div class="pk-goal-evidence-body">
+          {% if gh.projects %}
+          <div class="pk-goal-evidence-section-label">Projects</div>
+          {% for p in gh.projects %}
+          <div class="pk-goal-project-row" data-project-id="{{ p.id }}">
+            <span class="pk-goal-project-title pk-pb-rename"
+                  data-project-id="{{ p.id }}"
+                  title="Click to rename">{{ p.title }}</span>
+            <span class="pk-goal-project-mins">{{ p.pulse_mins_7d|round|int }}m · 7d</span>
+            {% if p.target_week %}<span class="pk-goal-project-target">{{ p.target_week }}</span>{% endif %}
+            {% if p.deliverables %}
+            <span class="pk-goal-project-dots">
+              {% for d in p.deliverables %}
+              <span class="pk-goal-dot {% if d.alive %}alive{% endif %}"
+                    title="{{ d.name }}{% if d.mins_7d %} · {{ d.mins_7d|round|int }}m · 7d{% endif %}"></span>
+              {% endfor %}
+            </span>
+            {% endif %}
+            <button class="pk-pb-add-deliv" data-project-id="{{ p.id }}"
+                    title="Add deliverable to this project">+ deliverable</button>
+            <a class="pk-pb-open" href="/wiki/goals/p/{{ p.id }}"
+               title="Open project detail">→</a>
+          </div>
+          {% endfor %}
+          {% endif %}
+
+          <div class="pk-pb-add-project-row">
+            <button class="pk-pb-add-project" data-goal-id="{{ gh.id }}">
+              + Add project
+            </button>
+          </div>
+
+          {% if gh.story_snippets %}
+          <div class="pk-goal-evidence-section-label">Recent story snippets</div>
+          <ul class="pk-goal-evidence-stories">
+            {% for s in gh.story_snippets %}<li>{{ s }}</li>{% endfor %}
+          </ul>
+          {% endif %}
+
+          {% if not gh.projects and not gh.story_snippets %}
+          <div class="pk-goal-evidence-empty">
+            No linked projects or recent stories yet.
+            Edit <code>productivity-tracker/config/goals.yaml</code> to add a project.
+          </div>
+          {% endif %}
+        </div>
+      </details>
+    </article>
+    {% endfor %}
+  </section>
+  {% endif %}
+
+  <section class="pk-stories" id="pk-stories">
+    <div class="pk-stories-head">
+      <h2>Recent days
+        {% if narratives and narratives|length > 0 %}
+        <span style="font-size:11px;color:var(--fg3);margin-left:6px;font-weight:400;">
+          {{ narratives|length }} entr{% if narratives|length == 1 %}y{% else %}ies{% endif %}
+        </span>
+        {% endif %}
+        {% if narratives_rolled_up_count and narratives_rolled_up_count > 0 %}
+        <span style="font-size:11px;color:var(--fg3);margin-left:6px;font-weight:400;opacity:0.8;"
+              title="Already represented in the project cards above">
+          · {{ narratives_rolled_up_count }} rolled into project cards
+        </span>
+        {% endif %}
+      </h2>
+      <button class="pk-stories-refresh" id="pk-stories-refresh" title="Recompose stories from today's outcomes">↻ Recompose</button>
+    </div>
+    <div class="pk-stories-grid" id="pk-stories-grid">
+      {% if narratives and narratives|length > 0 %}
+        {% for n in narratives %}
+        <article class="pk-story-card" data-narrative-id="{{ n.id }}">
+          <div class="pk-story-heading">
+            {{ n.heading }}
+            {% if not n.is_today %}<span class="pk-story-date-pill">{{ n.date_local }}</span>{% endif %}
+          </div>
+          <div class="pk-story-body">
+            {% if n.render_mode == 'prose' %}
+              <p class="pk-story-prose">{{ n.body_prose }}</p>
+            {% else %}
+              <ul>
+                {% for line in n.body_markdown.split('\n') %}
+                  {% set stripped = line.strip() %}
+                  {% if stripped.startswith('- ') %}
+                    <li>{{ stripped[2:] }}</li>
+                  {% endif %}
+                {% endfor %}
+              </ul>
+            {% endif %}
+          </div>
+          <div class="pk-story-meta">
+            <span>{{ n.source_page_ids|length }} source{% if n.source_page_ids|length != 1 %}s{% endif %}</span>
+            <span>{{ n.generated_by }}</span>
+          </div>
+        </article>
+        {% endfor %}
+      {% else %}
+        <div class="pk-stories-empty">No stories yet for today. Tag or humanize work, then click Recompose.</div>
+      {% endif %}
+    </div>
+  </section>
+
+  {% if unassigned_count and unassigned_count > 0 %}
+  <section class="pk-unassigned" id="pk-unassigned">
+    <div class="pk-unassigned-head">
+      <h2>Unassigned
+        <span class="pk-unassigned-count" id="pk-unassigned-count">{{ unassigned_count }}</span>
+      </h2>
+      <div class="pk-unassigned-hint">Today's captured work — tag to a project or archive.</div>
+    </div>
+    <div class="pk-unassigned-strip" id="pk-unassigned-strip">
+      {% for p in unassigned_pages %}
+      <article class="pk-up-card" data-page-id="{{ p.id }}"
+               data-tag-state="{{ p.tag_state or '' }}"
+               data-humanized="{{ '1' if p.humanized_summary else '0' }}">
+        <div class="pk-up-title" title="{{ p.title }}">
+          {% if p.humanized_summary %}<span class="pk-up-sparkle" title="Humanized by {{ p.humanized_by }}">✨</span>{% endif %}
+          {{ p.title }}
+        </div>
+        <div class="pk-up-summary" title="{{ p.summary[:400] }}">
+          {% if p.humanized_summary %}{{ p.humanized_summary }}{% else %}{{ p.summary[:200] }}{% endif %}
+        </div>
+        {% if p.tag_state == 'proposed' %}
+        <div class="pk-up-proposed" title="Dream proposed this match — confirm to accept or Tag to override">
+          <span class="pk-up-proposed-dot"></span>
+          <span class="pk-up-proposed-label">Dream → {{ p.proposed_project_title }}{% if p.proposed_deliverable_name %} · {{ p.proposed_deliverable_name }}{% endif %}</span>
+          <button class="pk-up-confirm" data-action="confirm">✓ Confirm</button>
+        </div>
+        {% endif %}
+        <div class="pk-up-meta">
+          <span class="pk-up-segs">
+            {% if not p.is_today %}<span class="pk-up-date-pill">{{ p.date_local }}</span>{% endif %}
+            {{ p.segment_count }} seg{% if p.segment_count != 1 %}s{% endif %}
+          </span>
+          <div class="pk-up-actions">
+            <button class="pk-up-tag" data-action="tag">{% if p.tag_state == 'proposed' %}Change{% else %}Tag{% endif %}</button>
+            <button class="pk-up-reject" data-action="reject" title="Archive">✕</button>
+          </div>
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+
+    {% if kachra_count and kachra_count > 0 %}
+    <div class="pk-kachra-footer" id="pk-kachra-footer" role="button" tabindex="0"
+         aria-expanded="false">
+      <span>
+        <span class="pk-kachra-caret">▸</span>
+        Plus {{ kachra_total_minutes|round|int }}m of low-signal activity hidden — {{ kachra_count }} item{% if kachra_count != 1 %}s{% endif %}
+      </span>
+      <span class="pk-kachra-footer-reasons">
+        {% for r, c in kachra_reason_counts.items() %}
+          {{ r }}{% if c > 1 %} ×{{ c }}{% endif %}{% if not loop.last %} · {% endif %}
+        {% endfor %}
+      </span>
+    </div>
+    <div class="pk-kachra-strip" id="pk-kachra-strip">
+      {% for p in kachra_pages %}
+      <article class="pk-k-card" data-page-id="{{ p.id }}">
+        <div class="pk-k-title" title="{{ p.title }}">{{ p.title }}</div>
+        <div class="pk-k-meta">
+          <span class="pk-k-reason">{{ p.kachra_reason or 'kachra' }}</span>
+          <button class="pk-k-revive" data-action="revive" title="Not kachra — move back">Revive</button>
+        </div>
+      </article>
+      {% endfor %}
+    </div>
     {% endif %}
-  </div>
+  </section>
+  {% endif %}
+
+  {# Legacy 5-column kanban (pk-lanes) retired in C3. Evidence now lives in
+     the per-goal <details> drawer inside .pk-goal-hero above. #}
 
 </div>
 
 <div class="pk-drawer-backdrop" id="pk-drawer-backdrop"></div>
 <aside class="pk-drawer" id="pk-drawer" aria-hidden="true"></aside>
+
+<div class="pk-report-backdrop" id="pk-report-backdrop"></div>
+<aside class="pk-report-drawer" id="pk-report-drawer" aria-hidden="true">
+  <div class="pk-report-head">
+    <h3 id="pk-report-title">Report</h3>
+    <button class="pk-report-close" id="pk-report-close">Close</button>
+  </div>
+  <div class="pk-report-actions">
+    <button class="pk-report-btn primary" data-range="today">Today</button>
+    <button class="pk-report-btn" data-range="week">This week</button>
+    <div class="pk-report-custom">
+      <input type="date" id="pk-report-start" aria-label="Start date">
+      <span>→</span>
+      <input type="date" id="pk-report-end" aria-label="End date">
+      <button class="pk-report-btn" data-range="custom">Go</button>
+    </div>
+  </div>
+  <div class="pk-report-body" id="pk-report-body">
+    <div class="pk-report-loading">Pick a range above to generate a digest.</div>
+  </div>
+</aside>
 
 <script>
 (() => {
@@ -369,7 +923,9 @@
 
   const saveState = $('#pk-save-state');
   const saveBtn   = $('#pk-save');
-  const lanes     = $('#pk-lanes');
+  // #pk-lanes retired in C3. Dead listeners still bind to this stub so the
+  // legacy handlers can be pruned later without cascading refactors.
+  const lanes     = $('#pk-lanes') || document.createElement('div');
   const drawer    = $('#pk-drawer');
   const backdrop  = $('#pk-drawer-backdrop');
 
@@ -407,6 +963,18 @@
       const cached = JSON.parse(goalEl.dataset.goalJson || '{}');
       // Override title/why/status from the visible editable fields
       const title = $('.pk-goal-title', goalEl)?.textContent?.trim() || cached.title || '';
+      // If a drawer is open for a project in this goal, force-read the live
+      // drawer input so an unsaved project title can't be dropped by a missed
+      // input event or a stale dataset write.
+      if (state.openCardEl && state.openCardEl.closest('.pk-lane') === goalEl) {
+        const pid = state.openCardEl.dataset.projectId;
+        const liveTitle = $('.pk-drawer-title')?.value;
+        if (liveTitle !== undefined && Array.isArray(cached.projects)) {
+          cached.projects = cached.projects.map(p =>
+            p.id === pid ? {...p, title: liveTitle} : p
+          );
+        }
+      }
       return {
         id: goalEl.dataset.goalId,
         title,
@@ -496,6 +1064,8 @@
   }
   backdrop.addEventListener('click', closeDrawer);
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDrawer(); });
+  drawer.addEventListener('click', drawerDelegated);
+  drawer.addEventListener('input', drawerInputHandler);
 
   function openDrawer(cardEl) {
     state.openCardEl = cardEl;
@@ -633,10 +1203,8 @@
       project.match_patterns = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
       persistDrawer(project, cachedGoal, goalEl);
     });
-    $('.pk-drawer-title').addEventListener('input', (e) => {
-      project.title = e.target.value;
-      persistDrawer(project, cachedGoal, goalEl);
-    });
+    // Note: .pk-drawer-title input is handled by the delegated drawerInputHandler
+    // attached once outside renderDrawer, so it survives any innerHTML refresh.
 
     $('#pk-drawer-picker').addEventListener('change', (e) => {
       const id = e.target.value;
@@ -691,9 +1259,6 @@
     newInput.addEventListener('keydown', (ev) => {
       if (ev.key === 'Enter') { ev.preventDefault(); submitNew(); }
     });
-
-    drawer.addEventListener('click', drawerDelegated);
-    drawer.addEventListener('input', drawerLifecycleEdit);
   }
 
   function drawerDelegated(e) {
@@ -726,19 +1291,27 @@
     }
   }
 
-  function drawerLifecycleEdit(e) {
-    if (!e.target.matches('.pk-lc-date, .pk-lc-event')) return;
+  function drawerInputHandler(e) {
     const card = state.openCardEl;
     if (!card) return;
     const goalEl = card.closest('.pk-lane');
     const cached = JSON.parse(goalEl.dataset.goalJson || '{}');
-    const project = cached.projects.find(p => p.id === card.dataset.projectId);
-    const row = e.target.closest('.pk-lc-row');
-    const idx = parseInt(row.dataset.lcIdx, 10);
-    project.lifecycle[idx] = project.lifecycle[idx] || {date: '', event: ''};
-    if (e.target.matches('.pk-lc-date'))  project.lifecycle[idx].date  = e.target.value;
-    if (e.target.matches('.pk-lc-event')) project.lifecycle[idx].event = e.target.value;
-    persistDrawer(project, cached, goalEl);
+    const project = (cached.projects || []).find(p => p.id === card.dataset.projectId);
+    if (!project) return;
+
+    if (e.target.matches('.pk-drawer-title')) {
+      project.title = e.target.value;
+      persistDrawer(project, cached, goalEl);
+      return;
+    }
+    if (e.target.matches('.pk-lc-date, .pk-lc-event')) {
+      const row = e.target.closest('.pk-lc-row');
+      const idx = parseInt(row.dataset.lcIdx, 10);
+      project.lifecycle[idx] = project.lifecycle[idx] || {date: '', event: ''};
+      if (e.target.matches('.pk-lc-date'))  project.lifecycle[idx].date  = e.target.value;
+      if (e.target.matches('.pk-lc-event')) project.lifecycle[idx].event = e.target.value;
+      persistDrawer(project, cached, goalEl);
+    }
   }
 
   function persistDrawer(project, cachedGoal, goalEl) {
@@ -903,6 +1476,627 @@
   function escapeAttr(s) {
     return escapeHtml(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   }
+})();
+</script>
+
+<script>
+/* ─── Unassigned lane interactions ───────────────────────────────
+   Click [Tag] on a card  → project/deliverable picker popover
+   Click project/deliv    → POST /api/work_pages/{id}/tag → fade+remove
+   Click [✕]              → confirm → POST /api/work_pages/{id}/reject
+   Picker data comes from pk-board[data-initial] (same pm_goals tree). */
+(() => {
+  const strip = document.getElementById('pk-unassigned-strip');
+  if (!strip) return;
+
+  const boardEl = document.getElementById('pk-board');
+  let goals = [];
+  try {
+    const parsed = JSON.parse(boardEl?.dataset?.initial || '{}');
+    goals = parsed.goals || [];
+  } catch (_) {
+    goals = [];
+  }
+
+  let openPicker = null;
+  let pickerDismiss = null;
+
+  function closePicker() {
+    if (openPicker) { openPicker.remove(); openPicker = null; }
+    if (pickerDismiss) {
+      document.removeEventListener('click', pickerDismiss, true);
+      pickerDismiss = null;
+    }
+  }
+
+  function buildPicker(card) {
+    closePicker();
+    const pop = document.createElement('div');
+    pop.className = 'pk-up-picker';
+
+    if (!goals.length) {
+      const empty = document.createElement('div');
+      empty.className = 'pk-up-picker-empty';
+      empty.textContent = 'No projects yet. Add one in goals.yaml.';
+      pop.appendChild(empty);
+    }
+
+    for (const goal of goals) {
+      const projects = goal.projects || [];
+      if (!projects.length) continue;
+      const gh = document.createElement('div');
+      gh.className = 'pk-up-picker-goal';
+      gh.textContent = goal.title || 'Untitled goal';
+      pop.appendChild(gh);
+      for (const proj of projects) {
+        const pbtn = document.createElement('button');
+        pbtn.className = 'pk-up-picker-item';
+        pbtn.textContent = proj.title || proj.id;
+        pbtn.onclick = (ev) => { ev.stopPropagation(); tagPage(card, proj.id, ''); };
+        pop.appendChild(pbtn);
+        for (const deliv of (proj.deliverables || [])) {
+          const dbtn = document.createElement('button');
+          dbtn.className = 'pk-up-picker-item pk-up-picker-deliv';
+          dbtn.textContent = '└ ' + (deliv.name || deliv.id);
+          dbtn.onclick = (ev) => { ev.stopPropagation(); tagPage(card, proj.id, deliv.id); };
+          pop.appendChild(dbtn);
+        }
+      }
+    }
+
+    const tagBtn = card.querySelector('[data-action=tag]');
+    const rect = tagBtn.getBoundingClientRect();
+    pop.style.top  = (rect.bottom + window.scrollY + 4) + 'px';
+    pop.style.left = Math.max(8, rect.right + window.scrollX - 240) + 'px';
+    document.body.appendChild(pop);
+    openPicker = pop;
+
+    pickerDismiss = (ev) => {
+      if (!pop.contains(ev.target)) closePicker();
+    };
+    setTimeout(() => document.addEventListener('click', pickerDismiss, true), 0);
+  }
+
+  async function tagPage(card, projectId, deliverableId) {
+    closePicker();
+    card.classList.add('tagging');
+    const pageId = card.dataset.pageId;
+    try {
+      const r = await fetch(`/api/work_pages/${pageId}/tag`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project_id: projectId, deliverable_id: deliverableId }),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      fadeOut(card);
+    } catch (e) {
+      card.classList.remove('tagging');
+      alert('Failed to tag: ' + e.message);
+    }
+  }
+
+  async function rejectPage(card) {
+    if (!confirm('Archive this page? It will not be used for project matching.')) return;
+    card.classList.add('tagging');
+    const pageId = card.dataset.pageId;
+    try {
+      const r = await fetch(`/api/work_pages/${pageId}/reject`, { method: 'POST' });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      fadeOut(card);
+    } catch (e) {
+      card.classList.remove('tagging');
+      alert('Failed to archive: ' + e.message);
+    }
+  }
+
+  async function confirmProposed(card) {
+    card.classList.add('tagging');
+    const pageId = card.dataset.pageId;
+    try {
+      const r = await fetch(`/api/work_pages/${pageId}/confirm`, { method: 'POST' });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      fadeOut(card);
+    } catch (e) {
+      card.classList.remove('tagging');
+      alert('Failed to confirm: ' + e.message);
+    }
+  }
+
+  function fadeOut(card) {
+    card.style.transition = 'opacity .25s';
+    card.style.opacity = '0';
+    setTimeout(() => { card.remove(); updateCount(); }, 260);
+  }
+
+  function updateCount() {
+    const section = document.getElementById('pk-unassigned');
+    const badge = document.getElementById('pk-unassigned-count');
+    const n = strip.querySelectorAll('.pk-up-card').length;
+    if (badge) badge.textContent = n;
+    if (n === 0 && section) section.remove();
+  }
+
+  strip.addEventListener('click', (ev) => {
+    const btn = ev.target.closest('[data-action]');
+    if (!btn) return;
+    ev.stopPropagation();
+    const card = btn.closest('.pk-up-card');
+    if (!card) return;
+    if (btn.dataset.action === 'tag') buildPicker(card);
+    else if (btn.dataset.action === 'reject') rejectPage(card);
+    else if (btn.dataset.action === 'confirm') confirmProposed(card);
+  });
+
+  /* ─── Today's stories — recompose ─── */
+  const recomposeBtn = document.getElementById('pk-stories-refresh');
+  if (recomposeBtn) {
+    recomposeBtn.addEventListener('click', async () => {
+      const orig = recomposeBtn.textContent;
+      recomposeBtn.disabled = true;
+      recomposeBtn.textContent = '… composing';
+      try {
+        const r = await fetch('/api/narratives/compose', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+        });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        // Hard reload so server-side render shows the new cards.
+        window.location.reload();
+      } catch (e) {
+        recomposeBtn.disabled = false;
+        recomposeBtn.textContent = orig;
+        alert('Recompose failed: ' + e.message);
+      }
+    });
+  }
+
+  /* ─── Phase C2 — compose goal weekly narratives on demand ─── */
+  const composeGoalBtn = document.getElementById('pk-compose-goal-narratives');
+  if (composeGoalBtn) {
+    composeGoalBtn.addEventListener('click', async () => {
+      const orig = composeGoalBtn.textContent;
+      composeGoalBtn.disabled = true;
+      composeGoalBtn.textContent = '… composing';
+      try {
+        const r = await fetch('/api/goal-narratives/compose', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+        });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        window.location.reload();
+      } catch (e) {
+        composeGoalBtn.disabled = false;
+        composeGoalBtn.textContent = orig;
+        alert('Compose failed: ' + e.message);
+      }
+    });
+  }
+
+  /* ─── Kachra folded footer ─── */
+  const footer = document.getElementById('pk-kachra-footer');
+  const kstrip = document.getElementById('pk-kachra-strip');
+  if (footer && kstrip) {
+    const toggle = () => {
+      const open = footer.classList.toggle('open');
+      kstrip.classList.toggle('open');
+      footer.setAttribute('aria-expanded', open ? 'true' : 'false');
+    };
+    footer.addEventListener('click', toggle);
+    footer.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); toggle(); }
+    });
+    kstrip.addEventListener('click', async (ev) => {
+      const btn = ev.target.closest('[data-action="revive"]');
+      if (!btn) return;
+      ev.stopPropagation();
+      const card = btn.closest('.pk-k-card');
+      if (!card) return;
+      card.classList.add('tagging');
+      const pageId = card.dataset.pageId;
+      try {
+        const r = await fetch(`/api/work_pages/${pageId}/revive`, { method: 'POST' });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        card.style.transition = 'opacity .25s';
+        card.style.opacity = '0';
+        setTimeout(() => {
+          card.remove();
+          // update footer count label in place; if nothing left, hide footer+strip
+          const remaining = kstrip.querySelectorAll('.pk-k-card').length;
+          if (remaining === 0) {
+            footer.remove();
+            kstrip.remove();
+          } else {
+            const label = footer.querySelector('span');
+            if (label) {
+              label.innerHTML = '<span class="pk-kachra-caret">' +
+                (footer.classList.contains('open') ? '▾' : '▸') + '</span> ' +
+                remaining + ' low-signal item' + (remaining === 1 ? '' : 's') + ' hidden';
+            }
+          }
+          // user should ideally refresh to see the revived page in the main lane,
+          // but we avoid auto-reload to keep their scroll position.
+        }, 260);
+      } catch (e) {
+        card.classList.remove('tagging');
+        alert('Revive failed: ' + e.message);
+      }
+    });
+  }
+})();
+</script>
+
+<script>
+/* ─── Project Report drawer ──────────────────────────────────────
+   Click 📊 on a project card → open right-side drawer.
+   Today / This week / Custom date range → POST /api/project/{id}/digest
+   List previously generated digests below the current result. */
+(() => {
+  const drawer   = document.getElementById('pk-report-drawer');
+  const backdrop = document.getElementById('pk-report-backdrop');
+  const titleEl  = document.getElementById('pk-report-title');
+  const bodyEl   = document.getElementById('pk-report-body');
+  const closeBtn = document.getElementById('pk-report-close');
+  const startIn  = document.getElementById('pk-report-start');
+  const endIn    = document.getElementById('pk-report-end');
+  if (!drawer) return;
+
+  let currentProjectId = null;
+  let currentProjectTitle = null;
+
+  const todayIso = () => new Date().toISOString().slice(0, 10);
+  const weekStartIso = () => {
+    const d = new Date();
+    d.setDate(d.getDate() - 6);
+    return d.toISOString().slice(0, 10);
+  };
+
+  function open(projectId, projectTitle) {
+    currentProjectId = projectId;
+    currentProjectTitle = projectTitle || projectId;
+    titleEl.textContent = currentProjectTitle;
+    bodyEl.innerHTML = '<div class="pk-report-loading">Pick a range above to generate a digest.</div>';
+    startIn.value = todayIso();
+    endIn.value = todayIso();
+    drawer.classList.add('open');
+    drawer.setAttribute('aria-hidden', 'false');
+    backdrop.classList.add('open');
+    // load existing digests list
+    loadExisting();
+  }
+  function close() {
+    drawer.classList.remove('open');
+    drawer.setAttribute('aria-hidden', 'true');
+    backdrop.classList.remove('open');
+    currentProjectId = null;
+  }
+
+  async function loadExisting() {
+    try {
+      const r = await fetch(`/api/project/${currentProjectId}/digests?limit=10`);
+      const data = await r.json();
+      const list = data.digests || [];
+      if (!list.length) return;
+      const html = ['<div class="pk-report-list">',
+        '<h3>Previous digests</h3>'];
+      for (const d of list) {
+        const label = `${d.window_type} · ${d.window_start}${d.window_start !== d.window_end ? ' → ' + d.window_end : ''}`;
+        const meta  = `${(d.total_minutes || 0).toFixed(0)}m · ${d.generated_by}`;
+        html.push(
+          `<div class="pk-report-list-item" data-window-type="${d.window_type}"`
+          + ` data-window-start="${d.window_start}"`
+          + ` data-window-end="${d.window_end}">`
+          + `<span>${escapeHtml(label)}</span><span style="color:var(--fg3)">${escapeHtml(meta)}</span>`
+          + `</div>`
+        );
+      }
+      html.push('</div>');
+      // append, don't wipe
+      const wrap = document.createElement('div');
+      wrap.innerHTML = html.join('');
+      bodyEl.appendChild(wrap.firstElementChild);
+    } catch (e) {
+      console.warn('loadExisting failed', e);
+    }
+  }
+
+  async function generate(windowType, windowStart, windowEnd) {
+    if (!currentProjectId) return;
+    bodyEl.innerHTML = '<div class="pk-report-loading">Composing digest via local LLM…</div>';
+    try {
+      const r = await fetch(`/api/project/${currentProjectId}/digest`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          window_type: windowType,
+          window_start: windowStart,
+          window_end: windowEnd,
+        }),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const data = await r.json();
+      renderResult(data);
+    } catch (e) {
+      bodyEl.innerHTML = `<div class="pk-report-loading">Failed: ${escapeHtml(e.message)}</div>`;
+    }
+  }
+
+  function renderResult(data) {
+    if (data.status === 'empty') {
+      bodyEl.innerHTML = `<div class="pk-report-loading">`
+        + `No confirmed work_pages in this window. Tag some work to the `
+        + `<strong>${escapeHtml(currentProjectTitle)}</strong> project first.`
+        + `</div>`;
+      return;
+    }
+    const meta = [
+      data.window_label,
+      `${data.page_count} page${data.page_count === 1 ? '' : 's'}`,
+      `${(data.total_minutes || 0).toFixed(1)}m`,
+      `generated ${data.generated_by}`,
+    ].filter(Boolean).join(' · ');
+    const md = renderMarkdown(data.summary_markdown || '');
+    bodyEl.innerHTML = `<div class="pk-report-meta">${escapeHtml(meta)}</div>${md}`;
+    loadExisting();
+  }
+
+  /* Minimal markdown → HTML just enough for our 4-section template. */
+  function renderMarkdown(md) {
+    const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const lines = md.split('\n');
+    const out = [];
+    let inList = false;
+    const closeList = () => { if (inList) { out.push('</ul>'); inList = false; } };
+    for (const raw of lines) {
+      const line = raw.trimEnd();
+      if (!line.trim()) { closeList(); continue; }
+      if (line.startsWith('## ')) { closeList(); out.push(`<h2>${esc(line.slice(3))}</h2>`); continue; }
+      if (line.startsWith('### ')) { closeList(); out.push(`<h3>${esc(line.slice(4))}</h3>`); continue; }
+      if (line.startsWith('- ')) {
+        if (!inList) { out.push('<ul>'); inList = true; }
+        out.push(`<li>${inlineMd(esc(line.slice(2)))}</li>`);
+        continue;
+      }
+      closeList();
+      out.push(`<p>${inlineMd(esc(line))}</p>`);
+    }
+    closeList();
+    return out.join('\n');
+  }
+  function inlineMd(s) {
+    return s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+            .replace(/\*([^*]+)\*/g, '<em>$1</em>');
+  }
+  function escapeHtml(s) {
+    return (s || '').toString()
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;');
+  }
+
+  /* Wiring ─ delegated click on any Report button in the lanes. */
+  document.getElementById('pk-lanes').addEventListener('click', (ev) => {
+    const btn = ev.target.closest('[data-action="digest"]');
+    if (!btn) return;
+    ev.stopPropagation();
+    const card = btn.closest('.pk-card');
+    if (!card) return;
+    open(card.dataset.projectId, card.dataset.projectTitle);
+  });
+
+  closeBtn.addEventListener('click', close);
+  backdrop.addEventListener('click', close);
+
+  drawer.querySelectorAll('[data-range]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const r = btn.dataset.range;
+      if (r === 'today')      generate('day', todayIso(), todayIso());
+      else if (r === 'week')  generate('week', weekStartIso(), todayIso());
+      else if (r === 'custom') {
+        const s = startIn.value, e = endIn.value || startIn.value;
+        if (!s) { alert('Pick a start date'); return; }
+        generate(s === e ? 'day' : 'custom', s, e);
+      }
+    });
+  });
+
+  /* Click a previous-digest row to view it without re-generating. */
+  bodyEl.addEventListener('click', async (ev) => {
+    const item = ev.target.closest('.pk-report-list-item');
+    if (!item) return;
+    const ws = item.dataset.windowStart;
+    const we = item.dataset.windowEnd;
+    const wt = item.dataset.windowType;
+    try {
+      const r = await fetch(`/api/project/${currentProjectId}/digests?limit=50`);
+      const data = await r.json();
+      const found = (data.digests || []).find(d =>
+        d.window_type === wt && d.window_start === ws && d.window_end === we
+      );
+      if (found) {
+        renderResult({
+          status: 'ok',
+          window_label: `${ws}${ws !== we ? ' → ' + we : ''}`,
+          page_count: (found.source_page_ids || []).length,
+          total_minutes: found.total_minutes,
+          generated_by: found.generated_by,
+          summary_markdown: found.summary_markdown,
+        });
+      }
+    } catch (e) { console.warn('fetch digest failed', e); }
+  });
+})();
+</script>
+
+<!-- Phase B: inline add/rename for goal-card projects + deliverables -->
+<script>
+(function() {
+  // ─── helpers ──────────────────────────────────────────────────────
+  function showError(host, message) {
+    const old = host.querySelector('.pk-pb-error');
+    if (old) old.remove();
+    const span = document.createElement('span');
+    span.className = 'pk-pb-error';
+    span.textContent = message;
+    host.appendChild(span);
+    setTimeout(() => span.remove(), 4000);
+  }
+
+  function makeInput(initial, placeholder) {
+    const inp = document.createElement('input');
+    inp.type = 'text';
+    inp.className = 'pk-pb-input';
+    inp.value = initial || '';
+    inp.placeholder = placeholder || '';
+    return inp;
+  }
+
+  // ─── inline rename ────────────────────────────────────────────────
+  document.addEventListener('click', (e) => {
+    const target = e.target.closest('.pk-pb-rename');
+    if (!target) return;
+    if (target.dataset.editing === '1') return;
+    const projectId = target.dataset.projectId;
+    if (!projectId) return;
+
+    const original = target.textContent.trim();
+    target.dataset.editing = '1';
+    const inp = makeInput(original, 'Project title');
+    target.textContent = '';
+    target.appendChild(inp);
+    inp.focus();
+    inp.select();
+
+    let settled = false;
+    const settle = async (commit) => {
+      if (settled) return;
+      settled = true;
+      const next = inp.value.trim();
+      if (!commit || !next || next === original) {
+        target.textContent = original;
+        delete target.dataset.editing;
+        return;
+      }
+      inp.classList.add('busy');
+      try {
+        const r = await fetch(`/api/pm/projects/${encodeURIComponent(projectId)}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: next }),
+        });
+        if (!r.ok) {
+          const err = await r.json().catch(() => ({}));
+          throw new Error(err.detail || `HTTP ${r.status}`);
+        }
+        target.textContent = next;
+        delete target.dataset.editing;
+      } catch (err) {
+        target.textContent = original;
+        delete target.dataset.editing;
+        const row = target.closest('.pk-goal-project-row');
+        if (row) showError(row, `rename failed: ${err.message}`);
+      }
+    };
+
+    inp.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') { ev.preventDefault(); settle(true); }
+      else if (ev.key === 'Escape') { ev.preventDefault(); settle(false); }
+    });
+    inp.addEventListener('blur', () => settle(true));
+  });
+
+  // ─── add deliverable to a project ─────────────────────────────────
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.pk-pb-add-deliv');
+    if (!btn) return;
+    const projectId = btn.dataset.projectId;
+    if (!projectId) return;
+
+    const row = btn.closest('.pk-goal-project-row');
+    const inp = makeInput('', 'Deliverable name');
+    btn.replaceWith(inp);
+    inp.focus();
+
+    let settled = false;
+    const settle = async (commit) => {
+      if (settled) return;
+      settled = true;
+      const name = inp.value.trim();
+      if (!commit || !name) {
+        inp.replaceWith(btn);
+        return;
+      }
+      inp.classList.add('busy');
+      try {
+        const r = await fetch('/api/pm/deliverables', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, project_id: projectId }),
+        });
+        if (!r.ok) {
+          const err = await r.json().catch(() => ({}));
+          throw new Error(err.detail || `HTTP ${r.status}`);
+        }
+        // Page reload pulls in the new deliverable + updated dots.
+        window.location.reload();
+      } catch (err) {
+        inp.replaceWith(btn);
+        if (row) showError(row, `add deliverable failed: ${err.message}`);
+      }
+    };
+
+    inp.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') { ev.preventDefault(); settle(true); }
+      else if (ev.key === 'Escape') { ev.preventDefault(); settle(false); }
+    });
+    inp.addEventListener('blur', () => settle(true));
+  });
+
+  // ─── add project to a goal ────────────────────────────────────────
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.pk-pb-add-project');
+    if (!btn) return;
+    const goalId = btn.dataset.goalId;
+    if (!goalId) return;
+
+    const inp = makeInput('', 'Project title');
+    btn.replaceWith(inp);
+    inp.focus();
+
+    let settled = false;
+    const settle = async (commit) => {
+      if (settled) return;
+      settled = true;
+      const title = inp.value.trim();
+      if (!commit || !title) {
+        inp.replaceWith(btn);
+        return;
+      }
+      inp.classList.add('busy');
+      try {
+        const r = await fetch('/api/pm/projects', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, goal_id: goalId }),
+        });
+        if (!r.ok) {
+          const err = await r.json().catch(() => ({}));
+          throw new Error(err.detail || `HTTP ${r.status}`);
+        }
+        window.location.reload();
+      } catch (err) {
+        inp.replaceWith(btn);
+        const host = inp.parentElement;
+        if (host) showError(host, `add project failed: ${err.message}`);
+      }
+    };
+
+    inp.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') { ev.preventDefault(); settle(true); }
+      else if (ev.key === 'Escape') { ev.preventDefault(); settle(false); }
+    });
+    inp.addEventListener('blur', () => settle(true));
+  });
 })();
 </script>
 {% endblock %}

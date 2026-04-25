@@ -121,8 +121,8 @@ gamma_session_boost_min_turns: 3
 matcher_alpha: 1.0            # semantic exponent
 matcher_beta: 1.0             # hyperbolic exponent
 matcher_gamma: 1.0            # temporal exponent
-matcher_tau_high: 0.75        # >= this → auto-surface on Goals page (is_correct = -1 pending)
-matcher_tau_low: 0.45         # < this → discard; between low..high queued for review
+matcher_tau_high: 0.75        # >= this → auto-accept match (used by Phase 1 scoring)
+matcher_tau_low: 0.45         # < this → discard; between low..high surfaces for user review
 matcher_top_n_log: 5          # trace depth written to project_work_match_log per work anchor
 matcher_temporal_decay_days: 14  # temporal score halves this many days past deadline
 matcher_poincare_max_dist: 4.0   # normalizer for hyperbolic → [0,1]; ~diameter of unit ball in curvature=1
@@ -130,6 +130,35 @@ matcher_poincare_max_dist: 4.0   # normalizer for hyperbolic → [0,1]; ~diamete
 # Match-feedback edges consumed by HGCN's feedback loss term.
 # Older thumbs are excluded because the tree has likely reshaped.
 match_feedback_max_age_days: 90
+
+# ── 30-min sync (work_pages content layer) ─────────────────────────
+# Kept separate from birth_cluster_threshold because segment-level
+# embeddings (nomic-embed-text is L2-normalized) compress typical
+# distances into ~[0.05, 0.25] — tree-node thresholds overcluster here.
+sync_cluster_threshold: 0.28      # within-sync greedy clustering of segments
+sync_append_distance: 0.15        # runner's append-vs-new decision boundary
+
+# ── Dream auto-match (Phase 9 on work_pages) ─────────────────────
+# Bootstrap gate: Dream won't auto-match until the user has manually
+# confirmed enough tags for HGCN to be better than naive similarity.
+# Below the threshold, untagged pages just sit in Unassigned.
+dream_auto_match_min_confirmed: 20  # set 0 to disable the gate
+dream_proposal_score_threshold: 0.55 # cosine similarity floor for proposing
+dream_proposal_ttl_days: 3           # proposed tag expires → archived 'stale'
+
+# ── Phase B — outcome-shaped rewrite of work_page summaries ────────
+humanize_auto_on_sync: true          # rewrite salient pages after every sync
+humanize_use_cloud: true             # prefer Gemini (needs GOOGLE_API_KEY)
+humanize_model_cloud: gemini-2.5-flash
+humanize_model_local: qwen2.5:7b     # offline fallback
+
+# ── Phase C — narrative composer ──────────────────────────────────
+narrate_auto_on_sync: true           # compose 1-4 journal stories each sync
+
+# Goals page: how many trailing days of work_pages + narratives to render.
+# 0 = today only. Default 30 shows ~last-month view (handy after a backfill);
+# set to 2 or 7 for a tighter daily-use feel once history stops growing.
+goals_recent_window_days: 30
 
 # ── Phase 3: unified value_score on every memory_node ─────────────────
 # value_score(n) = w_g·G(n) + w_f·F(n) + w_u·U(n) + w_r·R(n)
