@@ -518,6 +518,13 @@ def cmd_sync_run(args):
 
 
 @_safe_output
+def cmd_links_populate(args):
+    """D2: extract links from tracker frames, then roll up to segments."""
+    from sync.links_writer import run_links_pass
+    return run_links_pass(since=getattr(args, "since", None))
+
+
+@_safe_output
 def cmd_dream_match_pages(args):
     """Dream's gated auto-match over untagged work_pages.
 
@@ -711,6 +718,21 @@ def build_parser():
         "--date", default=None, help="Target date YYYY-MM-DD (default today)"
     )
 
+    # links subcommands (Phase D2 — populate context_2.extracted_links
+    # then roll up to context_1.segment_links).
+    links_parser = subparsers.add_parser(
+        "links", help="Links pipeline (D2): extract from frames + roll up to segments",
+    )
+    links_sub = links_parser.add_subparsers(dest="links_command")
+    links_pop_p = links_sub.add_parser(
+        "populate",
+        help="Run extractor over unscanned frames, then roll up to segments",
+    )
+    links_pop_p.add_argument(
+        "--since", default=None,
+        help="ISO timestamp; limit to frames newer than this (default: full backfill)",
+    )
+
     # dream subcommands (Phase 9 auto-match + future consolidations)
     dream_parser = subparsers.add_parser("dream", help="Dream / nightly ops")
     dream_sub = dream_parser.add_subparsers(dest="dream_command")
@@ -823,6 +845,11 @@ def main():
             cmd_sync_narrate(args)
         else:
             parser.parse_args(["sync", "--help"])
+    elif args.command == "links":
+        if args.links_command == "populate":
+            cmd_links_populate(args)
+        else:
+            parser.parse_args(["links", "--help"])
     elif args.command == "dream":
         if args.dream_command == "match-pages":
             cmd_dream_match_pages(args)

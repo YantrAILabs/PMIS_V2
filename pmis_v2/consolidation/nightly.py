@@ -84,6 +84,16 @@ class NightlyConsolidation:
         hgcn_result = self._pass_hgcn_train()
         results["hgcn"] = [hgcn_result] if hgcn_result else []
 
+        # 8b. D2 links pass — populate context_2.extracted_links then
+        #     roll up to context_1.segment_links. Sits BEFORE project
+        #     matching so D3's bindings writer (planned) sees the
+        #     segment_links column populated when it runs.
+        try:
+            from sync.links_writer import run_links_pass
+            results["links_pass"] = [run_links_pass()]
+        except Exception as e:
+            results["links_pass"] = [{"status": "error", "error": str(e)}]
+
         # 9. Project matching (tagged-session inherit + semantic for untagged).
         results["project_matches"] = self._pass_project_matching()
 
