@@ -20,6 +20,7 @@ Usage:
 import sys
 import json
 import asyncio
+import sqlite3
 import threading
 import time as _time
 from pathlib import Path
@@ -1932,6 +1933,73 @@ async def api_pm_project_update(project_id: str, payload: PMProjectUpdate):
 async def api_pm_projects():
     """List active projects (flat, for widget picker)."""
     return {"projects": _orch.db.list_projects(status="active")}
+
+
+# ─── Phase C2: deliverable section scaffold ──────────────────────────
+
+_DELIVERABLE_SLOTS = (
+    "overview", "progress", "decisions", "questions", "risks", "links",
+)
+_DELIVERABLE_SOURCES = ("user", "auto", "llm")
+
+
+class PMDeliverableSectionUpdate(BaseModel):
+    body_md: str = ""
+    source: str = "user"
+
+
+@app.put("/api/pm/deliverables/{deliverable_id}/sections/{slot}")
+async def api_pm_deliverable_section_update(
+    deliverable_id: str, slot: str,
+    payload: PMDeliverableSectionUpdate,
+):
+    """UPSERT one slot of a deliverable's 6-slot scaffold. Returns the
+    rendered HTML so the UI can swap content without a full reload."""
+    if slot not in _DELIVERABLE_SLOTS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"slot must be one of {_DELIVERABLE_SLOTS}",
+        )
+    if payload.source not in _DELIVERABLE_SOURCES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"source must be one of {_DELIVERABLE_SOURCES}",
+        )
+    if not deliverable_id:
+        raise HTTPException(status_code=400, detail="deliverable_id required")
+
+    body_md = payload.body_md or ""
+
+    conn = sqlite3.connect(_orch.db.db_path)
+    try:
+        conn.execute(
+            """INSERT INTO deliverable_sections
+               (deliverable_id, slot, body_md, source, updated_at)
+               VALUES (?, ?, ?, ?, datetime('now'))
+               ON CONFLICT(deliverable_id, slot) DO UPDATE SET
+                   body_md = excluded.body_md,
+                   source = excluded.source,
+                   updated_at = excluded.updated_at""",
+            (deliverable_id, slot, body_md, payload.source),
+        )
+        conn.commit()
+        row = conn.execute(
+            "SELECT updated_at FROM deliverable_sections "
+            "WHERE deliverable_id = ? AND slot = ?",
+            (deliverable_id, slot),
+        ).fetchone()
+    finally:
+        conn.close()
+
+    body_html = _markdown_to_html(body_md) if body_md else ""
+    return {
+        "deliverable_id": deliverable_id,
+        "slot": slot,
+        "body_md": body_md,
+        "body_html": body_html,
+        "source": payload.source,
+        "updated_at": row[0] if row else "",
+    }
 
 
 class PMQuickAddPayload(BaseModel):

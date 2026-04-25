@@ -14,6 +14,21 @@ import numpy as np
 import sqlite3
 from datetime import datetime
 from typing import Dict, List, Any, Optional, Set, Tuple
+
+
+def _section_md_to_html(body_md: str) -> str:
+    """Phase C2: render deliverable section markdown to HTML by reusing
+    server._markdown_to_html so all wiki surfaces share the same
+    converter. Lazy-imported to avoid the wiki_renderer ↔ server import
+    cycle (server imports wiki_renderer at module load)."""
+    if not body_md:
+        return ""
+    try:
+        from server import _markdown_to_html as _to_html
+        return _to_html(body_md)
+    except Exception:
+        from html import escape
+        return f"<pre>{escape(body_md)}</pre>"
 from pathlib import Path
 
 # Repo root (parent of pmis_v2/) — productivity-tracker/ lives as a sibling.
@@ -972,7 +987,14 @@ class WikiRenderer:
                 days_since_pulse = project_rp["days_dormant"]
 
                 delivs = []
-                for did in p.get("deliverable_ids", []) or []:
+                # goals.yaml stores deliverable IDs as keys of
+                # deliverable_patterns; fall back to those keys when an
+                # explicit deliverable_ids list isn't present.
+                deliv_ids = (
+                    p.get("deliverable_ids")
+                    or list((p.get("deliverable_patterns") or {}).keys())
+                )
+                for did in deliv_ids:
                     d_meta = deliv_ix.get(did, {})
                     # Per-deliverable patterns fall back to project-level
                     d_patterns = per_deliv_patterns.get(did) or patterns
@@ -1053,6 +1075,60 @@ class WikiRenderer:
     def render_pm_projects(self) -> Dict:
         return self._render_pm_projects()
 
+    # Phase C2: fixed scaffold for deliverable pages. Order matters —
+    # the template renders slots in this sequence.
+    DELIVERABLE_SLOT_ORDER: Tuple[str, ...] = (
+        "overview", "progress", "decisions", "questions", "risks", "links",
+    )
+
+    DELIVERABLE_SLOT_LABELS: Dict[str, str] = {
+        "overview": "Overview",
+        "progress": "Progress",
+        "decisions": "Decisions",
+        "questions": "Open questions",
+        "risks": "Risks",
+        "links": "Contributing links",
+    }
+
+    def load_deliverable_sections(
+        self, deliverable_id: str,
+    ) -> Dict[str, Dict[str, Any]]:
+        """Return the 6-slot scaffold for `deliverable_id`. Always
+        returns every slot — missing rows surface as empty bodies so
+        the template doesn't have to handle absence per-slot."""
+        rows: Dict[str, Dict[str, Any]] = {}
+        try:
+            cursor = self.db._conn.execute(
+                "SELECT slot, body_md, source, updated_at "
+                "FROM deliverable_sections WHERE deliverable_id = ?",
+                (deliverable_id,),
+            )
+            for r in cursor.fetchall():
+                slot = r[0]
+                if slot in self.DELIVERABLE_SLOT_LABELS:
+                    rows[slot] = {
+                        "body_md": r[1] or "",
+                        "source": r[2] or "auto",
+                        "updated_at": r[3] or "",
+                    }
+        except Exception:
+            logger.exception("load_deliverable_sections failed")
+
+        out: Dict[str, Dict[str, Any]] = {}
+        for slot in self.DELIVERABLE_SLOT_ORDER:
+            saved = rows.get(slot, {})
+            body_md = saved.get("body_md", "")
+            out[slot] = {
+                "slot": slot,
+                "label": self.DELIVERABLE_SLOT_LABELS[slot],
+                "body_md": body_md,
+                "body_html": _section_md_to_html(body_md) if body_md else "",
+                "source": saved.get("source", "auto"),
+                "updated_at": saved.get("updated_at", ""),
+                "is_empty": not bool(body_md.strip()),
+            }
+        return out
+
     def render_project_detail(
         self, project_id: str, deliverable_id: Optional[str] = None,
     ) -> Optional[Dict]:
@@ -1091,11 +1167,22 @@ class WikiRenderer:
                 None,
             )
 
+        # Phase C2: load the 6-slot scaffold for the selected deliverable.
+        # Only when one is actually selected — the project Overview state
+        # doesn't have its own sections (yet).
+        sections: Dict[str, Dict[str, Any]] = {}
+        section_order: Tuple[str, ...] = ()
+        if selected and selected.get("id"):
+            sections = self.load_deliverable_sections(selected["id"])
+            section_order = self.DELIVERABLE_SLOT_ORDER
+
         return {
             "project": project,
             "deliverables": deliverables,
             "selected_deliverable": selected,
             "selected_deliverable_id": deliverable_id or "",
+            "sections": sections,
+            "section_order": list(section_order),
             "parent_goal": ({
                 "id": parent_goal.get("id"),
                 "title": parent_goal.get("title", ""),

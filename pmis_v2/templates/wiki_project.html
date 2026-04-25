@@ -111,6 +111,91 @@
     font-size: 12px;
   }
 
+  /* ─── C2: Overall/Daily toggle + 6-slot scaffold ─── */
+  .pjd-view-toggle {
+    display: inline-flex;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    margin-top: 12px;
+    font-size: 12px;
+  }
+  .pjd-view-toggle a {
+    padding: 4px 14px;
+    color: var(--fg3);
+    text-decoration: none;
+    border-right: 1px solid var(--border);
+  }
+  .pjd-view-toggle a:last-child { border-right: none; }
+  .pjd-view-toggle a:hover { background: var(--bg2); color: var(--fg); text-decoration: none; }
+  .pjd-view-toggle a.active {
+    background: var(--bg3); color: var(--fg); font-weight: 600;
+  }
+
+  .pjd-section { margin-top: 28px; }
+  .pjd-section-head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    border-bottom: 1px solid var(--bg3);
+    padding-bottom: 4px;
+    margin-bottom: 10px;
+  }
+  .pjd-section-head h3 {
+    font-size: 14px; font-weight: 600; color: var(--fg);
+    margin: 0; padding: 0; text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .pjd-section-meta {
+    font-size: 11px; color: var(--fg3);
+  }
+  .pjd-section-edit {
+    background: transparent; border: none; cursor: pointer;
+    color: var(--fg3); font-size: 11px; padding: 0 0 0 8px;
+    margin-left: 8px;
+  }
+  .pjd-section-edit:hover { color: var(--accent); }
+  .pjd-section-body { font-size: 14px; color: var(--fg2); line-height: 1.7; }
+  .pjd-section-body h2 { font-size: 16px; margin: 12px 0 6px; padding: 0; border: none; }
+  .pjd-section-body h3 { font-size: 14px; margin: 10px 0 4px; }
+  .pjd-section-body p { margin: 4px 0 8px; }
+  .pjd-section-empty {
+    color: var(--fg3); font-style: italic; font-size: 13px;
+    padding: 6px 0;
+  }
+  .pjd-section-empty a { color: var(--fg3); text-decoration: underline; cursor: pointer; }
+  .pjd-section-empty a:hover { color: var(--accent); }
+
+  .pjd-edit-area {
+    width: 100%; min-height: 140px;
+    padding: 8px 10px;
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    font-family: inherit; font-size: 13px;
+    line-height: 1.6; resize: vertical;
+  }
+  .pjd-edit-actions {
+    margin-top: 6px; display: flex; gap: 8px; align-items: center;
+  }
+  .pjd-edit-actions button {
+    background: var(--accent); color: white; border: none;
+    padding: 4px 12px; border-radius: 4px; cursor: pointer;
+    font-size: 12px;
+  }
+  .pjd-edit-actions button.cancel {
+    background: transparent; color: var(--fg3); border: 1px solid var(--border);
+  }
+  .pjd-edit-error { color: #ef4444; font-size: 11px; }
+
+  .pjd-daily-stub {
+    margin-top: 24px;
+    padding: 32px 24px;
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    color: var(--fg3);
+    font-size: 13px;
+    text-align: center;
+  }
+  .pjd-daily-stub strong { color: var(--fg2); }
+
   /* ─── rail ─── */
   .pjd-rail {
     position: sticky; top: 80px;
@@ -186,12 +271,42 @@
         {% endif %}
         {% if selected_deliverable.alive %} · alive{% endif %}
       </div>
+      <div class="pjd-view-toggle" id="pjd-view-toggle">
+        <a href="?view=overall" class="pjd-view-overall active" data-view="overall">Overall</a>
+        <a href="?view=daily" class="pjd-view-daily" data-view="daily">Daily</a>
+      </div>
     </section>
-    <div class="pjd-placeholder">
-      <strong>Deliverable scaffold lands in C2.</strong>
-      Six sections (Overview · Progress · Decisions · Open questions · Risks · Contributing links)
-      will fill from the <code>deliverable_sections</code> table (Phase A) and the
-      tree-prose renderer from F5a.
+
+    <div id="pjd-overall-pane">
+      {% for slot in section_order %}
+        {% set s = sections[slot] %}
+        <section class="pjd-section" data-deliverable-id="{{ selected_deliverable.id }}" data-slot="{{ slot }}">
+          <div class="pjd-section-head">
+            <h3>{{ s.label }}</h3>
+            <div>
+              {% if s.updated_at %}<span class="pjd-section-meta">edited {{ s.updated_at[:10] }} · {{ s.source }}</span>{% endif %}
+              <button class="pjd-section-edit" data-slot="{{ slot }}">edit</button>
+            </div>
+          </div>
+          <div class="pjd-section-body" data-slot-body="{{ slot }}">
+            {% if s.is_empty %}
+              <div class="pjd-section-empty">
+                <a class="pjd-section-edit-empty" data-slot="{{ slot }}">Click to add</a>
+              </div>
+            {% else %}
+              {{ s.body_html|safe }}
+            {% endif %}
+          </div>
+        </section>
+      {% endfor %}
+    </div>
+
+    <div id="pjd-daily-pane" style="display:none;">
+      <div class="pjd-daily-stub">
+        <strong>Daily view arrives in Phase E.</strong><br>
+        Today's auto-tagged work with ✓/✗ + the composed daily summary
+        with contributing links and minutes will land here.
+      </div>
     </div>
     {% else %}
     <section class="pjd-deliv-header">
@@ -201,7 +316,6 @@
     <div class="pjd-placeholder">
       <strong>This project has no deliverables yet.</strong>
       Click <em>+ Add deliverable</em> in the sidebar to create the first one.
-      Deliverable detail pages arrive in C2.
     </div>
     {% endif %}
   </main>
@@ -245,6 +359,125 @@
 
 <script>
 (function() {
+  // ─── C2: Overall ⇄ Daily toggle (URL-driven, shareable) ─────────
+  function applyView() {
+    const view = new URLSearchParams(window.location.search).get('view') === 'daily'
+      ? 'daily' : 'overall';
+    const overall = document.getElementById('pjd-overall-pane');
+    const daily = document.getElementById('pjd-daily-pane');
+    if (overall) overall.style.display = view === 'overall' ? '' : 'none';
+    if (daily) daily.style.display = view === 'daily' ? '' : 'none';
+    document.querySelectorAll('#pjd-view-toggle a').forEach(a => {
+      a.classList.toggle('active', a.dataset.view === view);
+    });
+  }
+  applyView();
+
+  // ─── C2: inline edit a deliverable section ──────────────────────
+  function findSection(slot) {
+    return document.querySelector(`.pjd-section[data-slot="${slot}"]`);
+  }
+
+  function openEditor(slot) {
+    const section = findSection(slot);
+    if (!section) return;
+    if (section.dataset.editing === '1') return;
+    section.dataset.editing = '1';
+
+    const body = section.querySelector('[data-slot-body]');
+    const deliverableId = section.dataset.deliverableId;
+    const currentMd = section.dataset.bodyMd || body.dataset.md || '';
+
+    // Read raw markdown via a fetch-on-demand isn't available — we
+    // stash the original on first edit by reading the rendered HTML's
+    // text. For typical short sections this round-trips well enough;
+    // power users can re-edit after save once the textarea has the
+    // server-canonical body_md.
+    const initialMd = section.dataset.bodyMd
+      || (body.textContent || '').trim()
+      || '';
+
+    const ta = document.createElement('textarea');
+    ta.className = 'pjd-edit-area';
+    ta.value = initialMd === 'Click to add' ? '' : initialMd;
+    ta.placeholder = 'Markdown — ## Heading, **bold**, *italic*, [text](url)';
+
+    const actions = document.createElement('div');
+    actions.className = 'pjd-edit-actions';
+    const save = document.createElement('button');
+    save.textContent = 'Save';
+    const cancel = document.createElement('button');
+    cancel.className = 'cancel';
+    cancel.textContent = 'Cancel';
+    const err = document.createElement('span');
+    err.className = 'pjd-edit-error';
+    actions.append(save, cancel, err);
+
+    const restore = (newHtml, newMd, updatedAt) => {
+      delete section.dataset.editing;
+      if (newHtml === undefined) {
+        // user cancelled — re-render from whatever was there before
+        body.innerHTML = body.dataset.savedHtml || body.innerHTML;
+        return;
+      }
+      section.dataset.bodyMd = newMd || '';
+      body.dataset.savedHtml = newHtml;
+      if (newMd && newMd.trim()) {
+        body.innerHTML = newHtml;
+      } else {
+        body.innerHTML = '<div class="pjd-section-empty"><a class="pjd-section-edit-empty" data-slot="' + slot + '">Click to add</a></div>';
+      }
+      // Bump the meta line if it exists
+      const metaSpan = section.querySelector('.pjd-section-meta');
+      if (metaSpan && updatedAt) {
+        metaSpan.textContent = 'edited ' + updatedAt.slice(0, 10) + ' · user';
+      }
+    };
+
+    body.dataset.savedHtml = body.innerHTML;
+    body.innerHTML = '';
+    body.append(ta, actions);
+    ta.focus();
+    ta.setSelectionRange(ta.value.length, ta.value.length);
+
+    cancel.addEventListener('click', () => restore());
+    save.addEventListener('click', async () => {
+      save.disabled = true;
+      cancel.disabled = true;
+      err.textContent = '';
+      try {
+        const r = await fetch(
+          `/api/pm/deliverables/${encodeURIComponent(deliverableId)}/sections/${encodeURIComponent(slot)}`,
+          {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ body_md: ta.value, source: 'user' }),
+          },
+        );
+        if (!r.ok) {
+          const j = await r.json().catch(() => ({}));
+          throw new Error(j.detail || `HTTP ${r.status}`);
+        }
+        const j = await r.json();
+        restore(j.body_html || '', j.body_md || '', j.updated_at || '');
+      } catch (e) {
+        err.textContent = e.message;
+        save.disabled = false;
+        cancel.disabled = false;
+      }
+    });
+    ta.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Escape') { ev.preventDefault(); restore(); }
+    });
+  }
+
+  document.addEventListener('click', (e) => {
+    const editBtn = e.target.closest('.pjd-section-edit, .pjd-section-edit-empty');
+    if (!editBtn) return;
+    e.preventDefault();
+    openEditor(editBtn.dataset.slot);
+  });
+
   // Reuse the Phase B "+ Add deliverable" pattern: button → input → POST → reload.
   document.addEventListener('click', (e) => {
     const btn = e.target.closest('.pjd-side-add');
